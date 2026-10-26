@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Đăng nhập — Bảng điều khiển bot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="login-shell">
+  <div class="login-card">
+    <h1>Bảng điều khiển bot</h1>
+    <p class="lead">Tài khoản do quản trị viên cấp.</p>
+
+    <div class="note" id="note"></div>
+
+    <form id="form">
+      <div class="field">
+        <label for="u">Tên đăng nhập</label>
+        <input type="text" id="u" name="username" autocomplete="username" autocapitalize="off" required>
+      </div>
+      <div class="field">
+        <label for="p">Mật khẩu</label>
+        <input type="password" id="p" name="password" autocomplete="current-password" required>
+      </div>
+      <button class="primary wide" type="submit" id="btn">Đăng nhập</button>
+    </form>
+
+    <p id="signupLine" hidden style="margin-top:1.2rem;font-size:0.85rem;color:var(--dim)">
+      Chưa có tài khoản? <a href="/register.html">Tạo tài khoản</a>
+    </p>
+  </div>
+</main>
+
+<script>
+const note = document.getElementById("note");
+
+fetch("/api/public").then(r => r.json()).then(d => {
+  if (d.signupOpen) document.getElementById("signupLine").hidden = false;
+}).catch(() => {});
+document.getElementById("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("btn");
+  btn.disabled = true;
+  note.className = "note";
+  note.textContent = "";
+  try {
+    const r = await fetch("/api/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        username: document.getElementById("u").value,
+        password: document.getElementById("p").value,
+      }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || "Đăng nhập thất bại");
+    location.href = "/dashboard.html";
+  } catch (err) {
+    note.className = "note bad";
+    note.textContent = err.message;
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

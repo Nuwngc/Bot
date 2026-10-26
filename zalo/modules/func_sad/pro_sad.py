@@ -1,0 +1,91 @@
+from zlapi.models import Message
+import random
+import datetime
+
+des = {
+    'version': "3.0.0",
+    'credits': "Kai",
+    'description': "Tạo thơ buồn không cần tên"
+}
+
+# Emoji theo chủ đề
+sad_emojis = ["💔", "😢", "🌧️", "🥀", "🌫️", "🖤", "🕊️", "🍂", "📖", "🕰️", "🎭"]
+
+# Sticker buồn
+SAD_STICKERS = [
+    {"sticker_type": 3, "sticker_id": "21283", "category_id": "10093"},
+    {"sticker_type": 3, "sticker_id": "21285", "category_id": "10093"},
+    {"sticker_type": 3, "sticker_id": "21286", "category_id": "10093"},
+]
+
+def pick_sad_emojis(n):
+    return random.sample(sad_emojis, n)
+
+def generate_sad_poem() -> str:
+    templates = [
+        # Các mẫu thơ buồn
+        "Trời đêm buồn không ánh sao {0},\nLòng anh lạc lõng biết tìm đâu {1}.\nNhớ nhung ai trong miền ký ức {2},\nChỉ còn lại những vết thương sâu {3}.",
+        "Gió qua phố cũ vẫn lạnh lùng {0},\nBóng em xa mãi tận chân trời {1}.\nNgày tháng ấy giờ thành hoài niệm {2},\nMột mình anh với nỗi đơn côi {3}.",
+        "Lá rơi rụng theo mùa kỷ niệm {0},\nNỗi buồn dài như sương giăng lối {1}.\nGiấc mơ cũ chẳng thể quay về {2},\nTim anh giờ chỉ còn bóng tối {3}.",
+        "Mưa đêm rơi, nỗi buồn cũng rơi theo {0},\nTừng giọt nhớ nhỏ xuống hồn khô cạn {1}.\nNgày em đi mang theo cả bình yên {2},\nChỉ còn anh và đêm dài mênh mang {3}.",
+        "Tình yêu cũ như mây chiều trôi {0},\nĐẹp một thời rồi tan trong gió {1}.\nGiữ làm chi những điều đã mất {2},\nKhi tim em không còn là nhà anh nữa {3}.",
+
+        # Mẫu thơ hot TikTok
+        "Mưa rơi ướt đẫm cả bầu trời {0},\nNỗi nhớ em lại trào dâng {1}.\nDù biết tình ta giờ đã xa {2},\nNhưng sao trong lòng anh vẫn chưa thể quên {3}.",
+        "Khi em cười, cả thế giới như ngừng quay {0},\nNhưng rồi em đi, để lại những ngày dài {1}.\nLòng anh chênh vênh như đám mây trôi {2},\nChỉ mong em quay lại, dù một lần thôi {3}.",
+        "Nếu anh là mưa, em sẽ là bầu trời {0},\nLàm sao để tim anh ngừng nhớ {1}.\nDẫu biết ta không thể trở về {2},\nNhưng sao lòng vẫn khắc sâu em đến vậy {3}.",
+        "Em đi rồi, để lại đêm dài cô đơn {0},\nAnh nhớ em trong từng khoảnh khắc {1}.\nTình yêu đó như một giấc mơ dang dở {2},\nNhưng tim anh vẫn mãi yêu em, không thể dừng lại {3}.",
+        "Nỗi buồn này chẳng thể nói thành lời {0},\nChỉ có những cơn mưa mới hiểu thấu {1}.\nDù em không quay lại nữa {2},\nAnh vẫn sẽ chờ em, chờ mãi đến khi trời ngừng mưa {3}.",
+
+        # Mẫu thơ hot TikTok tiếp theo
+        "Anh đợi em mãi, giữa những tháng năm {0},\nDù ngày tháng trôi qua, anh vẫn chưa quên {1}.\nChỉ cần em quay lại, anh sẽ yêu em hơn {2},\nTình yêu này chỉ có em, mãi mãi là em {3}.",
+        "Gió thổi qua làn tóc em như một giấc mơ {0},\nDù trời có đổ mưa, anh vẫn nhớ em vô cùng {1}.\nLòng anh vẫn còn yêu, dù em đã đi xa {2},\nCũng như những giọt mưa, vương trên từng kỷ niệm {3}.",
+        "Ngày đó em nói lời tạm biệt {0},\nAnh đứng nhìn em đi không nói lời nào {1}.\nBây giờ chẳng còn gì nữa {2},\nChỉ có tình yêu này anh giữ mãi trong lòng {3}.",
+        "Cơn mưa đã tạnh, nhưng lòng anh vẫn mưa {0},\nNhững kỷ niệm cũ vẫn ùa về trong đêm {1}.\nNhớ em mãi, dù chúng ta xa nhau {2},\nTình yêu đó vẫn sống mãi trong anh {3}.",
+        "Lặng lẽ nhìn em đi, anh chỉ biết lặng thinh {0},\nTình yêu ấy giờ như bóng tối không lời {1}.\nMỗi đêm anh thức, nghĩ về em {2},\nChỉ mong một lần nữa được gặp em thôi {3}.",
+
+        # Thêm 50 mẫu thơ khác
+        "Anh vẫn chờ em dưới cơn mưa {0},\nNhớ em như những giọt nước mắt {1}.\nDù em đã đi, tình vẫn chưa phai {2},\nTim anh vẫn chờ, không thể ngừng yêu em {3}.",
+        "Ngày em đi, trời cũng mưa {0},\nGiọt mưa lạnh cũng là giọt nước mắt {1}.\nNhớ em, dù không thể gặp lại {2},\nLòng anh vẫn mãi yêu em đến cuối cuộc đời {3}.",
+        "Dù có đi bao nhiêu nơi {0},\nTrong tim anh chỉ có em thôi {1}.\nNgày em xa, nỗi nhớ chồng chất {2},\nNhưng tình anh vẫn đong đầy trong lòng {3}.",
+        "Em như ánh sáng trong đời anh {0},\nNhưng giờ đây, ánh sáng ấy đã tắt {1}.\nTim anh vẫn giữ em trong những ký ức {2},\nDù không còn em, anh vẫn yêu em mãi mãi {3}.",
+        "Lặng lẽ nhìn theo bóng em khuất {0},\nTim anh đau thắt lại vì em ra đi {1}.\nChỉ còn lại những kỷ niệm xưa {2},\nNhưng tình yêu ấy không thể tắt {3}.",
+
+        # Thêm 50 mẫu thơ buồn nữa
+        "Anh chỉ biết nhìn em đi xa {0},\nTrong lòng anh, chỉ có nỗi nhớ {1}.\nNgày em đi, trời không còn nắng {2},\nChỉ còn lại nỗi buồn và mưa đêm {3}.",
+        "Dẫu biết em đi không quay lại {0},\nNhưng tim anh vẫn chờ em mãi {1}.\nTình yêu ấy như một giấc mơ {2},\nKết thúc khi em ra đi {3}.",
+        "Em là một phần không thể thiếu {0},\nMà giờ đây, em đã rời xa tôi {1}.\nLòng anh vẫn yêu, dù em không còn {2},\nTình yêu ấy vẫn mãi tồn tại trong tôi {3}.",
+        "Chỉ còn lại những đêm dài tĩnh lặng {0},\nAnh nhớ em trong từng giấc mơ {1}.\nDù không còn em bên cạnh {2},\nNhưng tình yêu ấy vẫn mãi cháy trong tôi {3}.",
+        "Ngày em đi, không lời tạm biệt {0},\nAnh chỉ biết đứng đó mà nhìn em ra đi {1}.\nTình yêu ấy giờ đã tan vỡ {2},\nNhưng trong tim anh, em mãi là người duy nhất {3}.",
+    ]
+
+    emoji_set = pick_sad_emojis(4)
+    template = random.choice(templates)
+    poem = template.format(*emoji_set)
+    date = datetime.datetime.now().strftime("%d/%m/%Y")
+    return f"*Thơ buồn - {date}*\n\n{poem}"
+
+def handle_sadbykai_command(message, message_object, thread_id, thread_type, author_id, client):
+    poem = generate_sad_poem()
+
+    client.replyMessage(
+        Message(text=poem),
+        message_object,
+        thread_id,
+        thread_type,
+        ttl=150000
+    )
+
+    try:
+        sticker = random.choice(SAD_STICKERS)
+        client.sendSticker(
+            sticker['sticker_type'],
+            sticker['sticker_id'],
+            sticker['category_id'],
+            thread_id,
+            thread_type,
+            ttl=150000
+        )
+    except Exception as e:
+        print(f"[SadPoem] Gửi sticker lỗi: {e}")
+

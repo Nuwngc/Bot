@@ -1,0 +1,52 @@
+[
+    {
+        "code": "code_944630",
+        "coin_amount": 100000,
+        "code_uses": 6
+    },
+    {
+        "code": "code_516281",
+        "coin_amount": 1000000,
+        "code_uses": 97
+    },
+    {
+        "code": "code_526801",
+        "coin_amount": 1000000000,
+        "code_uses": 4
+    },
+    {
+        "code": "code_586412",
+        "coin_amount": 1000000000,
+        "code_uses": 4
+    },
+    {
+        "code": "code_106742",
+        "coin_amount": 1,
+        "code_uses": 1
+    },
+    {
+        "code": "code_178389",
+        "coin_amount": 1000000000000000,
+        "code_uses": 0
+    },
+    {
+        "code": "code_527266",
+        "coin_amount": 100000,
+        "code_uses": 0
+    },
+    {
+        "code": "code_936796",
+        "coin_amount": 3600,
+        "code_uses": 1
+    },
+    {
+        "code": "code_644368",
+        "coin_amount": 1000000,
+        "code_uses": 1
+    },
+    {
+        "code": "code_239362",
+        "coin_amount": 10000000000000,
+        "code_uses": 0
+    }
+]

@@ -1,0 +1,212 @@
+[
+    {
+        "user_id": "4224213697684141041",
+        "user_name": "Tr\u1ea7n Nguy\u00ean",
+        "coins": 3600,
+        "bet_coins": 1800,
+        "wins": 2,
+        "losses": 0,
+        "used_codes": [],
+        "last_bet_time": "2025-02-23 20:13:05"
+    },
+    {
+        "user_id": "6719933994368387372",
+        "user_name": "Tuan Cuong",
+        "coins": 1000,
+        "bet_coins": 2000,
+        "wins": 1,
+        "losses": 1,
+        "used_codes": [],
+        "last_bet_time": "2025-02-24 18:28:53"
+    },
+    {
+        "user_id": "479050711867871137",
+        "user_name": "Tr\u1ea7n Nguy\u00ean",
+        "coins": 6000,
+        "bet_coins": 25620,
+        "wins": 20,
+        "losses": 7,
+        "used_codes": [],
+        "last_bet_time": "2025-04-12 14:13:43",
+        "last_daily": "2025-04-12",
+        "history": [
+            "x\u1ec9u",
+            "t\u00e0i",
+            "x\u1ec9u",
+            "\u26ab"
+        ],
+        "bet_history": [
+            "t\u00e0i",
+            "t\u00e0i",
+            "t\u00e0i",
+            "t\u00e0i",
+            "t\u00e0i",
+            "t\u00e0i",
+            "t\u00e0i",
+            "t\u00e0i",
+            "t\u00e0i",
+            "x\u1ec9u",
+            "t\u00e0i",
+            "x\u1ec9u",
+            "t\u00e0i",
+            "x\u1ec9u",
+            "t\u00e0i",
+            "x\u1ec9u",
+            "t\u00e0i",
+            "x\u1ec9u",
+            "x\u1ec9u",
+            "x\u1ec9u"
+        ],
+        "streak_count": 1,
+        "last_result": "t\u00e0i",
+        "one_one_count": 0,
+        "bet_mode": "consecutive",
+        "consecutive_count": 1,
+        "bet_streak": [
+            "\u26ab",
+            "\u26ab",
+            "\u26aa",
+            "\u26aa",
+            "\u26ab",
+            "\u26ab",
+            "\u26ab",
+            "\u26aa",
+            "\u26ab",
+            "\u26aa"
+        ]
+    },
+    {
+        "user_id": "845235496348769726",
+        "user_name": "\ud801\ude5a",
+        "coins": 0,
+        "bet_coins": 1000,
+        "wins": 0,
+        "losses": 1,
+        "used_codes": [],
+        "last_bet_time": "2025-03-02 20:18:56"
+    },
+    {
+        "user_id": "7476119811790621636",
+        "user_name": "Nguyen Tuan Em",
+        "coins": 10100,
+        "bet_coins": 108100,
+        "wins": 6,
+        "losses": 2,
+        "used_codes": [],
+        "last_bet_time": "2025-04-06 01:47:13",
+        "last_daily": "2025-04-06"
+    },
+    {
+        "user_id": "197287590131094200",
+        "user_name": "Off",
+        "coins": 1000,
+        "bet_coins": 0,
+        "wins": 0,
+        "losses": 0,
+        "used_codes": []
+    },
+    {
+        "user_id": "786945532468239405",
+        "user_name": "Gk\ud83e\ude76\ud83e\ude90 \u2049",
+        "coins": "V\u00f4 H\u1ea1n",
+        "bet_coins": 0,
+        "wins": 0,
+        "losses": 0,
+        "used_codes": [],
+        "bet_streak": [
+            "\u26ab"
+        ],
+        "last_bet_time": "2025-04-12 15:36:34"
+    },
+    {
+        "user_id": "6213162973823603455",
+        "user_name": "Linh M\u00e1t Cha",
+        "coins": 992989896900004,
+        "bet_coins": 0,
+        "wins": 0,
+        "losses": 0,
+        "used_codes": [
+            "code_178389"
+        ],
+        "bet_streak": [
+            "\u26ab",
+            "\u26ab",
+            "\u26aa",
+            "\u26aa"
+        ],
+        "last_bet_time": "2025-04-12 15:49:51"
+    },
+    {
+        "user_id": "1691932003695329662",
+        "user_name": "Gk\ud83e\ude76\ud83e\ude90 \u2049",
+        "coins": "V\u00f4 H\u1ea1n",
+        "bet_coins": 0,
+        "wins": 0,
+        "losses": 0,
+        "used_codes": []
+    },
+    {
+        "user_id": "1960429156062843634",
+        "user_name": "Tr\u1ea7n Nguy\u00ean",
+        "coins": 1000000000001000,
+        "bet_coins": 0,
+        "wins": 0,
+        "losses": 0,
+        "used_codes": [
+            "code_178389"
+        ]
+    },
+    {
+        "user_id": "5557303793126932059",
+        "user_name": "Linh",
+        "coins": 4000000,
+        "bet_coins": 0,
+        "wins": 0,
+        "losses": 0,
+        "used_codes": [
+            "code_527266",
+            "code_644368"
+        ],
+        "last_daily": "2026-02-11",
+        "last_bet_time": "2026-02-11 16:08:41"
+    },
+    {
+        "user_id": "7600148794580646973",
+        "user_name": "Minh Qu\u00e2n",
+        "coins": 100000000000000,
+        "bet_coins": 0,
+        "wins": 0,
+        "losses": 0,
+        "used_codes": [
+            "code_527266",
+            "code_644368"
+        ],
+        "last_bet_time": "2026-01-10 19:45:39",
+        "last_daily": "2026-01-10"
+    },
+    {
+        "user_id": "2513135431774367396",
+        "user_name": "Nguy\u1ec5n Ho\u00e0ng Anh",
+        "coins": 10000000000000000000000000000,
+        "bet_coins": 0,
+        "wins": 0,
+        "losses": 0,
+        "used_codes": [
+            "code_527266"
+        ],
+        "last_daily": "2025-12-28",
+        "last_bet_time": "2026-01-23 09:38:28"
+    },
+    {
+        "user_id": "714468818361569198",
+        "user_name": "Ph\u01b0\u01a1ng Duy",
+        "coins": 9999020004000,
+        "bet_coins": 0,
+        "wins": 0,
+        "losses": 0,
+        "used_codes": [
+            "code_239362"
+        ],
+        "last_daily": "2025-12-28"
+    }
+]

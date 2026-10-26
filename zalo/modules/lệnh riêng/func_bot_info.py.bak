@@ -1,0 +1,1811 @@
+from io import BytesIO
+import json
+import os
+import random
+import re
+import string
+import threading
+import time
+from typing import List, Tuple
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+import emoji
+import requests
+from zlapi.models import *
+from config import *
+
+SETTING_FILE = 'setting.json'
+CONFIG_FILE = 'config.json'
+
+
+def load_message_log():
+    """Đọc thông tin tin nhắn từ file settings.json."""
+    try:
+        with open(SETTING_FILE, 'r', encoding='utf-8') as f:
+            settings = json.load(f)
+            return settings.get("message_log", {})
+    except FileNotFoundError:
+        return {}
+
+def save_message_log(message_log):
+    """Lưu thông tin tin nhắn vào file settings.json."""
+    try:
+        with open(SETTING_FILE, 'r', encoding='utf-8') as f:
+            settings = json.load(f)
+    except FileNotFoundError:
+        settings = {}
+
+
+    settings["message_log"] = message_log
+    
+    with open(SETTING_FILE, 'w', encoding='utf-8') as f:
+        json.dump(settings, f, ensure_ascii=False, indent=4)
+
+
+
+def get_content_message(message_object):
+
+    if message_object.msgType == 'chat.sticker':
+        return ""
+    
+
+    content = message_object.content
+    
+
+    if isinstance(content, dict) and 'title' in content:
+        
+        text_to_check = content['title']
+    else:
+       
+        text_to_check = content if isinstance(content, str) else ""
+    return text_to_check
+
+def is_url_in_message(message_object):
+ 
+    if message_object.msgType == 'chat.sticker':
+        return False
+    
+  
+    content = message_object.content
+    
+ 
+    if isinstance(content, dict) and 'title' in content:
+
+        text_to_check = content['title']
+    else:
+  
+        text_to_check = content if isinstance(content, str) else ""
+    
+
+    url_regex = re.compile(
+        r'http[s]?://' 
+        r'(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|' 
+        r'(?:%[0-9a-fA-F][0-9a-fA-F]))+'  
+    )
+   
+    if re.search(url_regex, text_to_check):
+        return True
+    
+    return False
+
+def read_settings():
+    """Đọc toàn bộ nội dung từ file JSON."""
+    try:
+        with open(SETTING_FILE, 'r', encoding='utf-8') as file:
+            return json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def write_settings(settings):
+    """Ghi toàn bộ nội dung vào file JSON."""
+    with open(SETTING_FILE, 'w', encoding='utf-8') as file:
+        json.dump(settings, file, ensure_ascii=False, indent=4)
+
+def load_config():
+    """Đọc cấu hình từ file JSON và trả về các giá trị cấu hình."""
+    try:
+        with open(CONFIG_FILE, 'r') as file:
+            config = json.load(file)
+            imei = config.get('imei')
+            session_cookies = config.get('cookies')
+            return imei, session_cookies
+    except FileNotFoundError:
+        print(f"Error: File {CONFIG_FILE} not found.")
+        return None, None
+    except json.JSONDecodeError:
+        print(f"Error: File {CONFIG_FILE} contains invalid JSON.")
+        return None, None
+
+def is_admin(author_id):
+    settings = read_settings()
+    admin_bot = settings.get("admin_bot", [])
+    if author_id in admin_bot:
+        return True
+    else:
+        return False
+
+def handle_bot_admin(bot):
+    settings = read_settings()
+    admin_bot = settings.get("admin_bot", [])
+    if bot.uid not in admin_bot:
+        admin_bot.append(bot.uid)
+        settings['admin_bot'] = admin_bot
+        write_settings(settings)
+        print(f"Đã thêm 👑{get_user_name_by_id(bot, bot.uid)} 🆔 {bot.uid} cho lần đầu tiên khởi động vào danh sách Admin 🤖BOT ✅")
+
+
+def get_allowed_thread_ids():
+    """Lấy danh sách các thread ID được phép từ setting.json."""
+    settings = read_settings()
+    return settings.get('allowed_thread_ids', [])
+
+def bot_on_group(bot, thread_id):
+    try:
+        settings = read_settings()
+        allowed_thread_ids = settings.get('allowed_thread_ids', [])
+        group = bot.fetchGroupInfo(thread_id).gridInfoMap[thread_id]
+
+        if thread_id not in allowed_thread_ids:
+            allowed_thread_ids.append(thread_id)
+            settings['allowed_thread_ids'] = allowed_thread_ids
+            write_settings(settings)
+
+            return f"[🤖BOT {bot.me_name} {bot.version}] đã được bật trong Group: {group.name} - ID: {thread_id}\n➜ Gõ lệnh ➡️ /help hoặc {prefix}bot để xem danh sách tính năng BOT💡"
+    except Exception as e:
+        print(f"Error: {e}")
+        return "Đã xảy ra lỗi gì đó🤧"
+
+def bot_off_group(bot, thread_id):
+    try:
+        settings = read_settings()
+        allowed_thread_ids = settings.get('allowed_thread_ids', [])
+        group = bot.fetchGroupInfo(thread_id).gridInfoMap[thread_id]
+
+        if thread_id in allowed_thread_ids:
+            allowed_thread_ids.remove(thread_id)
+            settings['allowed_thread_ids'] = allowed_thread_ids
+            write_settings(settings)
+
+            return f"[🤖BOT {bot.me_name} {bot.version}] đã được tắt trong Group: {group.name} - ID: {thread_id}\n➜ Chào tạm biệt chúc bạn luôn may mắn🍀"
+    except Exception as e:
+        print(f"Error: {e}")
+        return "Đã xảy ra lỗi gì đó🤧"
+
+def add_forbidden_word(word):
+    """Thêm một từ vào danh sách từ ngữ cấm."""
+    settings = read_settings()
+    forbidden_words = settings.get('forbidden_words', [])
+    
+    if word not in forbidden_words:
+        forbidden_words.append(word)
+        settings['forbidden_words'] = forbidden_words
+        write_settings(settings)
+        return f"➜ Từ '{word}' đã được thêm vào danh sách từ cấm ✅"
+    else:
+        return f"➜ Từ '{word}' đã tồn tại trong danh sách từ cấm 🤧"
+
+def remove_forbidden_word(word):
+    """Xóa một từ khỏi danh sách từ ngữ cấm."""
+    settings = read_settings()
+    forbidden_words = settings.get('forbidden_words', [])
+    
+    if word in forbidden_words:
+        forbidden_words.remove(word)
+        settings['forbidden_words'] = forbidden_words
+        write_settings(settings)
+        return f"➜ Từ '{word}' đã được xóa khỏi danh sách từ cấm ✅"
+    else:
+        return f"Từ '{word}' không có trong danh sách từ cấm 🤧"
+
+def is_forbidden_word(word):
+    """Kiểm tra xem một từ có nằm trong danh sách từ ngữ cấm hay không."""
+    settings = read_settings()
+    forbidden_words = settings.get('forbidden_words', [])
+    return word in forbidden_words
+
+
+
+def setup_bot_on(bot, thread_id):
+   
+    group = bot.fetchGroupInfo(thread_id).gridInfoMap[thread_id]
+  
+    admin_ids = group.adminIds.copy()
+    if group.creatorId not in admin_ids:
+        admin_ids.append(group.creatorId)
+    
+ 
+    if bot.uid in admin_ids:
+      
+        settings = read_settings()
+        
+      
+        if 'group_admins' not in settings:
+            settings['group_admins'] = {}
+        
+        settings['group_admins'][thread_id] = admin_ids
+        
+      
+        write_settings(settings)
+        
+        return f"[🤖BOT {bot.me_name} {bot.version}]\n➜ Cấu hình thành công nội quy nhóm: {group.name} - ID: {thread_id} ✅\n➜ Hãy nhắn tin một cách văn minh lịch sự! ✨\n➜ Chúc bạn luôn may mắn! 🍀"
+    else:
+        return f"[🤖BOT {bot.me_name} {bot.version}]\n➜ Cấu hình thất bại  cho nhóm: {group.name} - ID: {thread_id} ⚠️\n➜ Bạn không có quyền quản trị nhóm này! 🤧"
+
+
+def setup_bot_off(bot,thread_id):
+    group = bot.fetchGroupInfo(thread_id).gridInfoMap[thread_id]
+
+    settings = read_settings()
+
+
+    if 'group_admins' in settings:
+     
+        if thread_id in settings['group_admins']:
+     
+            del settings['group_admins'][thread_id]
+
+     
+            write_settings(settings)
+            
+            return f"[🤖BOT {bot.me_name} {bot.version}]\n➜ Đã hủy bỏ thành công cấu hình quản trị cho nhóm: {group.name} - ID: {thread_id} ✅\n➜ Hãy quẫy lên đi! 🤣"
+        else:
+            return f"[🤖BOT {bot.me_name} {bot.version}]]\n➜ Không tìm thấy cấu hình quản trị cho nhóm: {group.name} - ID: {thread_id} để hủy bỏ! 🤧"
+    else:
+        return f"[🤖BOT {bot.me_name} {bot.version}]\n➜ Không có thông tin quản trị nào trong cài đặt để hủy bỏ! 🤧"
+
+def check_admin_group(bot,thread_id):
+    group = bot.fetchGroupInfo(thread_id).gridInfoMap[thread_id]
+
+    admin_ids = group.adminIds.copy()
+    if group.creatorId not in admin_ids:
+        admin_ids.append(group.creatorId)
+    settings = read_settings()
+    if 'group_admins' not in settings:
+        settings['group_admins'] = {}
+    settings['group_admins'][thread_id] = admin_ids
+    
+
+    write_settings(settings)
+
+    if bot.uid in admin_ids:
+        return True
+    else:
+        return False
+
+
+def get_allow_link_text(thread_id):
+
+    settings = read_settings()
+
+
+    if 'allow_link' in settings:
+      
+        return settings['allow_link'].get(thread_id, False)
+    else:
+      
+        return False
+
+user_message_count = {}
+def check_spam(bot, author_id, thread_id, message_object, thread_type):
+    settings = read_settings()
+    spam_enabled = settings.get('spam_enabled', False)
+    
+    if isinstance(spam_enabled, bool):
+        if spam_enabled:
+            settings['spam_enabled'] = {thread_id: True}
+        else:
+            settings['spam_enabled'] = {}
+        write_settings(settings)
+    spam_enabled = settings['spam_enabled']
+
+    if not spam_enabled.get(thread_id, False):
+        return
+
+    global user_message_count
+    now = time.time()
+
+    if thread_id not in user_message_count:
+        user_message_count[thread_id] = {}
+
+    if author_id not in user_message_count[thread_id]:
+        user_message_count[thread_id][author_id] = []
+    user_message_count[thread_id][author_id] = [
+        timestamp for timestamp in user_message_count[thread_id][author_id] if now - timestamp <= 1
+    ]
+    user_message_count[thread_id][author_id].append(now)
+    pending_users = bot.viewGroupPending(thread_id)
+    if pending_users and pending_users.users:
+        if len(user_message_count[thread_id][author_id]) >= 2:
+            for user in pending_users.users:
+                if user['uid'] == author_id:
+                    bot.changeGroupSetting(groupId=thread_id, lockSendMsg=1)
+                    bot.handleGroupPending(author_id, thread_id)
+                    bot.blockUsersInGroup(author_id, thread_id)
+                    bot.dislink(grid=thread_id)
+                    time.sleep(10)
+                    bot.changeGroupSetting(groupId=thread_id, lockSendMsg=0)
+                    return
+
+    if len(user_message_count[thread_id][author_id]) >= 5:
+        bot.changeGroupSetting(groupId=thread_id, lockSendMsg=1)
+        bot.blockUsersInGroup(author_id, thread_id)
+        bot.kickUsersInGroup(author_id, thread_id)
+        time.sleep(10)
+        bot.changeGroupSetting(groupId=thread_id, lockSendMsg=0)
+        bot.spam = True
+        return
+
+def handle_check_profanity(bot, author_id, thread_id, message_object, thread_type, message):
+    def send_check_profanity_response():
+        settings = read_settings()
+        admin_ids = settings.get('group_admins', {}).get(thread_id, [])
+        if bot.uid not in admin_ids:
+            return
+        spam_thread = threading.Thread(target=check_spam, args=(bot, author_id, thread_id, message_object, thread_type))
+        spam_thread.start()
+        
+        if get_allow_link_text(thread_id) and is_url_in_message(message_object):
+            bot.deleteGroupMsg(message_object.msgId, author_id, message_object.cliMsgId, thread_id)
+            return
+       
+        
+        muted_users = settings.get('muted_users', [])
+        for muted_user in muted_users:
+            if muted_user['author_id'] == author_id and muted_user['thread_id'] == thread_id:
+                bot.deleteGroupMsg(message_object.msgId, author_id, message_object.cliMsgId, thread_id)
+        if not isinstance(message, str):
+            return
+        message_text = str(message)
+        forbidden_words = settings.get('forbidden_words', [])
+        violations = settings.get('violations', {})
+
+        rules = settings.get("rules", {})
+        current_time = int(time.time())
+
+        word_rule = rules.get("word", {"threshold": 3, "duration": 30})
+        threshold_word = word_rule["threshold"]
+        duration_word = word_rule["duration"]
+
+        for muted_user in muted_users:
+            if muted_user['author_id'] == author_id and muted_user['thread_id'] == thread_id:
+                if current_time >= muted_user['muted_until']:
+                    muted_users.remove(muted_user)
+                    settings['muted_users'] = muted_users
+
+                    if author_id in violations and thread_id in violations[author_id]:
+                        violations[author_id][thread_id]['profanity_count'] = 0
+
+                    write_settings(settings)
+                    response = "➜ 🎉 Bạn đã được phép phát ngôn! Hãy nói chuyện 💬 lịch sự nhé! 😊👍"
+                    bot.replyMessage(Message(text=response), message_object, thread_id=thread_id, thread_type=thread_type)
+                bot.deleteGroupMsg(message_object.msgId, author_id, message_object.cliMsgId, thread_id)
+                return
+
+
+        if any(word.lower() in message_text.lower() for word in forbidden_words):
+            user_violations = violations.setdefault(author_id, {}).setdefault(thread_id, {'profanity_count': 0, 'spam_count': 0, 'penalty_level': 0})
+            user_violations['profanity_count'] += 1
+            profanity_count = user_violations['profanity_count']
+            penalty_level = user_violations['penalty_level']
+
+            if penalty_level >= 2:
+
+                response = f"➜ ⛔ Bạn đã bị loại khỏi nhóm do vi phạm nhiều lần\n➜ 💢 Nội dung vi phạm: Sử dụng từ ngữ thô tục: 🤬 '{message_text}'"
+                bot.replyMessage(Message(text=response), message_object, thread_id=thread_id, thread_type=thread_type)
+                bot.kickUsersInGroup( author_id, thread_id)
+                bot.blockUsersInGroup( author_id, thread_id)
+                
+
+          
+                muted_users = [user for user in muted_users if not (user['author_id'] == author_id and user['thread_id'] == thread_id)]
+                settings['muted_users'] = muted_users
+
+                if author_id in violations:
+                    violations[author_id].pop(thread_id, None)
+                    if not violations[author_id]: 
+                        violations.pop(author_id, None)
+
+                write_settings(settings)
+                return
+
+            if profanity_count >= threshold_word:
+                penalty_level += 1
+                user_violations['penalty_level'] = penalty_level 
+
+                muted_users.append({
+                    'author_id': author_id,
+                    'thread_id': thread_id,
+                    'reason': f'{message_text}',
+                    'muted_until': current_time + 60 * duration_word
+                })
+                settings['muted_users'] = muted_users
+                write_settings(settings)
+
+                response = f"➜ 🚫 Bạn đã vi phạm {threshold_word} lần\n➜ 🤐 Bạn đã bị khóa mõm trong {duration_word} phút\n➜ 💢 Nội dung vi phạm: Sử dụng từ ngữ thô tục: 🤬 '{message_text}'"
+                bot.replyMessage(Message(text=response), message_object, thread_id=thread_id, thread_type=thread_type)
+                return
+            elif profanity_count == threshold_word - 1:
+                response = f"➜ ⚠️ Cảnh báo: Bạn đã vi phạm {profanity_count}/{threshold_word} lần\n➜ 🤐 Nếu bạn tiếp tục vi phạm, bạn sẽ bị khóa mõm trong {duration_word} phút\n➜ 💢 Nội dung vi phạm: Sử dụng từ ngữ thô tục: 🤬 '{message_text}'"
+                bot.replyMessage(Message(text=response), message_object, thread_id=thread_id, thread_type=thread_type)
+            else:
+                
+                response = f"➜ ⚠️ Bạn đã vi phạm {profanity_count}/{threshold_word} lần\n➜ 💢 Nội dung vi phạm: Sử dụng từ ngữ thô tục: 🤬 '{message_text}'"
+                bot.replyMessage(Message(text=response), message_object, thread_id=thread_id, thread_type=thread_type)
+
+            write_settings(settings)  
+
+    thread = threading.Thread(target=send_check_profanity_response)
+    thread.start()
+
+def get_user_name_by_id(bot,author_id):
+    try:
+        user = bot.fetchUserInfo(author_id).changed_profiles[author_id].displayName
+        return user
+    except:
+        return "Unknown User"
+
+
+
+def print_muted_users_in_group(bot, thread_id):
+    settings = read_settings()
+    muted_users = settings.get("muted_users", [])
+    current_time = int(time.time())
+    muted_users_list = []
+
+
+    for user in muted_users:
+        if user['thread_id'] == thread_id:
+            author_id = user['author_id']
+            user_name = get_user_name_by_id(bot, author_id)
+            muted_until = user['muted_until']
+            remaining_time = muted_until - current_time
+            reason = user['reason']
+
+            if remaining_time > 0:
+                minutes_left = remaining_time // 60
+                muted_users_list.append({
+                    "author_id": author_id,
+                    "name": user_name,
+                    "minutes_left": minutes_left,
+                    "reason": reason
+                })
+
+
+    muted_users_list.sort(key=lambda x: x['minutes_left'])
+
+    if muted_users_list:
+        result = "➜ 🚫 Danh sách các thành viên nhóm bị khóa mõm: 🤐\n"
+        result += "\n".join(f"{i}. 😷 {user['name']} - ⏳ {user['minutes_left']} phút - ⚠️ Lý do: {user['reason']}" 
+                            for i, user in enumerate(muted_users_list, start=1))
+    else:
+        result = "➜ 🎉 Xin chúc mừng!\n➜ Nhóm không có thành viên nào tiêu cực ❤ 🌺 🌻 🌹 🌷 🌼\n➜ Hãy tiếp tục phát huy nhé 🤗"
+
+    return result
+
+def print_blocked_users_in_group(bot, thread_id):
+    settings = read_settings()
+    blocked_users_group = settings.get("block_user_group", {})
+
+
+    if thread_id not in blocked_users_group:
+        return "➜ 🎉 Nhóm này không có ai bị block! 🌟"
+
+    blocked_users = blocked_users_group[thread_id].get('blocked_users', [])
+    blocked_users_list = []
+
+
+    for author_id in blocked_users:
+        user_name = get_user_name_by_id(bot, author_id)  
+        blocked_users_list.append({
+            "author_id": author_id,
+            "name": user_name
+        })
+
+
+    blocked_users_list.sort(key=lambda x: x['name'])
+
+
+    if blocked_users_list:
+        result = "➜ 🚫 Danh sách các thành viên bị block khỏi nhóm: 🤧\n"
+        result += "\n".join(f"{i}. 🙅 {user['name']} - {user['author_id']}" for i, user in enumerate(blocked_users_list, start=1))
+    else:
+        result = "➜ 🎉 Nhóm không có ai bị block khỏi nhóm! 🌼"
+
+    return result
+
+
+def add_users_to_ban_list(bot, author_ids, thread_id, reason):
+    settings = read_settings()
+
+    current_time = int(time.time())
+    muted_users = settings.get("muted_users", [])
+    violations = settings.get("violations", {})
+    duration_minutes = settings.get("rules", {}).get("word", {}).get("duration", 30)
+
+    response=""
+    for author_id in author_ids:
+        user = bot.fetchUserInfo(author_id).changed_profiles[author_id].displayName
+
+
+        if not any(entry["author_id"] == author_id and entry["thread_id"] == thread_id for entry in muted_users):
+            muted_users.append({
+                "author_id": author_id,
+                "thread_id": thread_id,
+                "reason": reason,
+                "muted_until": current_time + 60 * duration_minutes
+            })
+
+
+        if author_id not in violations:
+            violations[author_id] = {}
+
+        if thread_id not in violations[author_id]:
+            violations[author_id][thread_id] = {
+                "profanity_count": 0,
+                "spam_count": 0,
+                "penalty_level": 0
+            }
+
+        violations[author_id][thread_id]["profanity_count"] += 1  
+        violations[author_id][thread_id]["penalty_level"] += 1 
+
+        response += f"➜ 🚫 {user} đã bị cấm phát ngôn trong {duration_minutes} ⏳ phút\n"
+    
+
+    settings['muted_users'] = muted_users
+    settings['violations'] = violations
+    write_settings(settings)
+    return response
+
+
+def remove_users_from_ban_list(bot, author_ids, thread_id):
+    settings = read_settings()
+
+    muted_users = settings.get("muted_users", [])
+    violations = settings.get("violations", {})
+
+    response = ""
+    for author_id in author_ids:
+        user = bot.fetchUserInfo(author_id).changed_profiles[author_id].displayName
+
+  
+        initial_count = len(muted_users)
+        muted_users = [entry for entry in muted_users if not (entry["author_id"] == author_id and entry["thread_id"] == thread_id)]
+        
+
+        removed = False
+        if author_id in violations:
+            if thread_id in violations[author_id]:
+                del violations[author_id][thread_id]
+
+                if not violations[author_id]:
+                    del violations[author_id]
+                removed = True
+
+   
+        if (initial_count != len(muted_users)) or removed:
+            response += f"➜ 🎉 Chúc mừng {user} đã được phép phát ngôn 😤\n"
+        else:
+            response += f"➜ 😲 {user} không có trong danh sách cấm phát ngôn 🤧\n"
+    
+    
+    settings['muted_users'] = muted_users
+    settings['violations'] = violations
+    write_settings(settings)
+
+    return response
+
+def block_users_from_group(bot, author_ids, thread_id):
+    response = ''
+    block_user = [] 
+
+   
+    settings = read_settings()
+
+ 
+    if "block_user_group" not in settings:
+        settings["block_user_group"] = {}
+
+
+    if thread_id not in settings["block_user_group"]:
+        settings["block_user_group"][thread_id] = {'blocked_users': []}
+
+    for author_id in author_ids:
+    
+        user = bot.fetchUserInfo(author_id).changed_profiles[author_id].displayName
+
+       
+        bot.blockUsersInGroup(author_id, thread_id)  
+        block_user.append(user) 
+
+ 
+        if author_id not in settings["block_user_group"][thread_id]['blocked_users']:
+            settings["block_user_group"][thread_id]['blocked_users'].append(author_id)
+
+  
+    write_settings(settings)
+
+
+    if block_user:
+        blocked_users_str = ', '.join(block_user)  
+        response = f"➜ :v {blocked_users_str} đã bị chặn khỏi nhóm 🤧"
+    else:
+        response = "➜ Không ai bị chặn khỏi nhóm 🤧"
+    
+    return response
+
+def unblock_users_from_group(bot, author_ids, thread_id):
+    response = ''
+    unblocked_users = [] 
+
+ 
+    settings = read_settings()
+
+
+    if "block_user_group" in settings and thread_id in settings["block_user_group"]:
+        blocked_users = settings["block_user_group"][thread_id]['blocked_users']
+        
+        for author_id in author_ids:
+      
+            user = bot.fetchUserInfo(author_id).changed_profiles[author_id].displayName
+
+     
+            if author_id in blocked_users:
+                bot.unblockUsersInGroup(author_id, thread_id) 
+                unblocked_users.append(user)  
+                blocked_users.remove(author_id)  
+
+       
+        if not blocked_users:
+            del settings["block_user_group"][thread_id]
+        
+       
+        write_settings(settings)
+
+
+    if unblocked_users:
+        unblocked_users_str = ', '.join(unblocked_users)  
+        response = f"➜ :v {unblocked_users_str} đã được bỏ chặn khỏi nhóm 🎉"
+    else:
+        response = "➜ Không có ai bị chặn trong nhóm 🤧"
+    
+    return response
+
+def kick_users_from_group(bot, uids, thread_id):
+    response = ""
+    for uid in uids:
+        try:
+        
+            bot.kickUsersInGroup(uid, thread_id)
+            bot.blockUsersInGroup( uid, thread_id)
+     
+            user_name = get_user_name_by_id(bot, uid)
+         
+            response += f"➜ 💪 Đã kick người dùng 😫 {user_name} khỏi nhóm thành công ✅\n"
+        except Exception as e:
+           
+            user_name = get_user_name_by_id(bot, uid)
+            response += f"➜ 😲 Không thể kick người dùng 😫 {user_name} khỏi nhóm 🤧\n"
+    
+    return response
+
+def extract_uids_from_mentions(message_object):
+    uids = []
+    if message_object.mentions:
+      
+        uids = [mention['uid'] for mention in message_object.mentions if 'uid' in mention]
+    return uids
+
+
+def add_admin(bot, author_id, mentioned_uids, settings):
+    admin_bot = settings.get("admin_bot", [])
+    response = ""
+    for uid in mentioned_uids:
+        if author_id not in admin_bot:
+            response = "➜ Lệnh này chỉ khả thi với chủ nhân 🤧"
+        elif uid not in admin_bot:
+            admin_bot.append(uid)
+            response += f"➜ Đã thêm người dùng 👑 {get_user_name_by_id(bot, uid)} vào danh sách Admin 🤖BOT ✅\n"
+        else:
+            response += f"➜ Người dùng 👑 {get_user_name_by_id(bot, uid)} đã có trong danh sách Admin 🤖BOT 🤧\n"
+
+    settings['admin_bot'] = admin_bot
+    write_settings(settings)
+    return response
+
+def remove_admin(bot, author_id, mentioned_uids, settings):
+    admin_bot = settings.get("admin_bot", [])
+    response = ""
+    for uid in mentioned_uids:
+        if author_id not in admin_bot:
+            response = "➜ Lệnh này chỉ khả thi với chủ nhân 🤧"
+        elif uid in admin_bot:
+            admin_bot.remove(uid)
+            response += f"➜ Đã xóa người dùng 👑 {get_user_name_by_id(bot, uid)} khỏi danh sách Admin 🤖BOT ✅\n"
+        else:
+            response += f"➜ Người dùng 👑 {get_user_name_by_id(bot, uid)} không có trong danh sách Admin 🤖BOT 🤧\n"
+
+    settings['admin_bot'] = admin_bot
+    write_settings(settings)
+    return response
+
+def handle_bot_command(bot, message_object, author_id, thread_id, thread_type, command):
+    def send_bot_response():
+        try:
+            parts = command.split()
+            response = ""
+            if len(parts) == 1:
+                response = (
+                    f"{get_user_name_by_id(bot, author_id)}\n"
+                    f"🎉 Chào mừng đến với 🤖BOT! ⚙️\n"
+                    f"   ➜ {prefix}bot info: ♨️ Xem thông tin chi tiết về BOT\n"
+                    f"   ➜ {prefix}bot on/off: 🚀 Bật/ 🛑 Tắt BOT trong Group (OA)\n"
+                    f"   ➜ {prefix}bot admin add/remove/list: 👑 Thêm/xóa/xem danh sách Admin 🤖BOT\n"
+                    f"   ➜ {prefix}bot noiquy: 💢 Nội quy Group\n"
+                    f"   ➜ {prefix}bot ban/unban list: 🚫 Danh sách/ 😷 Khóa / 😘 Mở mỗm người dùng\n"
+                    f"   ➜ {prefix}bot kick: 💪 Kick người dùng ra khỏi nhóm(OA)\n"
+                    f"   ➜ {prefix}bot block/unblock/list: 💪 Chặn người dùng khỏi nhóm(OA)\n"
+                    f"   ➜ {prefix}bot setup on/off: ⚙️ Bật/Tắt nội quy nội quy BOT (OA)\n"
+                    f"   ➜ {prefix}bot link on/off: 🔗 Bật/Tắt cho phép gởi link nhóm (OA)\n"
+                    f"   ➜ {prefix}bot rule word [n] [m]: 📖 Quy định cấm n lần vi phạm, phạt m phút (OA)\n"
+                    f"   ➜ {prefix}bot word add/remove [từ cấm]: ✍️ Thêm/xóa từ ngữ cấm (OA)\n"
+                    f"   ➜ {prefix}bot welcome on/off: 🎊 Welcome (OA)\n"
+                    f"   ➜ {prefix}bot spam on/off/setup: 🚦Bật/Tắt Anti (OA)\n"
+                    f"🤖 BOT {get_user_name_by_id(bot, bot.uid)} luôn sẵn sàng phục vụ bạn! 🌸"
+                )
+
+            else:
+                action = parts[1].lower()
+
+                if action == 'on':
+                    if not is_admin(author_id):
+                        response = "➜ Lệnh này chỉ khả thi với chủ nhân 🤧"
+                    elif thread_type != ThreadType.GROUP:
+                        response = "➜ Lệnh này chỉ khả thi trong nhóm 🤧"
+                    else:
+                        response = bot_on_group(bot, thread_id)
+                elif action == 'off':
+                    if not is_admin(author_id):
+                        response = "➜ Lệnh này chỉ khả thi với chủ nhân 🤧"
+                    elif thread_type != ThreadType.GROUP:
+                        response = "➜ Lệnh này chỉ khả thi trong nhóm 🤧"
+                    else:
+                        response = bot_off_group(bot, thread_id)
+                elif action == 'info':
+                    response = (
+                        f"➜ 💻 Phiên bản: {bot.version}\n"
+                        f"➜ 📅 Ngày cập nhật: {bot.date_update}\n"
+                        f"➜ 👨‍💻 Tác giả: {bot.me_name} (Heoder)\n"
+                        "➜ 📖 Cách dùng: Lệnh [/bot/help]\n"
+                        "➜ ⏳ Thời gian chờ: 1 giây\n"
+                        "➜ 🗃️ Tổng lệnh: 34 🍬 public 🤖 BOT(11), 🌀 Facebook(6), ⬇️ Downloader(1) , 💬 Chat AI(1), 🩴 Zép Lào(9), 🧙‍♂️ Bói bói Jocker(1), 📢 Tin tức(4), 🎮 Game(1),🔑 Key API ZL(1), 😤 Tính năng ẩn(...)"
+                    )
+                elif action == 'admin':
+                    if len(parts) < 3:
+                        response = "➜ Vui lòng nhập [list/add/remove] sau lệnh: /bot admin 🤧\n➜ Ví dụ: /bot admin list hoặc /bot admin add @Heoder hoặc /bot admin remove @Heoder ✅"
+                    else:
+                        settings = read_settings()
+                        admin_bot = settings.get("admin_bot", [])  
+                        sub_action = parts[2].lower()
+                        if sub_action == 'add':
+                            if len(parts) < 4:
+                                response = "➜ Vui lòng @tag tên người dùng sau lệnh: /bot admin add 🤧\n➜ Ví dụ: /bot admin add @Heoder ✅"
+                            else:
+                                if author_id not in admin_bot:
+                                    response = "➜ Lệnh này chỉ khả thi với chủ nhân 🤧"
+                                else:
+                                    mentioned_uids = extract_uids_from_mentions(message_object)
+                                    response = add_admin(bot, author_id, mentioned_uids, settings)
+                        elif sub_action == 'remove':
+                            if len(parts) < 4:
+                                response = "➜ Vui lòng @tag tên người dùng sau lệnh: /bot admin remove 🤧\n➜ Ví dụ: /bot admin remove @Heoder ✅"
+                            else:
+                                if author_id not in admin_bot:
+                                    response = "➜ Lệnh này chỉ khả thi với chủ nhân 🤧"
+                                else:
+                                    mentioned_uids = extract_uids_from_mentions(message_object)
+                                    response = remove_admin(bot, author_id, mentioned_uids, settings)
+                        elif sub_action == 'list':
+                            if admin_bot:
+                                response = "➜ 🛡️ Danh sách Admin BOT 👑\n"
+                                for idx, uid in enumerate(admin_bot, start=1):
+                                    response += f"      ➜ {idx}. 👑 {get_user_name_by_id(bot, uid)}\n"
+                            else:
+                                response = "➜ Không có Admin BOT nào trong danh sách 🤧"
+                        else:
+                            response = f"➜ Lệnh /bot admin {sub_action} không được hỗ trợ 🤧"
+
+
+                elif action == 'setup':
+                    if len(parts) < 3:
+                        response = "➜ Vui lòng nhập [on/off] sau lệnh: /bot setup 🤧\n➜ Ví dụ: /bot setup on hoặc /bot setup off ✅"
+                    else:
+                        setup_action = parts[2].lower()
+                        if setup_action == 'on':
+                            if not is_admin(author_id):
+                                response = "➜ Lệnh này chỉ khả thi với chủ nhân 🤧"
+                            elif thread_type != ThreadType.GROUP:
+                                response = "➜ Lệnh này chỉ khả thi trong nhóm 🤧"
+                            else:
+                                response = setup_bot_on(bot, thread_id)
+                        elif setup_action == 'off':
+                            if not is_admin(author_id):
+                                response = "➜ Lệnh này chỉ khả thi với chủ nhân 🤧"
+                            elif thread_type != ThreadType.GROUP:
+                                response = "➜ Lệnh này chỉ khả thi trong nhóm 🤧"
+                            else:
+                                response = setup_bot_off(bot,thread_id)
+                        else:
+                            response = f"➜ Lệnh /bot setup {setup_action} không được hỗ trợ 🤧"
+                elif action == 'link':
+                    if len(parts) < 3:
+                        response = "➜ Vui lòng nhập [on/off] sau lệnh: /bot link 🤧\n➜ Ví dụ: /bot link on hoặc /bot link off ✅"
+                    else:
+                        link_action = parts[2].lower()
+                        if not is_admin(author_id):
+                            response = "➜ Lệnh này chỉ khả thi với chủ nhân 🤧"
+                        elif thread_type != ThreadType.GROUP:
+                            response = "➜ Lệnh này chỉ khả thi trong nhóm 🤧"
+                        else:
+                            settings = read_settings()
+
+                            if 'allow_link' not in settings:
+                                settings['allow_link'] = {}
+
+                            
+                            if link_action == 'on':
+                                settings['allow_link'][thread_id] = True
+                                response = "➜ Tùy chọn cho phép gởi link 🔗 đã được bật 🟢 cho nhóm này ✅"
+                            elif link_action == 'off':
+                                settings['allow_link'][thread_id] = False
+                                response = "➜ Tùy chọn cho phép gởi link 🔗 đã được tắt 🔴 cho nhóm này ✅"
+                            else:
+                                response = f"➜ Lệnh /bot link {link_action} không được hỗ trợ 🤧"
+                        write_settings(settings)
+                elif action == 'word':
+                    if len(parts) < 4:
+                        response = "➜ Vui lòng nhập [add/reomve] [từ khóa] sau lệnh: /bot word 🤧\n➜ Ví dụ: /bot word add [từ khóa] hoặc /bot word remove [từ khóa] ✅"
+                    else:
+                        if not is_admin(author_id):
+                            response = "➜ Lệnh này chỉ khả thi với chủ nhân 🤧"
+                        elif thread_type != ThreadType.GROUP:
+                            response = "➜ Lệnh này chỉ khả thi trong nhóm 🤧"
+                        else:
+                            word_action = parts[2].lower()
+                            word = ' '.join(parts[3:]) 
+                            if word_action == 'add':
+                                response = add_forbidden_word(word)
+                            elif word_action == 'remove':
+                                response = remove_forbidden_word(word)
+                            else:
+                                response = f"➜ Lệnh [/bot word {word_action}] không được hỗ trợ 🤧\n➜ Ví dụ: /bot word add [từ khóa] hoặc /bot word remove [từ khóa] ✅"
+                elif action == 'noiquy':
+                    settings = read_settings()
+                    rules=settings.get("rules", {})
+                    word_rule = rules.get("word", {"threshold": 3, "duration": 30})
+                    threshold_word = word_rule["threshold"]
+                    duration_word = word_rule["duration"]
+                    group_admins = settings.get('group_admins', {})
+                    admins = group_admins.get(thread_id, [])
+                    group = bot.fetchGroupInfo(thread_id).gridInfoMap[thread_id]
+                    if admins:
+                        response = (
+                            f"➜ 💢 Nội quy 🤖BOT {bot.me_name} được áp dụng cho nhóm: {group.name} - ID: {thread_id} ✅\n"
+                            f"➜ 🚫 Cấm sử dụng các từ ngữ thô tục 🤬 trong nhóm\n"
+                            f"➜ 💢 Vi phạm {threshold_word} lần sẽ bị 😷 khóa mõm {duration_word} phút\n"
+                            f"➜ ⚠️ Nếu tái phạm 2 lần sẽ bị 💪 kick khỏi nhóm 🤧"
+                        )
+                    else:
+                        response = (
+                            f"➜ 💢 Nội quy không áp dụng cho nhóm: {group.name} - ID: {thread_id} 💔\n➜ Lý do: 🤖BOT {bot.me_name} chưa được setup hoặc BOT không có quyền cầm key quản trị nhóm 🤧"
+                        )
+                elif action == 'ban':
+                    
+                    if len(parts) < 3:
+                        response = "➜ Vui lòng nhập list hoặc ban @tag tên sau lệnh: /bot 🤧\n➜ Ví dụ: /bot list hoặc /bot ban @Heoder ✅"
+                    else:
+                        s_action = parts[2] 
+                        
+                        if s_action == 'list':
+                            response = print_muted_users_in_group(bot, thread_id)
+                        else:
+                            
+                            if not is_admin(author_id):
+                                response = "➜ Lệnh này chỉ khả thi với chủ nhân 🤧"
+                            elif thread_type != ThreadType.GROUP:
+                                response = "➜ Lệnh này chỉ khả thi trong nhóm 🤧"
+                            elif check_admin_group(bot,thread_id)==False:
+                                response = "➜ Lệnh này không khả thi do 🤖BOT không có quyền cầm 🔑 key nhóm 🤧"
+                            else:
+                               
+                                uids = extract_uids_from_mentions(message_object)
+                                response = add_users_to_ban_list(bot, uids, thread_id,"Quản trị viên cấm")
+
+                elif action == 'unban':
+                    if len(parts) < 3:
+                        response = f"➜ Vui lòng nhập @tag tên sau lệnh: /bot unban 🤧\n➜ Ví dụ: /bot unban @Heoder ✅"
+                    else:
+                        if not is_admin(author_id):
+                            response = "➜ Lệnh này chỉ khả thi với chủ nhân 🤧"
+                        elif thread_type != ThreadType.GROUP:
+                            response = "➜ Lệnh này chỉ khả thi trong nhóm 🤧"
+                        else:
+                            
+                            uids = extract_uids_from_mentions(message_object)
+                            response = remove_users_from_ban_list(bot, uids, thread_id)
+
+                elif action == 'spam':
+                    if not is_admin(author_id):
+                        response = "❌Bạn không phải admin bot!"
+                    elif len(parts) < 3:
+                        response = f"➜ Vui lòng nhập [on/off] sau lệnh: {prefix}bot spam 🤧\n➜ Ví dụ: {prefix}bot spam on hoặc {prefix}bot spam off ✅"
+                    else:
+                        spam_action = parts[2].lower()
+                        settings = read_settings()
+
+                        if 'spam_enabled' not in settings:
+                            settings['spam_enabled'] = {}
+
+                        if spam_action == 'on':
+                            settings['spam_enabled'][thread_id] = True  
+                            response = f"Anti-Spam đã bật ✅\n"
+                        elif spam_action == 'off':
+                            settings['spam_enabled'][thread_id] = False  
+                            response = f"Anti-Spam đã tắt ⭕️\n"
+                        else:
+                            response = f"➜ Lệnh {prefix}bot spam {spam_action} không hợp lệ 🤧"
+                        
+                        write_settings(settings)
+                
+                elif action == 'welcome':
+                    if len(parts) < 3:
+                        response = f"➜ Vui lòng nhập [on/off] sau lệnh: {prefix}bot welcome 🤧\n➜ Ví dụ: {prefix}bot welcome on hoặc {prefix}bot welcome off ✅"
+                    else:
+                        settings = read_settings()
+                        setup_action = parts[2].lower()
+                        if setup_action == 'on':
+                            if not is_admin(author_id):
+                                response = "❌Bạn không phải admin bot!"
+                            elif thread_type != ThreadType.GROUP:
+                                response = "➜ Lệnh này chỉ khả thi trong nhóm 🤧"
+                            else:
+                                response = handle_welcome_on(bot, thread_id)
+                        elif setup_action == 'off':
+                            if not is_admin(author_id):
+                                response = "❌Bạn không phải admin bot!"
+                            elif thread_type != ThreadType.GROUP:
+                                response = "➜ Lệnh này chỉ khả thi trong nhóm 🤧"
+                            else:
+                                response = handle_welcome_off(bot, thread_id)
+                        else:
+                            response = f"➜ Lệnh {prefix}bot welcome {setup_action} không được hỗ trợ 🤧"
+
+                elif action == 'block':
+                      
+                    if len(parts) < 3:
+                        response = f"➜ Vui lòng nhập @tag tên sau lệnh: /bot block 🤧\n➜ Ví dụ: /bot block @Heoder ✅"
+                    else:
+                        s_action = parts[2]  
+                      
+                        if s_action == 'list':
+                            response = print_blocked_users_in_group(bot, thread_id)
+                        else:
+                         
+                            if not is_admin(author_id):
+                                response = "➜ Lệnh này chỉ khả thi với chủ nhân 🤧"
+                            elif thread_type != ThreadType.GROUP:
+                                response = "➜ Lệnh này chỉ khả thi trong nhóm 🤧"
+                            elif check_admin_group(bot,thread_id)==False:
+                                response = "➜ Lệnh này không khả thi do 🤖BOT không có quyền cầm 🔑 key nhóm 🤧"
+                            else:
+                              
+                                uids = extract_uids_from_mentions(message_object)
+                                response = block_users_from_group(bot, uids, thread_id)
+
+                elif action == 'unblock':
+                    if len(parts) < 3:
+                        response = f"➜ Vui lòng nhập UID sau lệnh: /bot unblock 🤧\n➜ Ví dụ: /bot unblock 8421834556970988033, 842183455697098804... ✅"
+                    else:
+                        if not is_admin(author_id):
+                            response = "➜ Lệnh này chỉ khả thi với chủ nhân 🤧"
+                        elif thread_type != ThreadType.GROUP:
+                            response = "➜ Lệnh này chỉ khả thi trong nhóm 🤧"
+                        else:
+                           
+                            ids_str = parts[2]  
+                            print(f"Chuỗi UIDs: {ids_str}")
+
+                            uids = [uid.strip() for uid in ids_str.split(',') if uid.strip()]
+                            print(f"Danh sách UIDs: {uids}")
+
+                            
+                            if uids:
+                              
+                                response = unblock_users_from_group(bot, uids, thread_id)
+                            else:
+                                response = "➜ Không có UID nào hợp lệ để bỏ chặn 🤧"
+
+                elif action == 'kick':
+                    if len(parts) < 3:
+                        response = f"➜ Vui lòng nhập @tag tên sau lệnh: /bot kick 🤧\n➜ Ví dụ: /bot kick @Heoder ✅"
+                    else:
+                        if not is_admin(author_id):
+                            response = "➜ Lệnh này chỉ khả thi với chủ nhân 🤧"
+                        elif thread_type != ThreadType.GROUP:
+                            response = "➜ Lệnh này chỉ khả thi trong nhóm 🤧"
+                        elif check_admin_group(bot,thread_id)==False:
+                                response = "➜ Lệnh này không khả thi do 🤖BOT không có quyền cầm 🔑 key nhóm 🤧"
+                        else:
+                            uids = extract_uids_from_mentions(message_object)
+                            response = kick_users_from_group(bot, uids, thread_id)
+
+                elif action == 'rule':
+                    if len(parts) < 5:
+                        response = "➜ Vui lòng nhập word [n lần] [m phút] sau lệnh: /bot rule 🤧\n➜ Ví dụ: /bot rule word 3 30 ✅"
+                    else:
+                        rule_type = parts[2].lower()
+                        try:
+                            threshold = int(parts[3])
+                            duration = int(parts[4])
+                        except ValueError:
+                            response = "➜ Số lần và phút phạt phải là số nguyên 🤧"
+                        else:
+                            settings = read_settings()
+                            if rule_type not in ["word", "spam"]:
+                                response = f"➜ Lệnh /bot rule {rule_type} không được hỗ trợ 🤧\n➜ Ví dụ: /bot rule word 3 30✅"
+                            else:
+                                if not is_admin(author_id):
+                                    response = "➜ Lệnh này chỉ khả thi với chủ nhân 🤧"
+                                elif thread_type != ThreadType.GROUP:
+                                    response = "➜ Lệnh này chỉ khả thi trong nhóm 🤧"
+                                else:
+                                    settings.setdefault("rules", {})
+                                    settings["rules"][rule_type] = {
+                                        "threshold": threshold,
+                                        "duration": duration
+                                    }
+                                    write_settings(settings)
+                                    response = f"➜ 🔄 Đã cập nhật nội quy cho {rule_type}: Nếu vi phạm {threshold} lần sẽ bị phạt {duration} phút ✅"
+                else:
+                    bot.replyMessage(Message(text=f"➜ Lệnh [{prefix}bot {action}] không được hỗ trợ 🤧"), message_object, thread_id=thread_id, thread_type=thread_type)
+            
+            if response:
+                if len(parts) == 1:
+                    temp_image_path = create_menu1_image({"response": response}, 1, bot, author_id)
+                    bot.sendLocalImage(
+                        temp_image_path, thread_id=thread_id, thread_type=thread_type,
+                        message=Message(text=response), height=350, width=980, ttl=120000
+                    )
+                    os.remove(temp_image_path)
+                else:
+                    bot.replyMessage(Message(text=response),message_object, thread_id=thread_id, thread_type=thread_type,ttl=9000)
+        
+        except Exception as e:
+            print(f"Error: {e}")
+            bot.replyMessage(Message(text="➜ 🐞 Đã xảy ra lỗi gì đó 🤧"), message_object, thread_id=thread_id, thread_type=thread_type)
+
+    thread = threading.Thread(target=send_bot_response)
+    thread.start()
+
+def create_menu1_image(command_names, page, bot, author_id):
+    
+    avatar_url = None
+
+    if author_id:
+        user_info = bot.fetchUserInfo(author_id)
+        avatar_url = user_info.changed_profiles.get(author_id).avatar
+
+    start_index = (page - 1) * 10
+    end_index = start_index + 10
+    current_page_commands = list(command_names.items())[start_index:end_index]
+
+    
+    numbered_commands = [f"⭐ {i + start_index + 1}. {name} - {desc}" for i, (name, desc) in enumerate(current_page_commands)]
+
+    
+    background_dir = "background"
+    background_files = [os.path.join(background_dir, f) for f in os.listdir(background_dir) if f.endswith(('.png', '.jpg'))]
+    background_path = random.choice(background_files)
+    image = Image.open(background_path).convert("RGBA")
+    image = image.resize((1280, 500))
+
+    overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    rect_x0 = (1280 - 1100) // 2
+    rect_y0 = (500 - 300) // 2
+    rect_x1 = rect_x0 + 1100
+    rect_y1 = rect_y0 + 300
+
+    radius = 50
+    draw.rounded_rectangle([rect_x0, rect_y0, rect_x1, rect_y1], radius=radius, fill=(255, 255, 255, 200))
+    overlay = Image.alpha_composite(image, overlay)
+    if avatar_url:
+        try:
+            avatar_response = requests.get(avatar_url)
+            avatar_image = Image.open(BytesIO(avatar_response.content)).convert("RGBA").resize((100, 100))
+
+            gradient_size = 110
+            gradient_colors = create_gradient_colors(7)
+            gradient_overlay = Image.new("RGBA", (gradient_size, gradient_size), (0, 0, 0, 0))
+            gradient_draw = ImageDraw.Draw(gradient_overlay)
+
+            for i, color in enumerate(gradient_colors):
+                radius = gradient_size // 2 - i
+                gradient_draw.ellipse(
+                    (i, i, gradient_size - i, gradient_size - i),
+                    outline=color,
+                    width=1
+                )
+
+            mask = Image.new("L", avatar_image.size, 0)
+            ImageDraw.Draw(mask).ellipse((0, 0, 100, 100), fill=255)
+            gradient_overlay.paste(avatar_image, (5, 5), mask)
+
+            overlay.paste(gradient_overlay, (rect_x0 + 20, rect_y0 + 100), gradient_overlay)
+        except Exception:
+            pass
+    
+
+    text_hi = f"Hi {user_info.changed_profiles[author_id].displayName}!" if author_id in user_info.changed_profiles else "Hi Người dùng!"
+    text_welcome = f"   Hi, {user_info.changed_profiles[author_id].displayName}, Tôi có thể giúp gì cho bạn?"
+    text_bot_info = f"🤖 Bot:L A K💻 version 1.0.0 🗓️ update 06-06-25"
+    text_bot_ready = f"♥️ bot sẵn sàng phục vụ bạn iu:3"
+    font_paci = "kai.ttf"
+    font_emoji = "emoji.ttf"
+    draw = ImageDraw.Draw(overlay)
+
+    font_hi = ImageFont.truetype(font_paci, size=50) if os.path.exists(font_paci) else ImageFont.load_default()
+    font_welcome = ImageFont.truetype(font_paci, size=35) if os.path.exists(font_paci) else ImageFont.load_default()
+    font_bot_info = ImageFont.truetype(font_emoji, size=25) if os.path.exists(font_emoji) else ImageFont.load_default()
+
+    x_hi = rect_x0 + (1100 - draw.textbbox((0, 0), text_hi, font=font_hi)[2]) // 2
+
+    y_hi = rect_y0 + 10
+
+    gradient_colors_hi = interpolate_colors(create_gradient_colors(5), len(text_hi), 1)
+    for i, char in enumerate(text_hi):
+        draw.text((x_hi, y_hi), char, font=font_hi, fill=gradient_colors_hi[i])
+        x_hi += draw.textbbox((0, 0), char, font=font_hi)[2]
+
+    x_welcome = (1200 - draw.textbbox((0, 0), text_welcome, font=font_welcome)[2]) // 2
+    y_welcome = y_hi + 60
+
+    gradient_colors_welcome = interpolate_colors(create_gradient_colors(5), len(text_welcome), 1)
+    for i, char in enumerate(text_welcome):
+        draw.text((x_welcome, y_welcome), char, font=font_welcome, fill=gradient_colors_welcome[i])
+        x_welcome += draw.textbbox((0, 0), char, font=font_welcome)[2]
+
+    x_bot_info = rect_x0 + (1100 - draw.textbbox((0, 0), text_bot_info, font=font_welcome)[2]) // 2
+
+    y_bot_info = rect_y1 - 60
+
+    gradient_colors_bot_info = interpolate_colors(create_gradient_colors(7), len(text_bot_info), 1)
+    current_x = x_bot_info
+
+    for i, char in enumerate(text_bot_info):
+        if char in "🤖💻🗓️🎊":
+            current_font = font_bot_info
+        else:
+            current_font = font_welcome
+
+        draw.text((current_x, y_bot_info), char, font=current_font, fill=gradient_colors_bot_info[i])
+        char_width = draw.textbbox((0, 0), char, font=current_font)[2]
+        current_x += char_width
+
+    y_bot_ready = y_bot_info - 80
+    gradient_colors_bot_ready = interpolate_colors(create_gradient_colors(5), len(text_bot_ready), 1)
+    current_x_bot_ready = (1200 - draw.textbbox((0, 0), text_bot_ready, font=font_welcome)[2]) // 2
+
+    for i, char in enumerate(text_bot_ready):
+        if char in "♥️:3🤗🎉🎊":
+            current_font = font_bot_info
+        else:
+            current_font = font_welcome
+        draw.text((current_x_bot_ready, y_bot_ready), char, font=current_font, fill=gradient_colors_bot_ready[i])
+        current_x_bot_ready += draw.textbbox((0, 0), char, font=current_font)[2]
+
+    overlay = Image.alpha_composite(image, overlay)
+    temp_image_path = "temp_image.png"
+    overlay.save(temp_image_path)
+
+    return temp_image_path
+
+def create_gradient_colors(num_colors):
+    return [(random.randint(100, 175), random.randint(100, 180), random.randint(100, 170)) for _ in range(num_colors)]
+
+def interpolate_colors(colors, text_length, change_every):
+    gradient = []
+    num_segments = len(colors) - 1
+    steps_per_segment = (text_length // change_every) + 1
+    for i in range(num_segments):
+        for j in range(steps_per_segment):
+            if len(gradient) < text_length:
+                ratio = j / steps_per_segment
+                interpolated_color = (
+                    int(colors[i][0] * (1 - ratio) + colors[i + 1][0] * ratio),
+                    int(colors[i][1] * (1 - ratio) + colors[i + 1][1] * ratio),
+                    int(colors[i][2] * (1 - ratio) + colors[i + 1][2] * ratio)
+                )
+                gradient.append(interpolated_color)
+    while len(gradient) < text_length:
+        gradient.append(colors[-1])
+    return gradient[:text_length]
+
+def get_user_name_by_id(bot, author_id):
+    try:
+        user_info = bot.fetchUserInfo(author_id).changed_profiles[author_id]
+        return user_info.zaloName or user_info.displayName
+    except Exception as e:
+        return "Unknown User"
+    
+font_path_emoji = os.path.join("emoji.ttf")
+font_path_arial = os.path.join("arial unicode ms.otf")
+
+def create_gradient_colors(num_colors: int) -> List[Tuple[int, int, int]]:
+    return [(random.randint(30, 255), random.randint(30, 255), random.randint(30, 255)) for _ in range(num_colors)]
+
+def interpolate_colors(colors: List[Tuple[int, int, int]], text_length: int, change_every: int) -> List[Tuple[int, int, int]]:
+    gradient = []
+    num_segments = len(colors) - 1
+    steps_per_segment = max((text_length // change_every) + 1, 1)
+
+    for i in range(num_segments):
+        for j in range(steps_per_segment):
+            if len(gradient) < text_length:
+                ratio = j / steps_per_segment
+                interpolated_color = (
+                    int(colors[i][0] * (1 - ratio) + colors[i + 1][0] * ratio),
+                    int(colors[i][1] * (1 - ratio) + colors[i + 1][1] * ratio),
+                    int(colors[i][2] * (1 - ratio) + colors[i + 1][2] * ratio)
+                )
+                gradient.append(interpolated_color)
+
+    while len(gradient) < text_length:
+        gradient.append(colors[-1])
+
+    return gradient[:text_length]
+
+def is_emoji(character: str) -> bool:
+    return character in emoji.EMOJI_DATA
+
+def create_text(draw: ImageDraw.Draw, text: str, font: ImageFont.FreeTypeFont, 
+                emoji_font: ImageFont.FreeTypeFont, text_position: Tuple[int, int], 
+                gradient_colors: List[Tuple[int, int, int]]):
+    gradient = interpolate_colors(gradient_colors, text_length=len(text), change_every=4)
+    current_x = text_position[0]
+
+    for i, char in enumerate(text):
+        color = tuple(gradient[i])
+        try:
+            selected_font = emoji_font if is_emoji(char) and emoji_font else font
+            draw.text((current_x, text_position[1]), char, fill=color, font=selected_font)
+            text_bbox = draw.textbbox((current_x, text_position[1]), char, font=selected_font)
+            text_width = text_bbox[2] - text_bbox[0]
+            current_x += text_width
+        except Exception as e:
+            print(f"Lỗi khi vẽ ký tự '{char}': {e}. Bỏ qua ký tự này.")
+            continue
+
+def draw_gradient_border(draw: ImageDraw.Draw, center_x: int, center_y: int, 
+                        radius: int, border_thickness: int, 
+                        gradient_colors: List[Tuple[int, int, int]]):
+    num_segments = 80
+    gradient = interpolate_colors(gradient_colors, num_segments, change_every=10)
+
+    for i in range(num_segments):
+        start_angle = i * (360 / num_segments)
+        end_angle = (i + 1) * (360 / num_segments)
+        color = tuple(gradient[i])
+        draw.arc(
+            [center_x - radius, center_y - radius, center_x + radius, center_y + radius],
+            start=start_angle, end=end_angle, fill=color, width=border_thickness
+        )
+
+def load_image_from_url(url: str) -> Image.Image:
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        return Image.open(BytesIO(response.content)).convert('RGBA')
+    except Exception as e:
+        print(f"Lỗi khi tải ảnh từ URL {url}: {e}")
+        return Image.new('RGBA', (100, 100), (0, 0, 0, 0))
+
+def generate_short_filename(length: int = 10) -> str:
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
+
+def load_random_background(background_dir: str = "background") -> Image.Image:
+    if not os.path.exists(background_dir):
+        print(f"Error: Background folder '{background_dir}' does not exist.")
+        return None
+    background_files = [os.path.join(background_dir, f) for f in os.listdir(background_dir) 
+                       if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+    if not background_files:
+        print(f"Error: No valid image files found in '{background_dir}'")
+        return None
+    background_path = random.choice(background_files)
+    try:
+        return Image.open(background_path).convert("RGBA")
+    except Exception as e:
+        print(f"Error loading image {background_path}: {e}")
+        return None
+
+def create_default_background(width: int, height: int) -> Image.Image:
+    return Image.new('RGBA', (width, height), (0, 100, 0, 255))
+
+def create_default_avatar(name: str) -> Image.Image:
+    avatar = Image.new('RGBA', (170, 170), (200, 200, 200, 255))
+    draw = ImageDraw.Draw(avatar)
+    draw.ellipse((0, 0, 170, 170), fill=(100, 100, 255, 255))
+    initials = (name[:2].upper() if name else "??")
+    font = ImageFont.truetype(font_path_arial, 60)
+    text_bbox = draw.textbbox((0, 0), initials, font=font)
+    text_width = text_bbox[2] - text_bbox[0]
+    text_height = text_bbox[3] - text_bbox[1]
+    draw.text(
+        ((170 - text_width) // 2, (170 - text_height) // 2),
+        initials,
+        font=font,
+        fill=(255, 255, 255, 255)
+    )
+    return avatar
+
+def create_banner(bot, uid: str, thread_id: str, group_name: str = None, 
+                 avatar_url: str = None, event_type: str = None, 
+                 event_data = None, background_dir: str = "background") -> str:
+    try:
+        settings = read_settings()
+        if not settings.get("welcome", {}).get(thread_id, False):
+            return None
+            
+        member_info = bot.fetchUserInfo(uid).changed_profiles.get(uid)
+        if not member_info:
+            print(f"[ERROR] Không tìm thấy thông tin user {uid}")
+            return None
+            
+        avatar_url = member_info.avatar if not avatar_url else avatar_url
+        user_name = getattr(member_info, 'zaloName', f"User{uid}")
+
+        group_info = bot.group_info_cache.get(thread_id, {})
+        group_name = group_info.get('name', "Nhóm không xác định") if not group_name else group_name
+        total_members = group_info.get('total_member', 0)
+        thread_type = ThreadType.GROUP
+
+        ow_name = ""
+        ow_avatar_url = ""
+        if event_data and hasattr(event_data, 'sourceId'):
+            try:
+                ow_info = bot.fetchUserInfo(event_data.sourceId).changed_profiles.get(event_data.sourceId)
+                ow_name = getattr(ow_info, 'zaloName', f"Admin{event_data.sourceId}") if ow_info else "Quản trị viên"
+                ow_avatar_url = ow_info.avatar if ow_info else ""
+            except Exception as e:
+                print(f"[WARNING] Lỗi khi lấy thông tin admin: {e}")
+                ow_name = "Quản trị viên"
+
+        event_config = {
+            GroupEventType.JOIN: {
+                'main_text': f'Chào mừng, {user_name} 💜',
+                'group_name_text': "Cộng Đồng",
+                'credit_text': "Đã được duyệt vào nhóm",
+                'msg': f"✨ {user_name}",
+                'mention': None
+            },
+            GroupEventType.LEAVE: {
+                'main_text': f'Tạm biệt, {user_name} 💔',
+                'group_name_text': "Cộng Đồng",
+                'credit_text': "Đã rời khỏi nhóm",
+                'msg': f'💔 {user_name}',
+                'mention': None
+            },
+            GroupEventType.ADD_ADMIN: {
+                'main_text': f'Chúc mừng, {user_name}',
+                'group_name_text': "Cộng Đồng",
+                'credit_text': f"bổ nhiệm làm phó nhóm🔑",
+                'msg': f'🎉 {user_name}',
+                'mention': None
+            },
+            GroupEventType.REMOVE_ADMIN: {
+                'main_text': f'Rất tiếc, {user_name}',
+                'group_name_text': "Cộng Đồng",
+                'credit_text': f"Đã bị xóa vai trò nhóm❌",
+                'msg': f'⚠️ {user_name}',
+                'mention': None
+            },
+            GroupEventType.REMOVE_MEMBER: {
+                'main_text': f'Nhây này, {user_name}',
+                'group_name_text': "Cộng Đồng",
+                'credit_text': f"Đã bị kick khỏi nhóm🚫",
+                'msg': f'🚫 {user_name}',
+                'mention': None
+            },
+            GroupEventType.JOIN_REQUEST: {
+                'main_text': f'Yêu cầu tham gia ✋',
+                'group_name_text': "Cộng Đồng",
+                'credit_text': f"{user_name}",
+                'msg': f'✋ {user_name}',
+                'mention': None
+            }
+        }
+
+        config = event_config.get(event_type)
+        if not config:
+            print(f"[ERROR] Sự kiện {event_type} không được hỗ trợ")
+            return None
+        
+        banner_width, banner_height = 980, 350
+        
+        try:
+            background = load_random_background(background_dir) or create_default_background(banner_width, banner_height)
+            background = background.resize((banner_width, banner_height), Image.LANCZOS)
+            background_blurred = background.filter(ImageFilter.GaussianBlur(radius=5))
+        except Exception as e:
+            print(f"[ERROR] Lỗi background: {e}")
+            background = create_default_background(banner_width, banner_height)
+            background_blurred = background
+
+        overlay = Image.new("RGBA", (banner_width, banner_height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay)
+        
+        glass_color = (
+            random.randint(30, 80),
+            random.randint(30, 80), 
+            random.randint(30, 80),
+            random.randint(170, 220)
+        )
+        
+        rect_margin = 60
+        rect_x0, rect_y0 = rect_margin, 30
+        rect_x1, rect_y1 = banner_width - rect_margin, banner_height - 30
+        draw.rounded_rectangle([rect_x0, rect_y0, rect_x1, rect_y1], radius=30, fill=glass_color)
+
+        member_circle_radius = 25
+        member_circle_x = rect_x1 - member_circle_radius - 20 
+        member_circle_y = rect_y0 + member_circle_radius + 15
+        
+        circle_border_color = (
+            random.randint(100, 255),
+            random.randint(100, 255),
+            random.randint(100, 255),
+            255 
+        )
+        
+        draw.ellipse(
+            [member_circle_x - member_circle_radius, 
+             member_circle_y - member_circle_radius,
+             member_circle_x + member_circle_radius, 
+             member_circle_y + member_circle_radius],
+            outline=circle_border_color,
+            width=6
+        )
+        
+        member_font = ImageFont.truetype(font_path_arial, 20)
+        member_count_text = str(total_members)
+        member_bbox = draw.textbbox((0, 0), member_count_text, font=member_font)
+        member_text_width = member_bbox[2] - member_bbox[0]
+        member_text_height = member_bbox[3] - member_bbox[1]
+        
+        member_text_x = member_circle_x - (member_text_width // 2)
+        member_text_y = member_circle_y - (member_text_height // 2 + 10)
+        draw.text(
+            (member_text_x, member_text_y),
+            member_count_text,
+            font=member_font,
+            fill=(255, 255, 255, 255)
+        )
+
+        banner = Image.alpha_composite(background_blurred, overlay)
+
+        try:
+            avatar = load_image_from_url(avatar_url) or create_default_avatar(user_name)
+            avatar_size = 135
+            mask = Image.new('L', (avatar_size, avatar_size), 0)
+            draw_mask = ImageDraw.Draw(mask)
+            draw_mask.ellipse((0, 0, avatar_size, avatar_size), fill=255)
+            
+            avatar = avatar.resize((avatar_size, avatar_size), Image.LANCZOS)
+            avatar_x = rect_x0 + 25
+            avatar_y = rect_y1 - avatar_size - 70
+            banner.paste(avatar, (avatar_x, avatar_y), mask)
+            
+            border_size = 4
+            border = Image.new('RGBA', (avatar_size + border_size*2, avatar_size + border_size*2), (255, 255, 255, 255))
+            border_mask = Image.new('L', (avatar_size + border_size*2, avatar_size + border_size*2), 0)
+            border_draw = ImageDraw.Draw(border_mask)
+            border_draw.ellipse((0, 0, avatar_size + border_size*2, avatar_size + border_size*2), fill=255)
+            banner.paste(border, (avatar_x - border_size, avatar_y - border_size), border_mask)
+            banner.paste(avatar, (avatar_x, avatar_y), mask)
+        except Exception as e:
+            print(f"[WARNING] Lỗi avatar người dùng: {e}")
+
+        if ow_avatar_url:
+            try:
+                ow_avatar = load_image_from_url(ow_avatar_url) or create_default_avatar(ow_name)
+                ow_avatar = ow_avatar.resize((avatar_size, avatar_size), Image.LANCZOS)
+                ow_avatar_x = rect_x1 - avatar_size - 25
+                ow_avatar_y = avatar_y
+                banner.paste(ow_avatar, (ow_avatar_x, ow_avatar_y), mask)
+                
+                banner.paste(border, (ow_avatar_x - border_size, ow_avatar_y - border_size), border_mask)
+                banner.paste(ow_avatar, (ow_avatar_x, ow_avatar_y), mask)
+            except Exception as e:
+                print(f"[WARNING] Lỗi avatar người thực hiện: {e}")
+
+        draw = ImageDraw.Draw(banner)
+        
+        def get_vibrant_color():
+            colors = [
+                (255, 90, 90), (90, 255, 90), (90, 90, 255),
+                (255, 255, 90), (255, 90, 255), (90, 255, 255)
+            ]
+            return random.choice(colors)
+        
+        font_main = ImageFont.truetype(font_path_arial, 50)
+        main_text = config['main_text']
+        main_bbox = draw.textbbox((0, 0), main_text, font=font_main)
+        main_width = main_bbox[2] - main_bbox[0]
+        main_x = rect_x0 + (rect_x1 - rect_x0 - main_width) // 2
+        main_y = rect_y0 + 10
+        draw.text((main_x, main_y), main_text, font=font_main, fill=get_vibrant_color())
+
+        font_group = ImageFont.truetype(font_path_arial, 48)
+        group_text = config['group_name_text']
+        group_bbox = draw.textbbox((0, 0), group_text, font=font_group)
+        group_width = group_bbox[2] - group_bbox[0]
+        group_x = rect_x0 + (rect_x1 - rect_x0 - group_width) // 2
+        group_y = main_y + main_bbox[3] + 15
+        max_width = rect_x1 - rect_x0 - 20
+        if group_width > max_width:
+            while group_bbox[2] - group_bbox[0] > max_width and len(group_text) > 0:
+                group_text = group_text[:-1]
+                group_bbox = draw.textbbox((0, 0), group_text + "...", font=font_group)
+            group_text += "..."
+        draw.text((group_x, group_y), group_text, font=font_group, fill=get_vibrant_color())
+
+        font_credit = ImageFont.truetype(font_path_arial, 38)
+        credit_text = config['credit_text']
+        credit_bbox = draw.textbbox((0, 0), credit_text, font=font_credit)
+        credit_width = credit_bbox[2] - credit_bbox[0]
+        credit_x = rect_x0 + (rect_x1 - rect_x0 - credit_width) // 2
+        credit_y = group_y + group_bbox[3] + 15
+        draw.text((credit_x, credit_y), credit_text, font=font_credit, fill=(255, 255, 255))
+
+        time_text = f"📅 {time.strftime('%d/%m/%Y')}  ⏰ {time.strftime('%H:%M:%S')}    🔑 Executed by {ow_name}" if ow_name else f"📅 {time.strftime('%d/%m/%Y')}     ⏰ {time.strftime('%H:%M:%S')}"
+        font_footer = ImageFont.truetype(font_path_arial, 22)
+        footer_bbox = draw.textbbox((0, 0), time_text, font=font_footer)
+        footer_x = rect_x0 + (rect_x1 - rect_x0 - footer_bbox[2]) // 2 + 20
+        footer_y = rect_y1 - footer_bbox[3] - 15
+        draw.text((footer_x, footer_y), time_text, font=font_footer, fill=(220, 220, 220))
+
+        file_name = f"banner_{int(time.time())}.jpg"
+        try:
+            banner.convert('RGB').save(file_name, quality=95)
+            if event_type:
+                bot.sendMultiLocalImage(
+                    [file_name],
+                    thread_id=thread_id,
+                    thread_type=thread_type,
+                    width=banner_width,
+                    height=banner_height,
+                    message=Message(text=config['msg'], mention=config.get('mention')),
+                    ttl=60000 * 60
+                )
+        except Exception as e:
+            print(f"[ERROR] Lỗi khi lưu/gửi banner: {e}")
+            return None
+        finally:
+            try:
+                delete_file(file_name)
+            except:
+                pass
+
+        return file_name
+
+    except Exception as e:
+        print(f"[CRITICAL] Lỗi nghiêm trọng: {str(e)}")
+        return None
+
+def delete_file(file_path: str):
+    try:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            print(f"Đã xóa tệp: {file_path}")
+    except Exception as e:
+        print(f"Lỗi khi xóa tệp: {e}")
+
+def load_emoji_font(size: int) -> ImageFont.FreeTypeFont:
+    try:
+        if os.path.exists(font_path_emoji):
+            return ImageFont.truetype(font_path_emoji, size)
+        if os.name == 'nt':
+            return ImageFont.truetype("seguiemj.ttf", size)
+        elif os.path.exists("/System/Library/Fonts/Apple Color Emoji.ttc"):
+            return ImageFont.truetype("/System/Library/Fonts/Apple Color Emoji.ttc", size)
+    except Exception:
+        return None
+
+def handle_event(client, event_data, event_type):
+    try:
+        if not hasattr(event_data, 'groupId'):
+            print(f"Dữ liệu sự kiện không có groupId: {event_data}")
+            return
+
+        thread_id = event_data.groupId
+        thread_type = ThreadType.GROUP
+        
+        settings = read_settings()
+        if not settings.get("welcome", {}).get(thread_id, False):
+            return
+            
+        group_info = client.fetchGroupInfo(thread_id)
+        group_name = group_info.gridInfoMap.get(str(thread_id), {}).get('name', 'nhóm')
+        total_member = group_info.gridInfoMap[str(thread_id)]['totalMember']
+
+        client.group_info_cache[thread_id] = {
+            "name": group_name,
+            "member_list": group_info.gridInfoMap[str(thread_id)]['memVerList'],
+            "total_member": total_member
+        }
+
+        for member in event_data.updateMembers:
+            member_id = member['id']
+            member_name = member['dName']
+            user_info = client.fetchUserInfo(member_id)
+            avatar_url = user_info.changed_profiles[member_id].avatar
+
+            banner_path = create_banner(
+                client, 
+                member_id, 
+                thread_id, 
+                group_name=group_name, 
+                avatar_url=avatar_url, 
+                event_type=event_type, 
+                event_data=event_data
+            )
+
+            if event_type == GroupEventType.JOIN:
+                msg = Message(
+                    text=f"🚦 {member_name}",
+                    mention=Mention(uid=member_id, length=len(member_name), offset=3)
+                )
+                client.sendLocalImage(banner_path, thread_id=thread_id, thread_type=thread_type, 
+                                    width=980, height=350, message=msg, ttl=60000 * 60)
+            elif event_type == GroupEventType.LEAVE:
+                client.sendLocalImage(banner_path, thread_id=thread_id, thread_type=thread_type, 
+                                    width=980, height=350, ttl=60000 * 60)
+            else:
+                print(f"Sự kiện {event_type} không được hỗ trợ")
+
+            delete_file(banner_path)
+
+    except Exception as e:
+        print(f"Lỗi khi xử lý event {event_type}: {e}")
+
+def handle_welcome_on(bot, thread_id: str) -> str:
+    settings = read_settings()
+    if "welcome" not in settings:
+        settings["welcome"] = {}
+    settings["welcome"][thread_id] = True
+    write_settings(settings)
+    return f"🚦Chế độ welcome đã 🟢 Bật 🎉"
+
+def handle_welcome_off(bot, thread_id: str) -> str:
+    settings = read_settings()
+    if "welcome" in settings and thread_id in settings["welcome"]:
+        settings["welcome"][thread_id] = False
+        write_settings(settings)
+        return f"🚦Chế độ welcome đã 🔴 Tắt 🎉"
+    return "🚦Nhóm chưa có thông tin cấu hình welcome để 🔴 Tắt 🤗"
+
+def get_allow_welcome(bot, thread_id: str) -> bool:
+    settings = read_settings()
+    return settings.get("welcome", {}).get(thread_id, False)
+
+def initialize_group_info(bot, allowed_thread_ids: List[str]):
+    for thread_id in allowed_thread_ids:
+        group_info = bot.fetchGroupInfo(thread_id).gridInfoMap.get(thread_id, None)
+        if group_info:
+            bot.group_info_cache[thread_id] = {
+                "name": group_info['name'],
+                "member_list": group_info['memVerList'],
+                "total_member": group_info['totalMember']
+            }
+        else:
+            print(f"Bỏ qua nhóm {thread_id}")
+
+def check_member_changes(bot, thread_id: str) -> Tuple[set, set]:
+    current_group_info = bot.fetchGroupInfo(thread_id).gridInfoMap.get(thread_id, None)
+    cached_group_info = bot.group_info_cache.get(thread_id, None)
+
+    if not cached_group_info or not current_group_info:
+        return set(), set()
+
+    old_members = set([member.split('_')[0] for member in cached_group_info["member_list"]])
+    new_members = set([member.split('_')[0] for member in current_group_info['memVerList']])
+
+    joined_members = new_members - old_members
+    left_members = old_members - new_members
+
+    bot.group_info_cache[thread_id] = {
+        "name": current_group_info['name'],
+        "member_list": current_group_info['memVerList'],
+        "total_member": current_group_info['totalMember']
+    }
+
+    return joined_members, left_members
+
+def handle_group_member(bot, message_object, author_id: str, thread_id: str, thread_type: str):
+    if not get_allow_welcome(bot, thread_id):
+        return
+        
+    current_group_info = bot.fetchGroupInfo(thread_id).gridInfoMap.get(thread_id, None)
+    cached_group_info = bot.group_info_cache.get(thread_id, None)
+
+    if not cached_group_info or not current_group_info:
+        print(f"Không có thông tin nhóm cho thread_id {thread_id}")
+        return
+
+    old_members = set([member.split('_')[0] for member in cached_group_info["member_list"]])
+    new_members = set([member.split('_')[0] for member in current_group_info['memVerList']])
+
+    joined_members = new_members - old_members
+    left_members = old_members - new_members
+
+    for member_id in joined_members:
+        banner = create_banner(bot, member_id, thread_id, event_type=GroupEventType.JOIN, 
+                             event_data=type('Event', (), {'sourceId': author_id or bot.uid})())
+        if banner and os.path.exists(banner):
+            try:
+                user_name = bot.fetchUserInfo(member_id).changed_profiles[member_id].zaloName
+                bot.sendLocalImage(
+                    banner,
+                    thread_id=thread_id,
+                    thread_type=thread_type,
+                    width=980,
+                    height=350,
+                    message=Message(
+                        text=f"🚦 {user_name}",
+                        mention=Mention(uid=member_id, length=len(user_name), offset=3)
+                    ),
+                    ttl=86400000
+                )
+                delete_file(banner)
+            except Exception as e:
+                print(f"Lỗi khi gửi banner cho {member_id} (JOIN): {e}")
+                if os.path.exists(banner):
+                    delete_file(banner)
+
+    for member_id in left_members:
+        banner = create_banner(bot, member_id, thread_id, event_type=GroupEventType.LEAVE, 
+                             event_data=type('Event', (), {'sourceId': author_id or bot.uid})())
+        if banner and os.path.exists(banner):
+            try:
+                bot.sendLocalImage(
+                    banner,
+                    thread_id=thread_id,
+                    thread_type=thread_type,
+                    width=980,
+                    height=350,
+                    ttl=86400000
+                )
+                delete_file(banner)
+            except Exception as e:
+                print(f"Lỗi khi gửi banner cho {member_id} (LEAVE): {e}")
+                if os.path.exists(banner):
+                    delete_file(banner)
+
+    bot.group_info_cache[thread_id] = {
+        "name": current_group_info['name'],
+        "member_list": current_group_info['memVerList'],
+        "total_member": current_group_info['totalMember']
+    }
+
+def start_member_check_thread(bot, allowed_thread_ids: List[str]):
+    def check_members_loop():
+        while True:
+            for thread_id in allowed_thread_ids:
+                if not get_allow_welcome(bot, thread_id):
+                    continue
+                handle_group_member(bot, None, None, thread_id, ThreadType.GROUP)
+            time.sleep(2)
+
+    thread = threading.Thread(target=check_members_loop, daemon=True)
+    thread.start()

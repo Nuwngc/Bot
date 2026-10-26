@@ -1,0 +1,30 @@
+# Cau hinh trien khai Render (Blueprint).
+# Vao Render -> New -> Blueprint -> tro toi repo GitHub chua file nay.
+services:
+  - type: web
+    name: fb-bot-panel
+    runtime: node
+    region: singapore          # gan Viet Nam nhat
+    plan: starter              # XEM README-WEB.md: goi free KHONG co disk va se ngu
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: APP_SECRET        # Render tu sinh 1 lan; doi gia tri = mat cookie da luu
+        generateValue: true
+      - key: ADMIN_USER
+        value: admin
+      - key: ADMIN_PASS        # tu nhap trong dashboard Render, khong luu vao git
+        sync: false
+      - key: DB_PATH
+        value: /var/data/app.db
+      - key: MAX_BOTS
+        value: "3"
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1

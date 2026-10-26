@@ -1,0 +1,19 @@
+# Thu vien Python cho bot Zalo (sinh tu cac lenh import trong code)
+requests
+beautifulsoup4
+Pillow
+pytz
+emoji
+colorama
+pyfiglet
+aiohttp
+websockets
+pycryptodome
+attrs
+munch
+psutil
+gTTS
+deep-translator
+speedtest-cli
+fake-useragent
+fbchat
