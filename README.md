@@ -135,4 +135,3 @@ Mỗi lệnh là một file trong `src/commands/`, tự nạp khi bot khởi đ�
 | Giải trí | `sad`, `thinh` | |
 
 Muốn thêm lệnh: copy một file trong `src/commands/`, đổi `command`, `description`, `run`.
-Module tải lên từ panel vẫn được ưu tiên nếu trùng tên lệnh.

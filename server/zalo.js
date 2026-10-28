@@ -54,8 +54,8 @@ if (!db.prepare("PRAGMA table_info(zalo_accounts)").all().some((c) => c.name ===
   db.exec("ALTER TABLE zalo_accounts ADD COLUMN expires TEXT");
 }
 
-// Admin an bot (nguoi dung khong thay) / khoa bot (nguoi dung khong sua, bat, tat, xoa duoc)
-for (const col of ["hidden", "locked"]) {
+// Admin khoa bot: nguoi dung khong sua, bat, tat, xoa duoc
+for (const col of ["locked"]) {
   if (!db.prepare("PRAGMA table_info(zalo_accounts)").all().some((c) => c.name === col)) {
     db.exec(`ALTER TABLE zalo_accounts ADD COLUMN ${col} INTEGER NOT NULL DEFAULT 0`);
   }
@@ -94,7 +94,7 @@ const zq = {
   del: db.prepare("DELETE FROM zalo_accounts WHERE id = ?"),
   delByUser: db.prepare("DELETE FROM zalo_accounts WHERE user_id = ?"),
   setExpires: db.prepare("UPDATE zalo_accounts SET expires = ? WHERE id = ?"),
-  setFlags: db.prepare("UPDATE zalo_accounts SET hidden = ?, locked = ? WHERE id = ?"),
+  setFlags: db.prepare("UPDATE zalo_accounts SET locked = ? WHERE id = ?"),
   allAutostart: db.prepare(
     "SELECT * FROM zalo_accounts WHERE autostart = 1 AND cookies_enc IS NOT NULL AND imei_enc IS NOT NULL"
   ),

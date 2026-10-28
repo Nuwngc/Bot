@@ -52,19 +52,6 @@ db.exec(`
     note        TEXT
   );
 
-  -- Module (game/chuc nang) do admin tai len
-  CREATE TABLE IF NOT EXISTS modules (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    name        TEXT UNIQUE NOT NULL,   -- ten file, vd doanso.js
-    command     TEXT,                   -- lenh kich hoat
-    kind        TEXT,                   -- game | command
-    description TEXT,
-    enabled     INTEGER NOT NULL DEFAULT 1,
-    uploaded_by INTEGER,
-    uploaded_at TEXT NOT NULL DEFAULT (datetime('now')),
-    error       TEXT
-  );
-
   -- Cau hinh chung dang key-value
   CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
@@ -200,21 +187,6 @@ const q = {
     "UPDATE orders SET status = 'paid', paid_at = datetime('now'), note = ? WHERE id = ?"
   ),
   cancelOrder: db.prepare("UPDATE orders SET status = 'cancelled' WHERE id = ?"),
-
-  allModules: db.prepare("SELECT * FROM modules ORDER BY name"),
-  enabledModules: db.prepare("SELECT * FROM modules WHERE enabled = 1 ORDER BY name"),
-  moduleByName: db.prepare("SELECT * FROM modules WHERE name = ?"),
-  upsertModule: db.prepare(`
-    INSERT INTO modules (name, command, kind, description, uploaded_by, error)
-    VALUES (?, ?, ?, ?, ?, NULL)
-    ON CONFLICT(name) DO UPDATE SET
-      command = excluded.command, kind = excluded.kind,
-      description = excluded.description, uploaded_by = excluded.uploaded_by,
-      uploaded_at = datetime('now'), error = NULL
-  `),
-  setModuleEnabled: db.prepare("UPDATE modules SET enabled = ? WHERE id = ?"),
-  setModuleError: db.prepare("UPDATE modules SET error = ?, enabled = 0 WHERE name = ?"),
-  deleteModule: db.prepare("DELETE FROM modules WHERE id = ?"),
 };
 
 function ensureBotRow(userId) {

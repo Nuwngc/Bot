@@ -302,8 +302,13 @@ $("zlDelLogin").onclick = async () => {
 const panels = { fb, zalo: zl };
 let current = "fb";
 
+const tabHidden = (name) => {
+  const b = $("tabs").querySelector(`button[data-tab="${name}"]`);
+  return !b || b.hidden;
+};
+
 function showTab(name) {
-  if (!$("tab-" + name) || (name === "admin" && $("tabAdminBtn").hidden)) name = "fb";
+  if (!$("tab-" + name) || tabHidden(name)) name = ["fb", "zalo", "plan"].find((n) => !tabHidden(n)) || "plan";
   current = name;
   for (const b of $("tabs").querySelectorAll("button")) b.classList.toggle("on", b.dataset.tab === name);
   for (const t of document.querySelectorAll(".tab")) t.hidden = t.id !== "tab-" + name;

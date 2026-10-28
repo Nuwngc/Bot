@@ -35,6 +35,7 @@ async function loadMe() {
   isAdmin = me.role === "admin";
   $("adminBox").hidden = !isAdmin;
   $("tabAdminBtn").hidden = !isAdmin;
+  applySections(me.sections);
 
   $("aiModel").value = me.settings.aiModel;
   $("aiSystem").value = me.settings.aiSystem;
@@ -53,13 +54,23 @@ async function loadMe() {
   if (isAdmin) {
     loadUsers();
     $("ordersBox").hidden = false;
-    $("modulesBox").hidden = false;
+    $("sectionsBox").hidden = false;
     $("settingsBox").hidden = false;
     loadOrders();
-    loadModules();
     loadGlobalSettings();
     loadPricing();
   }
+}
+
+/** Ẩn tab Facebook / Zalo nếu admin đã ẩn (chỉ ẩn với người dùng thường) */
+function applySections(sec) {
+  sec = sec || { fb: true, zalo: true };
+  for (const name of ["fb", "zalo"]) {
+    const b = document.querySelector(`#tabs button[data-tab="${name}"]`);
+    if (b) b.hidden = !sec[name];
+  }
+  // Đang đứng ở tab vừa bị ẩn thì chuyển sang tab còn lại
+  if (typeof showTab === "function") showTab(current);
 }
 
 function fmtDate(s) {
@@ -212,11 +223,9 @@ async function showUserBots(userId) {
         <span class="name">${esc(x.name)}</span>
         <span class="tag">${PRODUCT_NAMES[x.product]}</span>
         <span class="tag ${x.active ? "ok" : "off"}">${esc(expiryLine(x))}</span>
-        ${x.hidden ? '<span class="tag off">đang ẩn</span>' : ""}
         ${x.locked ? '<span class="tag off">đang khoá</span>' : ""}
         <span class="spacer"></span>
         <button data-act="ext" data-id="${userId}" data-product="${x.product}" data-bot="${x.id}" data-name="${esc(x.name)}">+ ngày</button>
-        <button data-act="hide" data-id="${userId}" data-product="${x.product}" data-bot="${x.id}" data-on="${x.hidden ? 0 : 1}">${x.hidden ? "Hiện" : "Ẩn"}</button>
         <button data-act="lockbot" data-id="${userId}" data-product="${x.product}" data-bot="${x.id}" data-on="${x.locked ? 0 : 1}">${x.locked ? "Mở khoá" : "Khoá"}</button>
         ${x.running ? `<button class="danger" data-act="stopbot" data-id="${userId}" data-product="${x.product}" data-bot="${x.id}">Dừng</button>` : ""}
       </div>`
@@ -277,11 +286,10 @@ $("users").addEventListener("click", async (e) => {
       await showUserBots(id);
       return;
     }
-    if (b.dataset.act === "hide" || b.dataset.act === "lockbot") {
-      const key = b.dataset.act === "hide" ? "hidden" : "locked";
+    if (b.dataset.act === "lockbot") {
       await api(`/admin/bots/${b.dataset.product}/${b.dataset.bot}/flags`, {
         method: "POST",
-        body: JSON.stringify({ [key]: Number(b.dataset.on) }),
+        body: JSON.stringify({ locked: Number(b.dataset.on) }),
       });
       await showUserBots(id);
       return;
@@ -391,75 +399,42 @@ $("orders").addEventListener("click", async (e) => {
   }
 });
 
-/* ---------- Admin: module ---------- */
+/* ---------- Admin: ẩn mục Facebook / Zalo ---------- */
 
-async function loadModules() {
-  const { modules } = await api("/admin/modules");
-  $("modules").innerHTML = modules.length
-    ? modules
-        .map(
-          (m) => `
-    <div class="user ${m.enabled ? "" : "off"}">
-      <span class="name">${esc(m.name)}</span>
-      <span class="tag">!${esc(m.command || "?")}</span>
-      <span class="tag">${m.kind === "command" ? "lệnh" : "trò chơi"}</span>
-      ${m.error ? `<span class="tag" style="color:var(--alert)">lỗi</span>` : ""}
-      <span class="spacer"></span>
-      <button data-mod="toggle" data-id="${m.id}" data-on="${m.enabled ? 0 : 1}">${
-            m.enabled ? "Tắt" : "Bật"
-          }</button>
-      <button class="danger" data-mod="del" data-id="${m.id}" data-name="${esc(m.name)}">Xoá</button>
-    </div>
-    ${m.error ? `<p style="color:var(--alert);font-size:0.8rem;margin:0 0 0.5rem">${esc(m.error)}</p>` : ""}`
-        )
-        .join("")
-    : '<p style="color:var(--dim);font-size:0.85rem">Chưa có module nào.</p>';
+const SECTION_BTNS = { fb: ["btnHideFb", "Facebook"], zalo: ["btnHideZalo", "Zalo"] };
+
+function renderSections(s) {
+  for (const [name, [id, label]] of Object.entries(SECTION_BTNS)) {
+    const hidden = s["hide_" + name] === "1";
+    const b = $(id);
+    b.dataset.hidden = hidden ? "1" : "0";
+    b.className = hidden ? "primary" : "";
+    b.textContent = hidden ? `${label}: đang ẩn · Bấm để hiện` : `${label}: đang hiện · Bấm để ẩn`;
+  }
 }
 
-$("btnUploadMod").onclick = async () => {
-  const f = $("modFile").files[0];
-  if (!f) return say("Chưa chọn file.", "bad");
-  if (!f.name.endsWith(".js")) return say("Chỉ nhận file .js", "bad");
-
-  const code = await f.text();
-  try {
-    const d = await api("/admin/modules", {
-      method: "POST",
-      body: JSON.stringify({ fileName: f.name, code }),
-    });
-    say(`Đã thêm ${d.module.name} (lệnh !${d.module.command}). Tắt rồi bật lại bot để áp dụng.`);
-    $("modFile").value = "";
-    loadModules();
-  } catch (err) {
-    say(err.message, "bad");
-  }
-};
-
-$("modules").addEventListener("click", async (e) => {
-  const b = e.target.closest("button[data-mod]");
-  if (!b) return;
-  try {
-    if (b.dataset.mod === "toggle") {
-      await api(`/admin/modules/${b.dataset.id}/enabled`, {
+for (const [name, [id, label]] of Object.entries(SECTION_BTNS)) {
+  $(id).onclick = async () => {
+    const nowHidden = $(id).dataset.hidden === "1";
+    try {
+      await api("/admin/settings", {
         method: "POST",
-        body: JSON.stringify({ enabled: Number(b.dataset.on) }),
+        body: JSON.stringify({ ["hide_" + name]: nowHidden ? "0" : "1" }),
       });
-    } else {
-      if (!confirm(`Xoá module ${b.dataset.name}?`)) return;
-      await api(`/admin/modules/${b.dataset.id}`, { method: "DELETE" });
-      say("Đã xoá module.");
+      say(nowHidden ? `Đã hiện mục ${label} với người dùng.` : `Đã ẩn mục ${label} với mọi người dùng.`);
+      loadGlobalSettings();
+    } catch (e) {
+      say(e.message, "bad");
     }
-    loadModules();
-  } catch (err) {
-    say(err.message, "bad");
-  }
-});
+  };
+}
 
 /* ---------- Admin: cấu hình chung ---------- */
 
 async function loadGlobalSettings() {
   const d = await api("/admin/settings");
   const s = d.settings;
+  renderSections(s);
   $("signupOpen").checked = s.signup_open === "1";
   $("trialDays").value = s.trial_days;
   $("bankId").value = s.bank_id;

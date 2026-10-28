@@ -1,6 +1,6 @@
 /**
  * Nap cac lenh co san trong thu muc nay (moi file .js = mot lenh).
- * Cung giao dien voi module tai len bang panel (xem MODULE.md), them 2 truong:
+ * Moi file export { command, run, ... } va co them 2 truong:
  *   aliases: ["tx"]   -> ten goi tat
  *   group:   "game" | "tien-ich" | "giai-tri"  -> de nhom trong !help
  */

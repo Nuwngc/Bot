@@ -4,6 +4,7 @@ const zalo = require("./zalo");
 const { MAX_PER_USER, canCreate } = require("./fbBots");
 
 const billing = require("./billing");
+const { getSetting } = require("./db");
 
 /** Chan bat bot khi CHINH bot do chua thanh toan / het han */
 function botGuard(req, res, next) {
@@ -20,11 +21,19 @@ function botGuard(req, res, next) {
 const router = express.Router();
 router.use(auth.requireLogin);
 
-/** An / khoa do admin dat: xem fbRoutes.js. Admin khong bi gioi han. */
+/** Admin an ca muc nay -> nguoi dung thuong khong goi duoc API nua (admin van dung binh thuong) */
+router.use((req, res, next) => {
+  if (req.user.role !== "admin" && getSetting("hide_zalo") === "1") {
+    return res.status(404).json({ error: "Muc nay hien khong kha dung" });
+  }
+  next();
+});
+
+/** Khoa do admin dat: xem fbRoutes.js. Admin khong bi gioi han. */
 function ownBot(req, res, write = false) {
   const z = zalo.zq.byId.get(Number(req.params.id));
   const isAdmin = req.user.role === "admin";
-  if (!z || z.user_id !== req.user.id || (z.hidden && !isAdmin)) {
+  if (!z || z.user_id !== req.user.id) {
     res.status(404).json({ error: "Khong tim thay bot Zalo" });
     return null;
   }
@@ -58,10 +67,7 @@ function view(z, user) {
 
 router.get("/bots", (req, res) => {
   res.json({
-    bots: zalo.zq
-      .byUser.all(req.user.id)
-      .filter((z) => !z.hidden || req.user.role === "admin")
-      .map((z) => view(z, req.user)),
+    bots: zalo.zq.byUser.all(req.user.id).map((z) => view(z, req.user)),
     limit: req.user.role === "admin" ? null : MAX_PER_USER,
     unlimited: req.user.role === "admin",
     slots: { running: zalo.runningCount(), max: zalo.MAX_RUNNING },
@@ -69,7 +75,7 @@ router.get("/bots", (req, res) => {
 });
 
 router.post("/bots", (req, res) => {
-  const n = zalo.zq.byUser.all(req.user.id).filter((z) => !z.hidden).length;
+  const n = zalo.zq.countByUser.get(req.user.id).n;
   if (!canCreate(req.user, n)) {
     return res.status(400).json({ error: `Moi tai khoan toi da ${MAX_PER_USER} bot Zalo` });
   }

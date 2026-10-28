@@ -2,7 +2,6 @@ const { startNoiTu, checkWord, addWord, delWord, leaderboardText } = require("..
 const { loadBuiltins } = require("../commands");
 const { startMaSoi } = require("../games/masoi");
 const { createAI } = require("../ai/reply");
-const { loadModules } = require("./registry");
 const { makeStore } = require("./store");
 
 /**
@@ -13,10 +12,8 @@ function createRouter({ prefix = "!", aiKey, aiModel, aiSystem, ownerId = 0, onL
   const activeGames = new Map();  // threadId -> game
   const dmRoutes = new Map();     // userId -> game (hanh dong dem ma soi)
   const aiReply = createAI({ apiKey: aiKey, model: aiModel, systemPrompt: aiSystem, onLog });
-  const modules = loadModules(onLog);
-  for (const [key, mod] of loadBuiltins(onLog)) {
-    if (!modules.has(key)) modules.set(key, mod);
-  }
+  const modules = new Map();
+  for (const [key, mod] of loadBuiltins(onLog)) modules.set(key, mod);
 
   // Admin cua bot: FB user id trong BOT_ADMINS (cach nhau dau phay) hoac store "settings" key "admins"
   function isAdmin(userId) {
@@ -74,7 +71,7 @@ Tag bot trong tin nhan bat ky de hoi AI.`;
           try {
             await mod.onEvent(msg, adapter, moduleCtx());
           } catch (err) {
-            onLog("error", `Module ${mod.file} onEvent: ${err?.message || err}`);
+            onLog("error", `Lenh ${mod.file} onEvent: ${err?.message || err}`);
           }
         }
       }
@@ -206,7 +203,7 @@ Tag bot trong tin nhan bat ky de hoi AI.`;
         activeGames.set(msg.threadId, game);
       }
     } catch (err) {
-      onLog("error", `Module ${mod.file}: ${err?.message || err}`);
+      onLog("error", `Lenh ${mod.file}: ${err?.message || err}`);
       return adapter.send(msg.threadId, `Module "${mod.command}" bi loi.`);
     }
   }

@@ -1,7 +1,6 @@
 const express = require("express");
 const { db, q, ensureBotRow, getSetting, setSetting, allSettings } = require("./db");
 const billing = require("./billing");
-const modules = require("./modules");
 const { encrypt, decrypt, mask } = require("./crypto");
 const auth = require("./auth");
 const userBots = require("./userBots");
@@ -80,6 +79,15 @@ router.post("/logout", (req, res) => {
 
 router.use(auth.requireLogin);
 
+/** Muc Facebook / Zalo nao nguoi dung nay duoc thay */
+function sectionsFor(user) {
+  const isAdmin = user.role === "admin";
+  return {
+    fb: isAdmin || getSetting("hide_fb") !== "1",
+    zalo: isAdmin || getSetting("hide_zalo") !== "1",
+  };
+}
+
 router.get("/me", (req, res) => {
   const bot = ensureBotRow(req.user.id);
   const aiKey = decrypt(bot.ai_key_enc);
@@ -96,6 +104,8 @@ router.get("/me", (req, res) => {
     hasAiKey: !!aiKey,
     aiKeyMasked: aiKey ? mask(aiKey) : "",
     aiManagedByAdmin: req.user.role !== "admin",
+    // Muc nao bi admin an thi nguoi dung thuong khong thay (admin luon thay)
+    sections: sectionsFor(req.user),
   });
 });
 
@@ -107,9 +117,10 @@ router.get("/billing", (req, res) => {
     ...o,
     qr: o.status === "pending" ? billing.qrUrl({ amount: o.amount, code: o.code }) : null,
   }));
+  const sec = sectionsFor(req.user);
   const bots = [
-    ...fq.byUser.all(req.user.id).map((b) => ({ product: "fb", id: b.id, name: b.name, ...billing.botStatus(req.user, b) })),
-    ...zaloMod.zq.byUser.all(req.user.id).map((z) => ({ product: "zalo", id: z.id, name: z.name, ...billing.botStatus(req.user, z) })),
+    ...(sec.fb ? fq.byUser.all(req.user.id) : []).map((b) => ({ product: "fb", id: b.id, name: b.name, ...billing.botStatus(req.user, b) })),
+    ...(sec.zalo ? zaloMod.zq.byUser.all(req.user.id) : []).map((z) => ({ product: "zalo", id: z.id, name: z.name, ...billing.botStatus(req.user, z) })),
   ];
   res.json({
     prices: billing.priceTable(),
@@ -262,7 +273,6 @@ router.get("/admin/users/:id/bots", auth.requireAdmin, (req, res) => {
       product: "fb",
       id: b.id,
       name: b.name,
-      hidden: !!b.hidden,
       locked: !!b.locked,
       running: ["running", "starting"].includes(botManager.status(b.id).status),
       ...billing.botStatus(user, b),
@@ -271,7 +281,6 @@ router.get("/admin/users/:id/bots", auth.requireAdmin, (req, res) => {
       product: "zalo",
       id: z.id,
       name: z.name,
-      hidden: !!z.hidden,
       locked: !!z.locked,
       running: ["running", "starting"].includes(zaloMod.status(z.id).status),
       ...billing.botStatus(user, z),
@@ -287,20 +296,13 @@ function adminBotRow(product, id) {
   return null;
 }
 
-/**
- * Admin an / khoa mot bot.
- *  hidden: nguoi dung khong thay bot (bot van chay binh thuong)
- *  locked: nguoi dung khong sua / bat / tat / xoa duoc bot
- * Chi gui truong nao muon doi, truong con lai giu nguyen.
- */
+/** Admin khoa / mo khoa mot bot: nguoi dung khong sua / bat / tat / xoa duoc bot bi khoa */
 router.post("/admin/bots/:product/:id/flags", auth.requireAdmin, (req, res) => {
   const row = adminBotRow(req.params.product, req.params.id);
   if (!row) return res.status(404).json({ error: "Khong tim thay bot" });
-  const b = req.body || {};
-  const hidden = b.hidden === undefined ? row.hidden : b.hidden ? 1 : 0;
-  const locked = b.locked === undefined ? row.locked : b.locked ? 1 : 0;
-  (req.params.product === "fb" ? fq : zaloMod.zq).setFlags.run(hidden, locked, row.id);
-  res.json({ ok: true, hidden: !!hidden, locked: !!locked });
+  const locked = req.body?.locked ? 1 : 0;
+  (req.params.product === "fb" ? fq : zaloMod.zq).setFlags.run(locked, row.id);
+  res.json({ ok: true, locked: !!locked });
 });
 
 /** Admin tat mot bot (can khi bot bi an, nguoi dung khong tu tat duoc) */
@@ -369,7 +371,7 @@ router.get("/admin/settings", auth.requireAdmin, (req, res) => {
 });
 
 router.post("/admin/settings", auth.requireAdmin, (req, res) => {
-  const allowed = ["signup_open", "trial_days", "bank_id", "bank_account", "bank_owner", "pay_note", "global_ai_model", "global_ai_system"];
+  const allowed = ["signup_open", "trial_days", "bank_id", "bank_account", "bank_owner", "pay_note", "global_ai_model", "global_ai_system", "hide_fb", "hide_zalo"];
   for (const k of allowed) {
     if (k in (req.body || {})) setSetting(k, req.body[k]);
   }
@@ -385,44 +387,6 @@ router.post("/admin/settings", auth.requireAdmin, (req, res) => {
     hasGlobalAiKey: !!globalKey,
     globalAiKeyMasked: globalKey ? mask(globalKey) : "",
   });
-});
-
-/* ---------- Admin: module ---------- */
-
-router.get("/admin/modules", auth.requireAdmin, (req, res) => {
-  res.json({ modules: q.allModules.all() });
-});
-
-router.post("/admin/modules", auth.requireAdmin, (req, res) => {
-  try {
-    const meta = modules.save({
-      fileName: req.body?.fileName,
-      code: req.body?.code,
-      userId: req.user.id,
-    });
-    res.json({ ok: true, module: meta });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
-});
-
-router.get("/admin/modules/:name/code", auth.requireAdmin, (req, res) => {
-  const code = modules.readCode(req.params.name);
-  if (code == null) return res.status(404).json({ error: "Khong tim thay file" });
-  res.json({ code });
-});
-
-router.post("/admin/modules/:id/enabled", auth.requireAdmin, (req, res) => {
-  q.setModuleEnabled.run(req.body?.enabled ? 1 : 0, Number(req.params.id));
-  res.json({ ok: true });
-});
-
-router.delete("/admin/modules/:id", auth.requireAdmin, (req, res) => {
-  try {
-    res.json({ ok: true, removed: modules.remove(Number(req.params.id)) });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
 });
 
 /* ---------- tien ich ---------- */

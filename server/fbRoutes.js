@@ -6,6 +6,7 @@ const { loginWithPassword } = require("./fbLogin");
 const manager = require("../src/bot/manager");
 
 const billing = require("./billing");
+const { getSetting } = require("./db");
 
 /** Chan bat bot khi CHINH bot do chua thanh toan / het han */
 function botGuard(req, res, next) {
@@ -22,16 +23,23 @@ function botGuard(req, res, next) {
 const router = express.Router();
 router.use(auth.requireLogin);
 
+/** Admin an ca muc nay -> nguoi dung thuong khong goi duoc API nua (admin van dung binh thuong) */
+router.use((req, res, next) => {
+  if (req.user.role !== "admin" && getSetting("hide_fb") === "1") {
+    return res.status(404).json({ error: "Muc nay hien khong kha dung" });
+  }
+  next();
+});
+
 /**
  * Lay bot cua chinh nguoi dang dang nhap, khong thi 404.
- * Bot bi an -> nguoi dung thuong coi nhu khong ton tai.
  * write = true: bot bi khoa -> nguoi dung thuong khong duoc sua / bat / tat / xoa.
- * Admin khong bi gioi han boi an / khoa.
+ * Admin khong bi gioi han boi khoa.
  */
 function ownBot(req, res, write = false) {
   const bot = fq.byId.get(Number(req.params.id));
   const isAdmin = req.user.role === "admin";
-  if (!bot || bot.user_id !== req.user.id || (bot.hidden && !isAdmin)) {
+  if (!bot || bot.user_id !== req.user.id) {
     res.status(404).json({ error: "Khong tim thay bot" });
     return null;
   }
@@ -65,10 +73,7 @@ function view(b, user) {
 
 router.get("/bots", (req, res) => {
   res.json({
-    bots: fq
-      .byUser.all(req.user.id)
-      .filter((b) => !b.hidden || req.user.role === "admin")
-      .map((b) => view(b, req.user)),
+    bots: fq.byUser.all(req.user.id).map((b) => view(b, req.user)),
     limit: req.user.role === "admin" ? null : MAX_PER_USER,
     unlimited: req.user.role === "admin",
     slots: { running: manager.runningCount(), max: manager.MAX_CONCURRENT },
@@ -76,7 +81,7 @@ router.get("/bots", (req, res) => {
 });
 
 router.post("/bots", (req, res) => {
-  const n = fq.byUser.all(req.user.id).filter((b) => !b.hidden).length;
+  const n = fq.countByUser.get(req.user.id).n;
   if (!canCreate(req.user, n)) {
     return res.status(400).json({ error: `Moi tai khoan toi da ${MAX_PER_USER} bot Facebook` });
   }

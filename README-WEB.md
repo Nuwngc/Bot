@@ -134,33 +134,6 @@ Ma sói (lệnh `!masoi`) giờ có 7 vai, tự thêm theo số người chơi:
 Hành động đêm nhắn riêng cho bot: `!kill`, `!soi`, `!bv` (bảo vệ), `!cuu` / `!doc`
 (phù thủy), `!gheptinh <số1> <số2>` (cupid), `!ban <số>` (thợ săn khi chết).
 
-## Module có sẵn
-
-Thư mục `examples/` có sẵn vài module tải lên được ngay ở mục Module:
-
-- `vi.js` — tiền ảo: `!vi`, `!vi daily`, `!vi work`, `!vi pay @tên <số>`, `!vi top`
-- `taixiu.js` — `!taixiu tai/xiu <số xu>`, dùng chung ví với `vi.js`
-- `chaomung.js` — tự chào người mới vào và tạm biệt người rời nhóm; `!chaomung` để chỉnh lời
-- `tiktok.js` — `!tiktok <link>` tải video không logo
-- `doanso.js` — game đoán số, làm mẫu
-
-Tải lên rồi tắt/bật lại bot là dùng được. Muốn viết thêm, xem MODULE.md.
-
-## Module: thêm trò chơi mới
-
-Tải một file `.js` lên ở mục "Module" là xong, không phải sửa code gốc hay deploy lại.
-Tắt rồi bật lại bot để áp dụng. Xem **[MODULE.md](MODULE.md)** để biết cách viết,
-và `examples/doanso.js` để có file mẫu chạy được ngay.
-
-**Đây là tính năng nguy hiểm nhất trong hệ thống.** File tải lên chạy trực tiếp trên
-server cùng tiến trình với bot — ai up được module thì đọc được biến môi trường,
-database, và cookie Facebook của toàn bộ khách thuê. Hệ thống chỉ cho admin tải lên,
-và đừng bao giờ mở quyền này ra cho người thuê bot.
-
-Bộ lọc chặn `require`, `process`, `eval`, `new Function`, `globalThis`,
-`child_process`, `__dirname`. Nó chống sai sót vô tình, không chống được người cố ý.
-Tự đọc code trước khi tải lên.
-
 ## Dùng panel
 
 **Quản trị viên** có thể tạo tài khoản sẵn trong mục "Tài khoản", hoặc bật tự đăng ký
@@ -235,14 +208,11 @@ server/
   db.js               SQLite (node:sqlite, không cần biên dịch native)
   crypto.js           mã hoá AES-256-GCM
   billing.js          gói cước, mã chuyển khoản, VietQR, hạn dùng
-  modules.js          kiểm tra và lưu module tải lên
 public/               giao diện panel
 src/
   bot/manager.js      vòng đời bot cho từng người dùng
   adapters/fca.js     lớp cách ly Facebook
   core/router.js      phân luồng lệnh (mỗi bot một instance)
-  core/registry.js    nạp module đã bật vào bot
   games/              nối từ, ma sói
   ai/reply.js         gọi API trả lời khi bị tag
-examples/doanso.js    module mẫu để copy
 ```
