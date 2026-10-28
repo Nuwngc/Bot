@@ -7,6 +7,7 @@ const auth = require("./auth");
 const userBots = require("./userBots");
 const { fq } = require("./fbBots");
 const zaloMod = require("./zalo");
+const botManager = require("../src/bot/manager");
 
 const router = express.Router();
 
@@ -257,10 +258,58 @@ router.get("/admin/users/:id/bots", auth.requireAdmin, (req, res) => {
   const user = q.userById.get(Number(req.params.id));
   if (!user) return res.status(404).json({ error: "Khong tim thay tai khoan" });
   const bots = [
-    ...fq.byUser.all(user.id).map((b) => ({ product: "fb", id: b.id, name: b.name, ...billing.botStatus(user, b) })),
-    ...zaloMod.zq.byUser.all(user.id).map((z) => ({ product: "zalo", id: z.id, name: z.name, ...billing.botStatus(user, z) })),
+    ...fq.byUser.all(user.id).map((b) => ({
+      product: "fb",
+      id: b.id,
+      name: b.name,
+      hidden: !!b.hidden,
+      locked: !!b.locked,
+      running: ["running", "starting"].includes(botManager.status(b.id).status),
+      ...billing.botStatus(user, b),
+    })),
+    ...zaloMod.zq.byUser.all(user.id).map((z) => ({
+      product: "zalo",
+      id: z.id,
+      name: z.name,
+      hidden: !!z.hidden,
+      locked: !!z.locked,
+      running: ["running", "starting"].includes(zaloMod.status(z.id).status),
+      ...billing.botStatus(user, z),
+    })),
   ];
   res.json({ bots });
+});
+
+/** Tim bot theo loai (fb | zalo) + id */
+function adminBotRow(product, id) {
+  if (product === "fb") return fq.byId.get(Number(id));
+  if (product === "zalo") return zaloMod.zq.byId.get(Number(id));
+  return null;
+}
+
+/**
+ * Admin an / khoa mot bot.
+ *  hidden: nguoi dung khong thay bot (bot van chay binh thuong)
+ *  locked: nguoi dung khong sua / bat / tat / xoa duoc bot
+ * Chi gui truong nao muon doi, truong con lai giu nguyen.
+ */
+router.post("/admin/bots/:product/:id/flags", auth.requireAdmin, (req, res) => {
+  const row = adminBotRow(req.params.product, req.params.id);
+  if (!row) return res.status(404).json({ error: "Khong tim thay bot" });
+  const b = req.body || {};
+  const hidden = b.hidden === undefined ? row.hidden : b.hidden ? 1 : 0;
+  const locked = b.locked === undefined ? row.locked : b.locked ? 1 : 0;
+  (req.params.product === "fb" ? fq : zaloMod.zq).setFlags.run(hidden, locked, row.id);
+  res.json({ ok: true, hidden: !!hidden, locked: !!locked });
+});
+
+/** Admin tat mot bot (can khi bot bi an, nguoi dung khong tu tat duoc) */
+router.post("/admin/bots/:product/:id/stop", auth.requireAdmin, (req, res) => {
+  const row = adminBotRow(req.params.product, req.params.id);
+  if (!row) return res.status(404).json({ error: "Khong tim thay bot" });
+  if (req.params.product === "fb") botManager.stop(row.id);
+  else zaloMod.stop(row.id);
+  res.json({ ok: true });
 });
 
 /** Admin cong/tru ngay cho MOT bot, khong qua don */

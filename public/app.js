@@ -212,8 +212,13 @@ async function showUserBots(userId) {
         <span class="name">${esc(x.name)}</span>
         <span class="tag">${PRODUCT_NAMES[x.product]}</span>
         <span class="tag ${x.active ? "ok" : "off"}">${esc(expiryLine(x))}</span>
+        ${x.hidden ? '<span class="tag off">đang ẩn</span>' : ""}
+        ${x.locked ? '<span class="tag off">đang khoá</span>' : ""}
         <span class="spacer"></span>
         <button data-act="ext" data-id="${userId}" data-product="${x.product}" data-bot="${x.id}" data-name="${esc(x.name)}">+ ngày</button>
+        <button data-act="hide" data-id="${userId}" data-product="${x.product}" data-bot="${x.id}" data-on="${x.hidden ? 0 : 1}">${x.hidden ? "Hiện" : "Ẩn"}</button>
+        <button data-act="lockbot" data-id="${userId}" data-product="${x.product}" data-bot="${x.id}" data-on="${x.locked ? 0 : 1}">${x.locked ? "Mở khoá" : "Khoá"}</button>
+        ${x.running ? `<button class="danger" data-act="stopbot" data-id="${userId}" data-product="${x.product}" data-bot="${x.id}">Dừng</button>` : ""}
       </div>`
         )
         .join("")
@@ -269,6 +274,21 @@ $("users").addEventListener("click", async (e) => {
         body: JSON.stringify({ days: Number(d) }),
       });
       say(`Bot "${b.dataset.name}" hết hạn ${fmtDate(r.expires)}.`);
+      await showUserBots(id);
+      return;
+    }
+    if (b.dataset.act === "hide" || b.dataset.act === "lockbot") {
+      const key = b.dataset.act === "hide" ? "hidden" : "locked";
+      await api(`/admin/bots/${b.dataset.product}/${b.dataset.bot}/flags`, {
+        method: "POST",
+        body: JSON.stringify({ [key]: Number(b.dataset.on) }),
+      });
+      await showUserBots(id);
+      return;
+    }
+    if (b.dataset.act === "stopbot") {
+      await api(`/admin/bots/${b.dataset.product}/${b.dataset.bot}/stop`, { method: "POST" });
+      say("Đã tắt bot.");
       await showUserBots(id);
       return;
     }

@@ -47,10 +47,10 @@ function makePanel(cfg) {
         <span class="lamp ${lampOf(b.status)}"></span>
         <div class="bot-main">
           <div class="bot-name">${esc(b.name)}</div>
-          <div class="bot-sub">${esc(WORDS[b.status] || b.status)}${cfg.sub(b) ? " · " + esc(cfg.sub(b)) : ""}</div>
+          <div class="bot-sub">${esc(WORDS[b.status] || b.status)}${cfg.sub(b) ? " · " + esc(cfg.sub(b)) : ""}${b.locked ? " · 🔒 đã khoá" : ""}</div>
           ${b.plan.unlimited ? "" : `<div class="bot-exp ${b.plan.active ? "" : "bad"}">${esc(expiryLine(b.plan))}${b.pendingOrder ? " · có đơn chờ thanh toán" : ""}</div>`}
         </div>
-        <button data-act="${isOn(b.status) ? "stop" : "start"}" data-id="${b.id}" ${b.status === "stopping" ? "disabled" : ""}>
+        <button data-act="${isOn(b.status) ? "stop" : "start"}" data-id="${b.id}" ${b.status === "stopping" || b.locked ? "disabled" : ""}>
           ${isOn(b.status) ? "Tắt" : "Bật"}
         </button>
       </div>`
@@ -68,9 +68,17 @@ function makePanel(cfg) {
 
     el("Lamp").className = "lamp " + lampOf(b.status);
     el("Title").textContent = `${b.name} · ${WORDS[b.status] || b.status}`;
-    el("Meta").textContent = b.status === "error" && b.error ? b.error : cfg.sub(b);
-    el("Start").disabled = isOn(b.status);
-    el("Stop").disabled = b.status === "stopped" || b.status === "stopping";
+    el("Meta").textContent =
+      (b.status === "error" && b.error ? b.error : cfg.sub(b)) + (b.locked ? " · 🔒 Quản trị viên đã khoá bot này" : "");
+
+    // Bot bi khoa: vo hieu hoa moi nut / o nhap trong chi tiet (nguoi dung chi xem nhat ky)
+    el("Detail")
+      .querySelectorAll("input, textarea, select, button")
+      .forEach((x) => (x.disabled = !!b.locked));
+    if (!b.locked) {
+      el("Start").disabled = isOn(b.status);
+      el("Stop").disabled = b.status === "stopped" || b.status === "stopping";
+    }
 
     // Chi do du lieu vao form khi doi bot, tranh ghi de luc dang go
     if (st.filledFor !== b.id) {

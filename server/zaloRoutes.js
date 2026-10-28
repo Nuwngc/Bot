@@ -20,10 +20,16 @@ function botGuard(req, res, next) {
 const router = express.Router();
 router.use(auth.requireLogin);
 
-function ownBot(req, res) {
+/** An / khoa do admin dat: xem fbRoutes.js. Admin khong bi gioi han. */
+function ownBot(req, res, write = false) {
   const z = zalo.zq.byId.get(Number(req.params.id));
-  if (!z || z.user_id !== req.user.id) {
+  const isAdmin = req.user.role === "admin";
+  if (!z || z.user_id !== req.user.id || (z.hidden && !isAdmin)) {
     res.status(404).json({ error: "Khong tim thay bot Zalo" });
+    return null;
+  }
+  if (write && z.locked && !isAdmin) {
+    res.status(403).json({ error: "Bot nay da bi quan tri vien khoa, ban khong the thay doi." });
     return null;
   }
   return z;
@@ -41,6 +47,7 @@ function view(z, user) {
     authorId: z.author_id || "",
     isMainBot: !!z.is_main_bot,
     autostart: !!z.autostart,
+    locked: !!z.locked && user.role !== "admin",
     hasLogin: count > 0 && !!z.imei_enc,
     cookieCount: count,
     plan: billing.botStatus(user, z),
@@ -51,7 +58,10 @@ function view(z, user) {
 
 router.get("/bots", (req, res) => {
   res.json({
-    bots: zalo.zq.byUser.all(req.user.id).map((z) => view(z, req.user)),
+    bots: zalo.zq
+      .byUser.all(req.user.id)
+      .filter((z) => !z.hidden || req.user.role === "admin")
+      .map((z) => view(z, req.user)),
     limit: req.user.role === "admin" ? null : MAX_PER_USER,
     unlimited: req.user.role === "admin",
     slots: { running: zalo.runningCount(), max: zalo.MAX_RUNNING },
@@ -59,7 +69,7 @@ router.get("/bots", (req, res) => {
 });
 
 router.post("/bots", (req, res) => {
-  const n = zalo.zq.countByUser.get(req.user.id).n;
+  const n = zalo.zq.byUser.all(req.user.id).filter((z) => !z.hidden).length;
   if (!canCreate(req.user, n)) {
     return res.status(400).json({ error: `Moi tai khoan toi da ${MAX_PER_USER} bot Zalo` });
   }
@@ -71,7 +81,7 @@ router.post("/bots", (req, res) => {
 });
 
 router.delete("/bots/:id", (req, res) => {
-  const z = ownBot(req, res);
+  const z = ownBot(req, res, true);
   if (!z) return;
   if (billing.pendingForBot("zalo", z.id).length) {
     return res.status(400).json({ error: "Bot nay dang co don cho thanh toan. Huy don truoc khi xoa bot." });
@@ -82,7 +92,7 @@ router.delete("/bots/:id", (req, res) => {
 });
 
 router.post("/bots/:id/login", (req, res) => {
-  const z = ownBot(req, res);
+  const z = ownBot(req, res, true);
   if (!z) return;
   const imei = String(req.body?.imei || "").trim();
   if (imei.length < 8) return res.status(400).json({ error: "IMEI khong hop le" });
@@ -98,7 +108,7 @@ router.post("/bots/:id/login", (req, res) => {
 });
 
 router.delete("/bots/:id/login", (req, res) => {
-  const z = ownBot(req, res);
+  const z = ownBot(req, res, true);
   if (!z) return;
   zalo.stop(z.id);
   zalo.zq.clearLogin.run(z.id);
@@ -106,7 +116,7 @@ router.delete("/bots/:id/login", (req, res) => {
 });
 
 router.post("/bots/:id/settings", (req, res) => {
-  const z = ownBot(req, res);
+  const z = ownBot(req, res, true);
   if (!z) return;
   const b = req.body || {};
   // ID chu bot khong con bat buoc (bot tu lay ID tai khoan cua no); giu gia tri cu neu khong gui
@@ -121,7 +131,7 @@ router.post("/bots/:id/settings", (req, res) => {
 });
 
 router.post("/bots/:id/start", botGuard, (req, res) => {
-  const z = ownBot(req, res);
+  const z = ownBot(req, res, true);
   if (!z) return;
   try {
     zalo.start(z.id);
@@ -132,7 +142,7 @@ router.post("/bots/:id/start", botGuard, (req, res) => {
 });
 
 router.post("/bots/:id/stop", (req, res) => {
-  const z = ownBot(req, res);
+  const z = ownBot(req, res, true);
   if (!z) return;
   zalo.stop(z.id);
   res.json({ ok: true });

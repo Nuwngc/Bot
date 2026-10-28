@@ -30,6 +30,13 @@ if (!db.prepare("PRAGMA table_info(fb_bots)").all().some((c) => c.name === "expi
   db.exec("ALTER TABLE fb_bots ADD COLUMN expires TEXT");
 }
 
+// Admin an bot (nguoi dung khong thay) / khoa bot (nguoi dung khong sua, bat, tat, xoa duoc)
+for (const col of ["hidden", "locked"]) {
+  if (!db.prepare("PRAGMA table_info(fb_bots)").all().some((c) => c.name === col)) {
+    db.exec(`ALTER TABLE fb_bots ADD COLUMN ${col} INTEGER NOT NULL DEFAULT 0`);
+  }
+}
+
 /* ---------- Chuyen du lieu tu ban 1 bot / tai khoan ---------- */
 
 if (getSetting("migrated_fb_bots") !== "1") {
@@ -60,6 +67,7 @@ const fq = {
   delByUser: db.prepare("DELETE FROM fb_bots WHERE user_id = ?"),
   allAutostart: db.prepare("SELECT * FROM fb_bots WHERE autostart = 1 AND appstate_enc IS NOT NULL"),
   setExpires: db.prepare("UPDATE fb_bots SET expires = ? WHERE id = ?"),
+  setFlags: db.prepare("UPDATE fb_bots SET hidden = ?, locked = ? WHERE id = ?"),
 };
 
 /** So bot moi loai mot tai khoan duoc tao (admin khong gioi han) */

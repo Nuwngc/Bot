@@ -22,11 +22,21 @@ function botGuard(req, res, next) {
 const router = express.Router();
 router.use(auth.requireLogin);
 
-/** Lay bot cua chinh nguoi dang dang nhap, khong thi 404 */
-function ownBot(req, res) {
+/**
+ * Lay bot cua chinh nguoi dang dang nhap, khong thi 404.
+ * Bot bi an -> nguoi dung thuong coi nhu khong ton tai.
+ * write = true: bot bi khoa -> nguoi dung thuong khong duoc sua / bat / tat / xoa.
+ * Admin khong bi gioi han boi an / khoa.
+ */
+function ownBot(req, res, write = false) {
   const bot = fq.byId.get(Number(req.params.id));
-  if (!bot || bot.user_id !== req.user.id) {
+  const isAdmin = req.user.role === "admin";
+  if (!bot || bot.user_id !== req.user.id || (bot.hidden && !isAdmin)) {
     res.status(404).json({ error: "Khong tim thay bot" });
+    return null;
+  }
+  if (write && bot.locked && !isAdmin) {
+    res.status(403).json({ error: "Bot nay da bi quan tri vien khoa, ban khong the thay doi." });
     return null;
   }
   return bot;
@@ -42,6 +52,7 @@ function view(b, user) {
     name: b.name,
     prefix: b.prefix,
     autostart: !!b.autostart,
+    locked: !!b.locked && user.role !== "admin",
     hasLogin: count > 0,
     cookieCount: count,
     fbName: b.fb_name,
@@ -54,7 +65,10 @@ function view(b, user) {
 
 router.get("/bots", (req, res) => {
   res.json({
-    bots: fq.byUser.all(req.user.id).map((b) => view(b, req.user)),
+    bots: fq
+      .byUser.all(req.user.id)
+      .filter((b) => !b.hidden || req.user.role === "admin")
+      .map((b) => view(b, req.user)),
     limit: req.user.role === "admin" ? null : MAX_PER_USER,
     unlimited: req.user.role === "admin",
     slots: { running: manager.runningCount(), max: manager.MAX_CONCURRENT },
@@ -62,7 +76,7 @@ router.get("/bots", (req, res) => {
 });
 
 router.post("/bots", (req, res) => {
-  const n = fq.countByUser.get(req.user.id).n;
+  const n = fq.byUser.all(req.user.id).filter((b) => !b.hidden).length;
   if (!canCreate(req.user, n)) {
     return res.status(400).json({ error: `Moi tai khoan toi da ${MAX_PER_USER} bot Facebook` });
   }
@@ -74,7 +88,7 @@ router.post("/bots", (req, res) => {
 });
 
 router.delete("/bots/:id", (req, res) => {
-  const bot = ownBot(req, res);
+  const bot = ownBot(req, res, true);
   if (!bot) return;
   if (billing.pendingForBot("fb", bot.id).length) {
     return res.status(400).json({ error: "Bot nay dang co don cho thanh toan. Huy don truoc khi xoa bot." });
@@ -85,7 +99,7 @@ router.delete("/bots/:id", (req, res) => {
 });
 
 router.post("/bots/:id/settings", (req, res) => {
-  const bot = ownBot(req, res);
+  const bot = ownBot(req, res, true);
   if (!bot) return;
   const b = req.body || {};
   const name = String(b.name || "").trim().slice(0, 40) || bot.name;
@@ -95,7 +109,7 @@ router.post("/bots/:id/settings", (req, res) => {
 });
 
 router.post("/bots/:id/appstate", (req, res) => {
-  const bot = ownBot(req, res);
+  const bot = ownBot(req, res, true);
   if (!bot) return;
   try {
     const list = normalizeAppstate(req.body?.appstate);
@@ -107,7 +121,7 @@ router.post("/bots/:id/appstate", (req, res) => {
 });
 
 router.post("/bots/:id/appstate/login", async (req, res) => {
-  const bot = ownBot(req, res);
+  const bot = ownBot(req, res, true);
   if (!bot) return;
   const email = String(req.body?.email || "").trim();
   const password = String(req.body?.password || "");
@@ -126,7 +140,7 @@ router.post("/bots/:id/appstate/login", async (req, res) => {
 });
 
 router.delete("/bots/:id/appstate", (req, res) => {
-  const bot = ownBot(req, res);
+  const bot = ownBot(req, res, true);
   if (!bot) return;
   manager.stop(bot.id);
   fq.setAppstate.run(null, bot.id);
@@ -134,7 +148,7 @@ router.delete("/bots/:id/appstate", (req, res) => {
 });
 
 router.post("/bots/:id/start", botGuard, async (req, res) => {
-  const bot = ownBot(req, res);
+  const bot = ownBot(req, res, true);
   if (!bot) return;
   let appState;
   try {
@@ -165,7 +179,7 @@ router.post("/bots/:id/start", botGuard, async (req, res) => {
 });
 
 router.post("/bots/:id/stop", (req, res) => {
-  const bot = ownBot(req, res);
+  const bot = ownBot(req, res, true);
   if (!bot) return;
   manager.stop(bot.id);
   res.json({ ok: true });
