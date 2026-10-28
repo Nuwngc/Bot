@@ -1,0 +1,83 @@
+/* Giao diện: sáng/tối, menu 3 gạch, xem mật khẩu, hiệu ứng gợn sóng.
+   File này độc lập, không đụng tới app.js và bots.js. */
+(() => {
+  const root = document.documentElement, $ = (s) => document.querySelector(s);
+  const store = {
+    get: () => { try { return localStorage.getItem("theme"); } catch { return null; } },
+    set: (v) => { try { localStorage.setItem("theme", v); } catch {} },
+  };
+  const apply = (t) => {
+    root.dataset.theme = t;
+    document.querySelectorAll(".theme-toggle").forEach((b) => b.setAttribute("aria-checked", t === "light"));
+    const m = $("meta[name=theme-color]"); if (m) m.content = t === "light" ? "#f3f4ff" : "#0b0d1f";
+  };
+  apply(root.dataset.theme || store.get() || "dark");
+  const flip = () => { const t = root.dataset.theme === "light" ? "dark" : "light"; apply(t); store.set(t); };
+
+  const SUN = '<svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+  const MOON = '<svg class="moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+  const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html) e.innerHTML = html; return e; };
+  const btn = (cls, label, html) => { const b = el("button", cls, html); b.type = "button"; b.setAttribute("aria-label", label); return b; };
+  const toggle = () => {
+    const b = btn("theme-toggle", "Chế độ sáng", '<span class="knob">' + SUN + MOON + "</span>");
+    b.setAttribute("role", "switch"); b.setAttribute("aria-checked", root.dataset.theme === "light"); b.onclick = flip; return b;
+  };
+
+  /* Cụm nút góc phải: sáng/tối (+ 3 gạch ở trang bảng điều khiển) */
+  const bar = $(".topbar"), actions = el("div", "top-actions" + (bar ? "" : " floating"));
+  actions.append(toggle());
+  (bar || document.body).append(actions);
+
+  const tabs = document.getElementById("tabs");
+  if (tabs) {
+    const burger = btn("burger", "Mở menu", "<i></i><i></i><i></i>");
+    burger.setAttribute("aria-expanded", "false"); burger.setAttribute("aria-controls", "drawer");
+    actions.append(burger);
+
+    const scrim = el("div", "scrim"), drawer = el("aside", "drawer");
+    drawer.id = "drawer"; drawer.setAttribute("aria-label", "Menu");
+    const user = el("strong", "drawer-user"), nav = el("nav");
+    const close = btn("drawer-close", "Đóng menu", '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>');
+    const head = el("div", "drawer-head"); head.append(user, close);
+    const row = el("div", "drawer-row", "<span>Giao diện sáng</span>"); row.append(toggle());
+    const out = btn("danger wide", "Thoát", "Thoát"); out.onclick = () => { set(false); document.getElementById("logout")?.click(); };
+    const foot = el("div", "drawer-foot"); foot.append(row, out);
+    drawer.append(head, nav, foot); document.body.append(scrim, drawer);
+
+    const sync = () => {
+      nav.textContent = "";
+      [...tabs.querySelectorAll("button")].filter((b) => !b.hidden).forEach((b, i) => {
+        const n = btn(b.classList.contains("on") ? "on" : "", b.textContent.trim(), b.textContent.trim());
+        n.style.setProperty("--i", i); n.onclick = () => { b.click(); set(false); }; nav.append(n);
+      });
+      user.textContent = (document.getElementById("who")?.textContent || "Tài khoản").trim();
+    };
+    function set(open) {
+      document.body.classList.toggle("menu-open", open);
+      burger.setAttribute("aria-expanded", open); burger.setAttribute("aria-label", open ? "Đóng menu" : "Mở menu");
+      document.body.style.overflow = open ? "hidden" : "";
+      if (open) { sync(); close.focus(); }
+    }
+    burger.onclick = () => set(!document.body.classList.contains("menu-open"));
+    close.onclick = scrim.onclick = () => { set(false); burger.focus(); };
+    addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("menu-open")) set(false); });
+  }
+
+  /* Nút xem/ẩn mật khẩu */
+  const EYE = '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  document.querySelectorAll("input[type=password]").forEach((i) => {
+    const w = el("span", "pw"); i.before(w); w.append(i);
+    const b = btn("eye", "Hiện mật khẩu", EYE);
+    b.onclick = () => { const show = i.type === "password"; i.type = show ? "text" : "password"; b.classList.toggle("on", show); b.setAttribute("aria-label", show ? "Ẩn mật khẩu" : "Hiện mật khẩu"); };
+    w.append(b);
+  });
+
+  /* Gợn sóng khi bấm nút */
+  document.addEventListener("pointerdown", (e) => {
+    const b = e.target.closest("button");
+    if (!b || b.disabled || b.matches(".burger,.theme-toggle,.eye,.drawer-close")) return;
+    const r = b.getBoundingClientRect(), d = Math.max(r.width, r.height), s = el("span", "ripple");
+    s.style.cssText = `width:${d}px;height:${d}px;left:${e.clientX - r.left - d / 2}px;top:${e.clientY - r.top - d / 2}px`;
+    b.append(s); setTimeout(() => s.remove(), 650);
+  });
+})();
