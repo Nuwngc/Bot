@@ -80,4 +80,9 @@
     s.style.cssText = `width:${d}px;height:${d}px;left:${e.clientX - r.left - d / 2}px;top:${e.clientY - r.top - d / 2}px`;
     b.append(s); setTimeout(() => s.remove(), 650);
   });
+
+  /* Đánh dấu các dòng "Đang tải…" để hiện vòng quay */
+  const mark = () => document.querySelectorAll(".empty").forEach((e) => e.classList.toggle("loading", /^Đang tải/.test(e.textContent.trim())));
+  mark();
+  new MutationObserver(() => requestAnimationFrame(mark)).observe(document.body, { childList: true, subtree: true, characterData: true });
 })();
