@@ -117,6 +117,9 @@ const DEFAULT_SETTINGS = {
   price_zalo_m3: "150000",
   // Phu thu cho MOI bot them, tinh theo % gia goi
   extra_bot_percent: "50",
+  // Admin an ca muc Facebook / Zalo voi nguoi dung thuong ("1" = dang an)
+  hide_fb: "0",
+  hide_zalo: "0",
 };
 
 function getSetting(key) {

@@ -401,33 +401,43 @@ $("orders").addEventListener("click", async (e) => {
 
 /* ---------- Admin: ẩn mục Facebook / Zalo ---------- */
 
-const SECTION_BTNS = { fb: ["btnHideFb", "Facebook"], zalo: ["btnHideZalo", "Zalo"] };
+const SECTIONS = { fb: "Facebook", zalo: "Zalo" };
 
+/** Mỗi mục một dòng: tên + trạng thái + nút (Ẩn khi đang hiện, Hiện lại khi đã ẩn) */
 function renderSections(s) {
-  for (const [name, [id, label]] of Object.entries(SECTION_BTNS)) {
-    const hidden = s["hide_" + name] === "1";
-    const b = $(id);
-    b.dataset.hidden = hidden ? "1" : "0";
-    b.className = hidden ? "primary" : "";
-    b.textContent = hidden ? `${label}: đang ẩn · Bấm để hiện` : `${label}: đang hiện · Bấm để ẩn`;
-  }
+  $("sectionRows").innerHTML = Object.entries(SECTIONS)
+    .map(([name, label]) => {
+      const hidden = s["hide_" + name] === "1";
+      return `<div class="user ${hidden ? "off" : ""}">
+        <span class="name">${label}</span>
+        <span class="tag ${hidden ? "off" : "ok"}">${hidden ? "Đã ẩn" : "Đang hiện"}</span>
+        <span class="spacer"></span>
+        <button class="${hidden ? "primary" : "danger"}" data-sec="${name}" data-hidden="${hidden ? 1 : 0}">${
+          hidden ? "Hiện lại" : "Ẩn"
+        }</button>
+      </div>`;
+    })
+    .join("");
 }
 
-for (const [name, [id, label]] of Object.entries(SECTION_BTNS)) {
-  $(id).onclick = async () => {
-    const nowHidden = $(id).dataset.hidden === "1";
-    try {
-      await api("/admin/settings", {
-        method: "POST",
-        body: JSON.stringify({ ["hide_" + name]: nowHidden ? "0" : "1" }),
-      });
-      say(nowHidden ? `Đã hiện mục ${label} với người dùng.` : `Đã ẩn mục ${label} với mọi người dùng.`);
-      loadGlobalSettings();
-    } catch (e) {
-      say(e.message, "bad");
-    }
-  };
-}
+$("sectionRows").addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-sec]");
+  if (!b || b.disabled) return;
+  const name = b.dataset.sec;
+  const willHide = b.dataset.hidden !== "1";
+  b.disabled = true;
+  try {
+    const d = await api("/admin/settings", {
+      method: "POST",
+      body: JSON.stringify({ ["hide_" + name]: willHide ? "1" : "0" }),
+    });
+    renderSections(d.settings); // đổi nút ngay theo trạng thái server vừa lưu
+    say(willHide ? `Đã ẩn mục ${SECTIONS[name]} với mọi người dùng.` : `Đã hiện lại mục ${SECTIONS[name]}.`);
+  } catch (err) {
+    b.disabled = false;
+    say(err.message, "bad");
+  }
+});
 
 /* ---------- Admin: cấu hình chung ---------- */
 
