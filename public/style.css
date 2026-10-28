@@ -548,3 +548,73 @@ section > h2::before, .list-head h2::before {
   content: ""; display: inline-block; width: .9em; height: .9em; margin-right: .55rem; vertical-align: -.12em;
   border: 2px solid var(--line); border-top-color: var(--lamp2); border-radius: 50%; animation: spin .8s linear infinite;
 }
+
+/* ================= Hộp thoại xác nhận / nhập liệu ================= */
+@keyframes dlg-fade { from { opacity: 0; } }
+@keyframes dlg-fade-out { to { opacity: 0; } }
+@keyframes dlg-pop { from { opacity: 0; transform: translateY(18px) scale(.96); } }
+@keyframes dlg-sheet { from { transform: translateY(100%); } }
+@keyframes dlg-shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+@keyframes note-out { to { opacity: 0; transform: translate(-50%, 12px); } }
+
+body.dlg-open { overflow: hidden; }
+
+.dlg-scrim {
+  position: fixed; inset: 0; z-index: 100;
+  display: grid; place-items: center; padding: 1rem;
+  background: rgba(5, 6, 18, .62);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  animation: dlg-fade .2s ease both;
+}
+.dlg-scrim.out { animation: dlg-fade-out .17s ease both; pointer-events: none; }
+
+.dlg {
+  --tone: var(--lamp); --tone-bg: rgba(139, 140, 255, .16); --tone-ring: rgba(139, 140, 255, .07);
+  position: relative; width: min(24rem, 100%); max-height: calc(100dvh - 2rem); overflow-y: auto;
+  padding: 1.6rem 1.35rem 1.2rem; text-align: center;
+  background: var(--drawer);
+  border: 1px solid var(--line-strong);
+  border-radius: 24px;
+  box-shadow: 0 34px 90px -24px rgba(0, 0, 0, .75), inset 0 1px 0 var(--hi);
+  animation: dlg-pop .32s var(--ease) both;
+}
+.dlg::before {
+  content: ""; position: absolute; left: 1.6rem; right: 1.6rem; top: 0; height: 2px; border-radius: 0 0 4px 4px;
+  background: linear-gradient(90deg, transparent, var(--tone), transparent);
+}
+.dlg.danger { --tone: var(--alert); --tone-bg: rgba(255, 107, 141, .16); --tone-ring: rgba(255, 107, 141, .07); }
+.dlg.ok { --tone: var(--ok); --tone-bg: rgba(79, 224, 176, .16); --tone-ring: rgba(79, 224, 176, .07); }
+.dlg.shake { animation: dlg-shake .38s ease; }
+
+.dlg-ico {
+  width: 3.2rem; height: 3.2rem; margin: 0 auto .95rem;
+  display: grid; place-items: center; border-radius: 50%;
+  color: var(--tone); background: var(--tone-bg); box-shadow: 0 0 0 6px var(--tone-ring);
+}
+.dlg-ico svg { width: 1.55rem; height: 1.55rem; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.dlg-title { margin: 0 0 .45rem; font-size: 1.12rem; font-weight: 650; line-height: 1.3; color: var(--paper); overflow-wrap: anywhere; }
+.dlg-msg { margin: 0 0 1.15rem; font-size: .92rem; line-height: 1.55; color: var(--dim); white-space: pre-line; overflow-wrap: anywhere; }
+.dlg-input { margin-top: .15rem; text-align: left; }
+.dlg-err { min-height: 1.35rem; margin: .4rem 0 .35rem; font-size: .8rem; text-align: left; color: var(--alert); }
+.dlg-actions { display: flex; gap: .6rem; margin-top: .35rem; }
+.dlg-actions button { flex: 1 1 0; min-width: 0; padding: .8rem .5rem; border-radius: 14px; line-height: 1.25; }
+
+/* nút xoá trong hộp thoại: đỏ đặc để biết đây là việc nguy hiểm */
+.dlg-actions button.danger.solid,
+.dlg-actions button.danger.solid:not(:disabled):hover {
+  background-color: var(--alert); background-image: none; color: #fff; border-color: transparent; font-weight: 600;
+  box-shadow: 0 10px 24px -12px var(--alert), inset 0 1px 0 rgba(255, 255, 255, .35);
+}
+.dlg-actions button.danger.solid:not(:disabled):hover { filter: brightness(1.08); }
+
+/* điện thoại: hỏi xác nhận trượt từ dưới lên; ô nhập đặt gần đỉnh để bàn phím không che */
+@media (max-width: 560px) {
+  .dlg-scrim { place-items: end center; padding: 0; }
+  .dlg-scrim.has-input { place-items: start center; padding: calc(8vh + env(safe-area-inset-top, 0px)) 1rem 0; }
+  .dlg { width: 100%; border-radius: 26px 26px 0 0; padding-bottom: calc(1.2rem + env(safe-area-inset-bottom, 0px)); animation-name: dlg-sheet; animation-duration: .38s; }
+  .dlg-scrim.has-input .dlg { border-radius: 24px; padding-bottom: 1.2rem; animation-name: dlg-pop; }
+}
+
+/* thông báo nhỏ: bấm để đóng, trượt xuống khi mất */
+.note { cursor: pointer; }
+.note.out { animation: note-out .22s ease both; }

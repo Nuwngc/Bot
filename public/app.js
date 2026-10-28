@@ -4,14 +4,26 @@ const note = $("note");
 let isAdmin = false;
 
 function say(text, kind = "good") {
+  clearTimeout(say._t);
+  clearTimeout(say._t2);
   note.className = "note " + kind;
   note.textContent = text;
+  say._t = setTimeout(hideNote, 5000);
+}
+
+/** Thông báo trượt xuống rồi mất; bấm vào thông báo cũng đóng được */
+function hideNote() {
   clearTimeout(say._t);
-  say._t = setTimeout(() => {
+  if (!note.textContent) return;
+  note.classList.add("out");
+  say._t2 = setTimeout(() => {
     note.className = "note";
     note.textContent = "";
-  }, 5000);
+  }, 220);
 }
+note.addEventListener("click", hideNote);
+note.setAttribute("role", "status");
+note.setAttribute("aria-live", "polite");
 
 async function api(path, opts = {}) {
   const r = await fetch("/api" + path, {
@@ -152,7 +164,8 @@ function orderCard(o, bank) {
 }
 
 async function cancelOrder(id) {
-  if (!confirm("Huỷ đơn này?")) return;
+  const yes = await confirmBox("Đơn này sẽ bị huỷ.", { title: "Huỷ đơn?", ok: "Huỷ đơn", cancel: "Giữ lại", danger: true });
+  if (!yes) return;
   try {
     await api(`/billing/cancel/${id}`, { method: "POST" });
     say("Đã huỷ đơn.");
@@ -276,8 +289,13 @@ $("users").addEventListener("click", async (e) => {
       return;
     }
     if (b.dataset.act === "ext") {
-      const d = prompt(`Cộng thêm bao nhiêu ngày cho bot "${b.dataset.name}"? (số âm để trừ)`, "30");
-      if (!d) return;
+      const d = await promptBox(`Cộng thêm bao nhiêu ngày cho bot "${b.dataset.name}"? Nhập số âm để trừ ngày.`, {
+        title: "Gia hạn bot",
+        value: "30",
+        ok: "Áp dụng",
+        validate: (v) => (Number.isFinite(Number(v)) && Number(v) !== 0 ? "" : "Nhập số ngày khác 0, ví dụ 30 hoặc -7."),
+      });
+      if (d === null) return;
       const r = await api(`/admin/bots/${b.dataset.product}/${b.dataset.bot}/extend`, {
         method: "POST",
         body: JSON.stringify({ days: Number(d) }),
@@ -301,8 +319,13 @@ $("users").addEventListener("click", async (e) => {
       return;
     }
     if (b.dataset.act === "pw") {
-      const p = prompt("Mật khẩu mới (tối thiểu 8 ký tự):");
-      if (!p) return;
+      const p = await promptBox("Nhập mật khẩu mới cho tài khoản này.", {
+        title: "Đổi mật khẩu",
+        ok: "Đổi mật khẩu",
+        placeholder: "Tối thiểu 8 ký tự",
+        validate: (v) => (v.length >= 8 ? "" : "Mật khẩu tối thiểu 8 ký tự."),
+      });
+      if (p === null) return;
       await api(`/admin/users/${id}/password`, { method: "POST", body: JSON.stringify({ password: p }) });
       say("Đã đổi mật khẩu.");
     }
@@ -313,7 +336,12 @@ $("users").addEventListener("click", async (e) => {
       });
     }
     if (b.dataset.act === "del") {
-      if (!confirm(`Xoá tài khoản ${b.dataset.name}? Không khôi phục được.`)) return;
+      const yes = await confirmBox(`Tài khoản "${b.dataset.name}" và toàn bộ bot của họ sẽ bị xoá. Không khôi phục được.`, {
+        title: "Xoá tài khoản?",
+        ok: "Xoá tài khoản",
+        danger: true,
+      });
+      if (!yes) return;
       await api(`/admin/users/${id}`, { method: "DELETE" });
       say("Đã xoá tài khoản.");
     }
@@ -382,7 +410,13 @@ $("orders").addEventListener("click", async (e) => {
   if (!b) return;
   try {
     if (b.dataset.ord === "approve") {
-      if (!confirm("Đã nhận được tiền của đơn này?")) return;
+      const yes = await confirmBox("Hạn dùng của bot sẽ được cộng ngay khi bạn xác nhận.", {
+        title: "Đã nhận được tiền của đơn này?",
+        ok: "Đã nhận tiền",
+        cancel: "Chưa",
+        kind: "ok",
+      });
+      if (!yes) return;
       const d = await api(`/admin/orders/${b.dataset.id}/approve`, {
         method: "POST",
         body: JSON.stringify({ note: "" }),
@@ -601,7 +635,12 @@ $("coupons").addEventListener("click", async (e) => {
         body: JSON.stringify({ active: b.dataset.active === "1" }),
       });
     } else {
-      if (!confirm(`Xoá mã ${b.dataset.code}? Các đơn đã dùng mã vẫn giữ nguyên.`)) return;
+      const yes = await confirmBox("Các đơn đã dùng mã này vẫn giữ nguyên.", {
+        title: `Xoá mã ${b.dataset.code}?`,
+        ok: "Xoá mã",
+        danger: true,
+      });
+      if (!yes) return;
       await api(`/admin/coupons/${b.dataset.id}`, { method: "DELETE" });
     }
     loadPricing();

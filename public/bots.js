@@ -143,7 +143,13 @@ function makePanel(cfg) {
   });
 
   el("Add").onclick = async () => {
-    const name = prompt(`Tên bot ${cfg.kind} mới:`, "");
+    const name = await promptBox(`Đặt tên cho bot ${cfg.kind} mới. Để trống thì hệ thống tự đặt tên.`, {
+      title: `Thêm bot ${cfg.kind}`,
+      ok: "Tạo bot",
+      placeholder: "Ví dụ: Bot nhóm lớp",
+      maxLength: 40,
+      allowEmpty: true,
+    });
     if (name === null) return;
     const r = await act(cfg.base + "/bots", post({ name }), (d) =>
       d.trial ? `Đã tạo bot, tặng ${d.trial.days} ngày dùng thử. Nhập đăng nhập bên dưới.` : "Đã tạo bot. Nhập đăng nhập bên dưới, rồi thanh toán cho bot."
@@ -162,11 +168,12 @@ function makePanel(cfg) {
   el("Save").onclick = () =>
     act(botPath(st.sel, "/settings"), post(cfg.settings()), "Đã lưu. Tắt rồi bật lại bot để áp dụng.", true);
 
-  el("Delete").onclick = () => {
+  el("Delete").onclick = async () => {
     const b = selected();
     if (!b) return;
-    const left = b.plan.active && !b.plan.unlimited ? ` Bot còn ${b.plan.daysLeft} ngày sử dụng, xoá là mất luôn.` : "";
-    if (!confirm(`Xoá bot "${b.name}"? Cookie đã lưu sẽ mất.${left}`)) return;
+    const left = b.plan.active && !b.plan.unlimited ? `\nBot còn ${b.plan.daysLeft} ngày sử dụng, xoá là mất luôn.` : "";
+    const yes = await confirmBox(`Cookie đã lưu sẽ mất.${left}`, { title: `Xoá bot "${b.name}"?`, ok: "Xoá bot", danger: true });
+    if (!yes) return;
     st.sel = null;
     st.filledFor = null;
     act(botPath(b.id), { method: "DELETE" }, "Đã xoá bot.");
@@ -230,7 +237,12 @@ $("fbSaveCookie").onclick = async () => {
 };
 
 $("fbDelCookie").onclick = async () => {
-  if (!confirm("Xoá cookie của bot này? Bot sẽ bị tắt.")) return;
+  const yes = await confirmBox("Bot này sẽ bị tắt và phải dán cookie mới mới chạy lại được.", {
+    title: "Xoá cookie?",
+    ok: "Xoá cookie",
+    danger: true,
+  });
+  if (!yes) return;
   await fb.act(fb.botPath(fb.st.sel, "/appstate"), { method: "DELETE" }, "Đã xoá cookie.", true);
 };
 
@@ -293,7 +305,12 @@ $("zlSaveLogin").onclick = async () => {
 };
 
 $("zlDelLogin").onclick = async () => {
-  if (!confirm("Xoá đăng nhập Zalo của bot này? Bot sẽ bị tắt.")) return;
+  const yes = await confirmBox("Bot này sẽ bị tắt và phải nhập lại đăng nhập Zalo mới chạy lại được.", {
+    title: "Xoá đăng nhập Zalo?",
+    ok: "Xoá đăng nhập",
+    danger: true,
+  });
+  if (!yes) return;
   await zl.act(zl.botPath(zl.st.sel, "/login"), { method: "DELETE" }, "Đã xoá đăng nhập Zalo.", true);
 };
 
