@@ -1,4 +1,5 @@
-const { startNoiTu } = require("../games/noitu");
+const { startNoiTu, checkWord, addWord, delWord, leaderboardText } = require("../games/noitu");
+const { loadBuiltins } = require("../commands");
 const { startMaSoi } = require("../games/masoi");
 const { createAI } = require("../ai/reply");
 const { loadModules } = require("./registry");
@@ -13,9 +14,19 @@ function createRouter({ prefix = "!", aiKey, aiModel, aiSystem, ownerId = 0, onL
   const dmRoutes = new Map();     // userId -> game (hanh dong dem ma soi)
   const aiReply = createAI({ apiKey: aiKey, model: aiModel, systemPrompt: aiSystem, onLog });
   const modules = loadModules(onLog);
+  for (const [key, mod] of loadBuiltins(onLog)) {
+    if (!modules.has(key)) modules.set(key, mod);
+  }
+
+  // Admin cua bot: FB user id trong BOT_ADMINS (cach nhau dau phay) hoac store "settings" key "admins"
+  function isAdmin(userId) {
+    const fromEnv = (process.env.BOT_ADMINS || "").split(",").map((x) => x.trim()).filter(Boolean);
+    const fromStore = makeStore(ownerId, "settings").get("admins", []);
+    return [...fromEnv, ...fromStore].map(String).includes(String(userId));
+  }
 
   const HELP = `Danh sach lenh:
-${PREFIX}noitu   - choi noi tu voi bot
+${PREFIX}noitu   - choi noi tu voi bot (kem: bxh, check <tu>)
 ${PREFIX}masoi   - mo phong cho ma soi
 ${PREFIX}join    - vao phong ma soi
 ${PREFIX}start   - bat dau van
@@ -25,13 +36,34 @@ ${PREFIX}help    - xem lenh
 
 Tag bot trong tin nhan bat ky de hoi AI.`;
 
+  const GROUPS = [
+    ["game", "Game & xu"],
+    ["tien-ich", "Tien ich"],
+    ["giai-tri", "Giai tri"],
+  ];
+
   function helpText() {
     if (modules.size === 0) return HELP;
-    const extra = [...modules.values()]
-      .filter((m) => m.command)
-      .map((m) => `${PREFIX}${m.command}${m.description ? " - " + m.description : ""}`)
-      .join("\n");
-    return extra ? `${HELP}\n\nModule them:\n${extra}` : HELP;
+    const seen = new Set();
+    const byGroup = new Map();
+    const others = [];
+    for (const m of modules.values()) {
+      if (!m.command || seen.has(m)) continue;
+      seen.add(m);
+      const line = `${PREFIX}${m.command}${m.description ? " - " + m.description : ""}`;
+      if (m.group) {
+        if (!byGroup.has(m.group)) byGroup.set(m.group, []);
+        byGroup.get(m.group).push(line);
+      } else {
+        others.push(line);
+      }
+    }
+    const parts = [HELP];
+    for (const [key, title] of GROUPS) {
+      if (byGroup.has(key)) parts.push(`${title}:\n${byGroup.get(key).join("\n")}`);
+    }
+    if (others.length) parts.push(`Module them:\n${others.join("\n")}`);
+    return parts.join("\n\n");
   }
 
   async function handleMessage(msg, adapter) {
@@ -82,10 +114,39 @@ Tag bot trong tin nhan bat ky de hoi AI.`;
         if (!running) return adapter.send(msg.threadId, "Khong co game nao dang chay.");
         return running.stop(adapter);
 
+      case "nt":
       case "noitu": {
+        const sub = (args[0] || "").toLowerCase();
+        const ntStore = makeStore(ownerId, "noitu");
+
+        if (sub === "bxh" || sub === "top") {
+          return adapter.send(msg.threadId, await leaderboardText(ntStore));
+        }
+        if (sub === "check") {
+          const w = args.slice(1).join(" ");
+          if (!w) return adapter.send(msg.threadId, `Cu phap: ${PREFIX}noitu check <tu>`);
+          try {
+            return adapter.send(msg.threadId, checkWord(w) ? `"${w}" co trong tu dien.` : `"${w}" khong co trong tu dien.`);
+          } catch (err) {
+            return adapter.send(msg.threadId, err.message);
+          }
+        }
+        if (sub === "add" || sub === "del") {
+          if (!isAdmin(msg.senderId)) return adapter.send(msg.threadId, "Chi admin bot moi them/xoa tu duoc.");
+          const w = args.slice(1).join(" ");
+          if (!w) return adapter.send(msg.threadId, `Cu phap: ${PREFIX}noitu ${sub} <tu>`);
+          try {
+            const r = sub === "add" ? addWord(w) : delWord(w);
+            return adapter.send(msg.threadId, r.ok ? `Da ${sub === "add" ? "them" : "xoa"} "${r.word}".` : r.reason);
+          } catch (err) {
+            return adapter.send(msg.threadId, err.message);
+          }
+        }
+
         if (running) return adapter.send(msg.threadId, `Dang co game khac chay. Go ${PREFIX}stop truoc.`);
         activeGames.set(msg.threadId, startNoiTu(msg, adapter, {
           prefix: PREFIX,
+          store: ntStore,
           onEnd: () => activeGames.delete(msg.threadId),
         }));
         return;
@@ -120,6 +181,7 @@ Tag bot trong tin nhan bat ky de hoi AI.`;
   function moduleCtx() {
     return {
       prefix: PREFIX,
+      isAdmin,
       ai: (text) => aiReply({ ...text }),
       registerDM: (userId, game) => dmRoutes.set(userId, game),
       unregisterDM: (userId) => dmRoutes.delete(userId),

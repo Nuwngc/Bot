@@ -1,6 +1,6 @@
 {
   "name": "fb-minigame-bot",
-  "version": "3.3.0",
+  "version": "3.4.0",
   "description": "Bot Messenger (noi tu, ma soi, AI) kem web panel quan ly nhieu tai khoan",
   "main": "index.js",
   "type": "commonjs",

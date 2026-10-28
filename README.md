@@ -121,3 +121,18 @@ API của v3 khác v1 khá nhiều. Nếu tham khảo code/tutorial cũ trên m�
 
 Toàn bộ khác biệt này đã được xử lý trong `src/adapters/fca.js`. Nếu thư viện
 lại đổi API lần nữa, chỉ cần sửa một file đó, phần game không đụng tới.
+
+
+## Lệnh có sẵn (chuyển từ bot Zalo)
+
+Mỗi lệnh là một file trong `src/commands/`, tự nạp khi bot khởi động. Gõ `!help` để xem danh sách.
+
+| Nhóm | Lệnh | Ghi chú |
+|---|---|---|
+| Game & xu | `vi` (daily, work, pay, top), `taixiu`/`tx`, `baucua`/`bc`, `dhbc` | dùng chung ví `vi`; tiền cược ghi `1000`, `5k`, `2m`, `50%`, `all` |
+| Nối từ | `noitu`/`nt` + `bxh`, `check <từ>`, `add <từ>`, `del <từ>` | `add`/`del` chỉ admin (biến `BOT_ADMINS`) |
+| Tiện ích | `thoitiet`, `tygia`, `giavang`, `news`, `dich`, `chat` | cần mạng; `dich` phải `!dich on` trong nhóm trước |
+| Giải trí | `sad`, `thinh` | |
+
+Muốn thêm lệnh: copy một file trong `src/commands/`, đổi `command`, `description`, `run`.
+Module tải lên từ panel vẫn được ưu tiên nếu trùng tên lệnh.

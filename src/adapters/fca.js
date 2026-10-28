@@ -14,6 +14,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { Readable } = require("stream");
 
 const LOCKED_CONFIG = {
   autoUpdate: false,
@@ -160,6 +161,22 @@ function createAdapter({ appState, onLog = () => {} }) {
         }
       }
 
+      /** Tai anh tu URL roi gui kem chu thich. Loi mang/anh hong -> nem loi de lenh tu xu ly. */
+      async function sendImage(threadId, url, text = "", opts = {}) {
+        const res = await fetch(url, {
+          headers: { "user-agent": "Mozilla/5.0" },
+          signal: AbortSignal.timeout(20000),
+        });
+        if (!res.ok) throw new Error(`tai anh loi HTTP ${res.status}`);
+        const type = res.headers.get("content-type") || "";
+        if (!type.startsWith("image/")) throw new Error("link khong phai anh");
+        const buf = Buffer.from(await res.arrayBuffer());
+        if (buf.length > 8 * 1024 * 1024) throw new Error("anh qua lon");
+        const stream = Readable.from(buf);
+        stream.path = "image." + (type.includes("png") ? "png" : type.includes("gif") ? "gif" : "jpg");
+        return send(threadId, { body: text, attachment: stream }, opts);
+      }
+
       // Boc callback -> Promise cho cac ham nhom
       const p = (fn, ...args) =>
         new Promise((resolve, reject) => {
@@ -181,6 +198,7 @@ function createAdapter({ appState, onLog = () => {} }) {
         selfName,
         raw: api,
         send,
+        sendImage,
         dm: (userId, text) => send(userId, text),
         getName,
 

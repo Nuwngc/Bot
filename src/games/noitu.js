@@ -44,6 +44,58 @@ function loadDict() {
   console.log(`[noitu] Da nap ${WORDS.size} tu.`);
 }
 
+/* ---------- Tien ich cho lenh noitu bxh / check / add / del ---------- */
+
+function checkWord(raw) {
+  loadDict();
+  return WORDS.has(norm(raw));
+}
+
+function addWord(raw) {
+  loadDict();
+  const w = norm(raw);
+  const parts = w.split(" ");
+  if (parts.length !== 2) return { ok: false, reason: "Chi nhan tu co dung 2 am tiet." };
+  if (WORDS.has(w)) return { ok: false, reason: `"${w}" da co trong tu dien.` };
+  fs.appendFileSync(DICT_PATH, "\n" + w);
+  WORDS.add(w);
+  if (!INDEX.has(parts[0])) INDEX.set(parts[0], []);
+  INDEX.get(parts[0]).push(w);
+  return { ok: true, word: w };
+}
+
+function delWord(raw) {
+  loadDict();
+  const w = norm(raw);
+  if (!WORDS.has(w)) return { ok: false, reason: `"${w}" khong co trong tu dien.` };
+  const kept = fs.readFileSync(DICT_PATH, "utf8").split("\n").filter((line) => norm(line) !== w);
+  fs.writeFileSync(DICT_PATH, kept.join("\n"));
+  WORDS.delete(w);
+  const list = INDEX.get(w.split(" ")[0]) || [];
+  INDEX.set(w.split(" ")[0], list.filter((x) => x !== w));
+  return { ok: true, word: w };
+}
+
+/** Ghi nhan thanh tich: field = "words" (tu dung dung) | "wins" (thang bot) */
+function record(store, userId, name, field) {
+  if (!store) return;
+  store.add(`${field}:${userId}`, 1);
+  store.set(`name:${userId}`, name);
+}
+
+async function leaderboardText(store) {
+  const all = store ? store.all() : {};
+  const ids = new Set(
+    Object.keys(all).filter((k) => k.startsWith("wins:") || k.startsWith("words:")).map((k) => k.split(":")[1])
+  );
+  const rows = [...ids]
+    .map((id) => ({ id, wins: Number(all["wins:" + id] || 0), words: Number(all["words:" + id] || 0), name: all["name:" + id] || id }))
+    .sort((a, b) => b.wins - a.wins || b.words - a.words)
+    .slice(0, 10);
+  if (!rows.length) return "Chua co ai tren bang xep hang noi tu.";
+  return "BANG XEP HANG NOI TU\n" + rows.map((r, i) => `${i + 1}. ${r.name}: ${r.wins} thang, ${r.words} tu`).join("\n");
+}
+
 function firstSyl(w) { return w.split(" ")[0]; }
 function lastSyl(w)  { return w.split(" ")[1]; }
 
@@ -65,7 +117,7 @@ function randomStart(used) {
 
 /* ---------- Game ---------- */
 
-function startNoiTu(msg, adapter, { onEnd, prefix = "!" }) {
+function startNoiTu(msg, adapter, { onEnd, prefix = "!", store = null }) {
   loadDict();
 
   const used = new Set();
@@ -108,6 +160,7 @@ function startNoiTu(msg, adapter, { onEnd, prefix = "!" }) {
       }
 
       // Tu nguoi choi hop le
+      record(store, m.senderId, m.senderName, "words");
       used.add(w);
       current = w;
       turns++;
@@ -120,6 +173,7 @@ function startNoiTu(msg, adapter, { onEnd, prefix = "!" }) {
           `Bot chiu, khong nghi ra tu nao bat dau bang "${lastSyl(w)}".\n` +
             `${m.senderName} thang sau ${turns} luot!`
         );
+        record(store, m.senderId, m.senderName, "wins");
         return finish(ad);
       }
 
@@ -174,4 +228,4 @@ function startNoiTu(msg, adapter, { onEnd, prefix = "!" }) {
   return game;
 }
 
-module.exports = { startNoiTu };
+module.exports = { startNoiTu, checkWord, addWord, delWord, leaderboardText };
