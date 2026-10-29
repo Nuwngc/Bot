@@ -13,7 +13,7 @@
   --sp: 1rem;
   --r: 16px;
   --ease: cubic-bezier(.2, .8, .2, 1);
-  --field: rgba(10,12,30,.5); --bar: rgba(18,20,43,.8); --toast: rgba(30,34,66,.85);
+  --field: rgba(10,12,30,.5); --bar: rgba(18,20,43,.92); --toast: rgba(30,34,66,.85);
   --hover: rgba(255,255,255,.1); --line-strong: rgba(255,255,255,.24); --drawer: #181b3a;
   color-scheme: dark;
 }
@@ -376,7 +376,7 @@ button.wide { width: 100%; }
 html[data-theme=light] {
   --ink: #f3f4ff; --panel: rgba(255,255,255,.82); --raised: rgba(30,35,90,.06); --line: rgba(30,35,90,.13);
   --paper: #171a3a; --dim: #5d6392; --lamp: #d6336f; --lamp2: #7c4ddb; --alert: #d9345f; --ok: #0b8f63;
-  --field: rgba(255,255,255,.9); --bar: rgba(243,244,255,.8); --toast: rgba(255,255,255,.92);
+  --field: rgba(255,255,255,.9); --bar: rgba(243,244,255,.92); --toast: rgba(255,255,255,.92);
   --hover: rgba(30,35,90,.09); --line-strong: rgba(30,35,90,.28); --drawer: #ffffff;
   color-scheme: light;
 }
@@ -768,7 +768,7 @@ html.intro-on .intro { display: block; position: fixed; inset: 0; z-index: 9999;
 /* nội dung trồi lên lần lượt sau khi rèm mở */
 @keyframes rise { from { opacity: 0; transform: translateY(var(--dy, 16px)); filter: blur(6px); } }
 html.intro-on .wrap { animation: none; }
-html.intro-on .wrap > * { animation: rise .75s var(--ease) both; animation-delay: calc(var(--c0) + .1s + var(--i, 0) * 90ms); }
+html.intro-on .wrap > :not(.tab) { animation: rise .75s var(--ease) both; animation-delay: calc(var(--c0) + .1s + var(--i, 0) * 90ms); }
 html.intro-on .wrap > .topbar { --dy: -18px; animation-delay: var(--c0); }
 html.intro-on .wrap > :nth-child(2) { --i: 1; } html.intro-on .wrap > :nth-child(3) { --i: 2; } html.intro-on .wrap > :nth-child(4) { --i: 3; }
 html.intro-on .wrap > :nth-child(5) { --i: 4; } html.intro-on .wrap > :nth-child(n+6) { --i: 5; }
@@ -779,3 +779,13 @@ html.intro-on .login-card { animation: rise .8s var(--ease) calc(var(--c0) + .1s
 .ch { display: inline-block; }
 html.intro-on .ch { animation: letter .7s var(--ease) both; animation-delay: calc(var(--c0) + .3s + var(--c, 0) * 40ms); }
 @keyframes letter { from { opacity: 0; transform: translateY(.55em); filter: blur(6px); } }
+
+/* ================= Sửa độ trễ khi chuyển tab + giảm hiệu ứng nặng ================= */
+/* tab đang hiện lúc mở trang: chờ rèm mở rồi mới hiện; sau khi mở màn xong (intro-done) mọi tab hiện ngay */
+html.intro-on:not(.intro-done) .wrap > .tab:not([hidden]) { animation-delay: calc(var(--c0) + .3s); animation-fill-mode: both; }
+
+/* viền xoay liên tục của thẻ bot đang chạy rất tốn máy (vẽ lại mỗi khung hình): để viền tĩnh */
+.state:has(.lamp.running)::after { animation: none; --a: 40deg; }
+
+/* làm mờ kính ở thanh dính (cuộn trang là tính lại liên tục): giảm độ mờ, tăng độ đặc */
+.topbar, .tabs { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }

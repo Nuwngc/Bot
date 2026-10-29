@@ -121,4 +121,7 @@
       });
     });
   }
+
+  /* Hết hiệu ứng mở màn: bỏ độ trễ để chuyển tab hiện ngay */
+  if (root.classList.contains("intro-on")) setTimeout(() => root.classList.add("intro-done"), 2200);
 })();
