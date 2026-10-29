@@ -27,6 +27,8 @@
   <nav class="tabs" id="tabs">
     <button data-tab="fb" class="on">Facebook</button>
     <button data-tab="zalo">Zalo</button>
+    <button data-tab="wallet">Ví</button>
+    <button data-tab="rank">Xếp hạng</button>
     <button data-tab="plan">Thanh toán</button>
     <button data-tab="admin" id="tabAdminBtn" hidden>Quản trị</button>
   </nav>
@@ -203,6 +205,49 @@
     </section>
   </div>
 
+  <!-- ================= Ví ================= -->
+  <div class="tab" id="tab-wallet" hidden>
+    <section>
+      <div class="wallet-hero">
+        <div class="wallet-label">Số dư ví</div>
+        <div class="wallet-balance"><b id="wBalance">0</b><span>coin</span></div>
+        <div class="wallet-stats">
+          <div><small>Tổng đã nạp</small><strong id="wTotal">0</strong></div>
+          <div><small>Nạp tháng này</small><strong id="wMonth">0</strong></div>
+        </div>
+      </div>
+    </section>
+    <section>
+      <h2>Nạp coin</h2>
+      <p>1 coin = 1đ. Nhập số tiền tuỳ ý, chuyển khoản theo mã, coin vào ví sau khi quản trị viên xác nhận. Gia hạn bot sẽ trừ coin trong ví. Nạp càng nhiều càng lên hạng xếp hạng tháng.</p>
+      <div class="chips" id="wChips"></div>
+      <div class="coupon-row">
+        <input type="text" id="wAmount" inputmode="numeric" placeholder="Số tiền muốn nạp" autocomplete="off">
+        <button class="primary" id="wDeposit">Nạp tiền</button>
+      </div>
+      <div id="wPending"></div>
+    </section>
+    <section>
+      <h2>Lịch sử ví</h2>
+      <div class="users" id="wHistory"><div class="empty">Đang tải…</div></div>
+    </section>
+  </div>
+
+  <!-- ================= Xếp hạng ================= -->
+  <div class="tab" id="tab-rank" hidden>
+    <section>
+      <h2 id="rkTitle">Bảng xếp hạng nạp</h2>
+      <p id="rkSub"></p>
+      <div class="podium" id="rkPodium"></div>
+      <div class="rk-me" id="rkMe"></div>
+      <div class="users" id="rkList"></div>
+    </section>
+    <section id="rkLastBox" hidden>
+      <h3>Vinh danh tháng trước</h3>
+      <div class="users" id="rkLast"></div>
+    </section>
+  </div>
+
   <!-- ================= Quản trị ================= -->
   <div class="tab" id="tab-admin" hidden>
   <!-- Admin -->
@@ -238,6 +283,32 @@
       <div class="users" id="orders"></div>
     </section>
   
+    <section id="depositsBox" hidden>
+      <h2>Nạp coin chờ duyệt</h2>
+      <p>Đối chiếu nội dung chuyển khoản với mã nạp rồi xác nhận. Coin vào ví người dùng ngay khi xác nhận.</p>
+      <div class="users" id="deposits"></div>
+    </section>
+
+    <section id="rewardBox" hidden>
+      <h2>Phần thưởng xếp hạng</h2>
+      <p>Đầu mỗi tháng (giờ Việt Nam), hệ thống tự cộng coin vào ví top 1, 2, 3 của tháng trước theo tổng tiền nạp. Đặt 0 để tắt. Tài khoản quản trị không tham gia xếp hạng.</p>
+      <div class="row">
+        <div class="field"><label for="rw1">Top 1 (coin)</label><input type="text" id="rw1" inputmode="numeric"></div>
+        <div class="field"><label for="rw2">Top 2 (coin)</label><input type="text" id="rw2" inputmode="numeric"></div>
+        <div class="field"><label for="rw3">Top 3 (coin)</label><input type="text" id="rw3" inputmode="numeric"></div>
+      </div>
+      <button class="primary" id="rwSave">Lưu phần thưởng</button>
+      <h3>Cộng hoặc trừ coin thủ công</h3>
+      <div class="row">
+        <input type="text" id="adjUser" placeholder="Tên tài khoản" autocomplete="off" autocapitalize="none">
+        <input type="text" id="adjAmount" placeholder="Số coin (ví dụ 50000 hoặc -20000)" inputmode="numeric" autocomplete="off">
+      </div>
+      <div class="coupon-row" style="margin-top:.55rem">
+        <input type="text" id="adjNote" placeholder="Ghi chú (không bắt buộc)" autocomplete="off">
+        <button id="adjGo">Áp dụng</button>
+      </div>
+    </section>
+
     <section id="pricingBox">
     <h2>Bảng giá</h2>
     <p>Mỗi dòng là một gói gia hạn cho <strong>một bot</strong>. Để giá 0 nếu không bán gói đó cho loại bot tương ứng.</p>
@@ -335,6 +406,7 @@
 <script src="/dialog.js"></script>
 <script src="/app.js"></script>
 <script src="/bots.js"></script>
+<script src="/wallet.js"></script>
 <script src="/ui.js"></script>
 </body>
 </html>

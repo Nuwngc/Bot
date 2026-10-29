@@ -71,6 +71,7 @@ async function loadMe() {
     loadOrders();
     loadGlobalSettings();
     loadPricing();
+    if (typeof loadWalletAdmin === "function") loadWalletAdmin();
   }
 }
 
@@ -91,6 +92,7 @@ function fmtDate(s) {
 }
 
 const vnd = (n) => n.toLocaleString("vi-VN") + "đ";
+const coin = (n) => Number(n || 0).toLocaleString("vi-VN") + " coin";
 
 /* ---------- Thanh toán ---------- */
 

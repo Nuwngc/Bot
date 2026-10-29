@@ -378,7 +378,7 @@ function renderPay(product, b, force = false) {
     loadBilling().finally(() => (billingReloading = false));
   }
 
-  const sig = [b.id, b.hasLogin, b.pendingOrder, b.plan.expires, b.plan.active, billingData ? billingData.orders.length : "-", pending?.code].join("|");
+  const sig = [b.id, b.hasLogin, b.pendingOrder, b.plan.expires, b.plan.active, billingData ? billingData.orders.length : "-", billingData?.wallet, pending?.code].join("|");
   if (!force && sig === ps.sig) return; // giu nguyen o nhap ma giam gia khi tu lam moi
   ps.sig = sig;
   if (ps.botId !== b.id) Object.assign(ps, { botId: b.id, plan: null, coupon: "" });
@@ -412,7 +412,8 @@ function renderPay(product, b, force = false) {
 
   box.innerHTML =
     head +
-    `<div class="row seg plan-opts">
+    `<p class="hint wallet-line">Số dư ví: <strong>${coin(billingData.wallet)}</strong> <button type="button" class="link-btn" data-wallet>Nạp thêm</button></p>
+    <div class="row seg plan-opts">
       ${plans
         .map(
           (p) => `<button data-plan="${p.id}" class="${p.id === ps.plan ? "primary" : ""}">
@@ -425,7 +426,7 @@ function renderPay(product, b, force = false) {
       <button data-apply>Áp dụng</button>
     </div>
     <div class="quote" data-quote><span class="dim">Đang tính…</span></div>
-    <button class="primary wide" data-order>${b.plan.active ? "Gia hạn bot này" : "Thanh toán bot này"}</button>`;
+    <button class="primary wide" data-order>${b.plan.active ? "Gia hạn" : "Thanh toán"} bot này bằng ví</button>`;
   updatePayQuote(product);
 }
 
@@ -495,6 +496,8 @@ for (const product of ["fb", "zalo"]) {
         say(err.message, "bad");
         btn.disabled = false;
       }
+    } else if (e.target.closest("button[data-wallet]")) {
+      showTab("wallet");
     } else if (cancelBtn) {
       await cancelOrder(cancelBtn.dataset.cancel);
       await PANEL[product].load();

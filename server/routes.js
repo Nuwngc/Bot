@@ -1,6 +1,7 @@
 const express = require("express");
 const { db, q, ensureBotRow, getSetting, setSetting, allSettings } = require("./db");
 const billing = require("./billing");
+const wallet = require("./wallet");
 const { encrypt, decrypt, mask } = require("./crypto");
 const auth = require("./auth");
 const userBots = require("./userBots");
@@ -39,6 +40,7 @@ router.get("/public", (req, res) => {
     signupOpen: getSetting("signup_open") === "1",
     trialDays: Number(getSetting("trial_days") || 0),
     prices: billing.priceTable(),
+    wallet: wallet.balance(req.user.id),
   });
 });
 
@@ -168,11 +170,9 @@ router.post("/billing/quote", (req, res) => {
 router.post("/billing/order", (req, res) => {
   try {
     const b = req.body || {};
-    const order = billing.createOrder(req.user, String(b.product || ""), b.botId, String(b.plan || ""), b.coupon);
-    res.json({
-      ok: true,
-      order: { ...order, qr: order.autoApproved ? null : billing.qrUrl({ amount: order.amount, code: order.code }) },
-    });
+    // Thanh toan bang vi coin: tru coin va cong han cho bot ngay, khong can admin duyet
+    const r = wallet.payOrder(req.user, String(b.product || ""), b.botId, String(b.plan || ""), b.coupon);
+    res.json({ ok: true, order: { ...r.order, autoApproved: true, expires: r.expires }, balance: r.balance });
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
@@ -416,5 +416,7 @@ function safeCount(json) {
     return 0;
   }
 }
+
+wallet.register(router, auth);
 
 module.exports = router;

@@ -636,3 +636,51 @@ body.dlg-open { overflow: hidden; }
 @keyframes live-ping { from { transform: scale(.5); opacity: .45; } to { transform: scale(1.4); opacity: 0; } }
 @keyframes live-bump { 40% { transform: scale(1.35); color: var(--ok); } }
 @media (prefers-reduced-motion: reduce) { .live-dot::after, .live-chip b.bump { animation: none; } }
+
+/* ================= Ví, xếp hạng ================= */
+:root { --gold: #f5c451; --silver: #c3c9e6; --bronze: #d9925a; }
+html[data-theme=light] { --gold: #c8891a; --silver: #7f88b5; --bronze: #b5642a; }
+
+.wallet-hero {
+  position: relative; overflow: hidden; padding: 1.6rem 1.4rem 1.3rem; border-radius: 22px;
+  background: linear-gradient(135deg, rgba(94,234,212,.16), rgba(139,140,255,.26)), var(--panel);
+  border: 1px solid var(--line); box-shadow: 0 24px 50px -30px var(--lamp);
+}
+.wallet-hero::after {
+  content: ""; position: absolute; right: -3rem; top: -3rem; width: 11rem; height: 11rem; border-radius: 50%;
+  background: radial-gradient(circle, rgba(139,140,255,.35), transparent 70%); pointer-events: none;
+}
+.wallet-label { color: var(--dim); font-size: .85rem; }
+.wallet-balance { display: flex; align-items: baseline; gap: .5rem; margin: .15rem 0 1.1rem; }
+.wallet-balance b { font-size: 2.6rem; font-weight: 700; letter-spacing: -.03em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.wallet-balance span { color: var(--lamp2); font-weight: 600; }
+.wallet-stats { display: flex; gap: 2rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.wallet-stats small { display: block; color: var(--dim); font-size: .78rem; }
+.wallet-stats strong { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+
+.chips { display: flex; flex-wrap: wrap; gap: .45rem; margin-bottom: .75rem; }
+.chips button { padding: .4rem .85rem; border-radius: 99px; font-size: .85rem; }
+.wallet-line { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+button.link-btn { padding: .12rem .65rem; font-size: .8rem; border-radius: 99px; }
+
+.podium { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; align-items: end; margin: 1.1rem 0 1rem; }
+.pod { text-align: center; min-width: 0; }
+.pod-name { font-weight: 600; font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pod-amt { color: var(--dim); font-size: .78rem; margin-bottom: .45rem; min-height: 1.2em; }
+.pod-step {
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: .1rem;
+  padding-top: .7rem; border-radius: 14px 14px 6px 6px; border: 1px solid var(--line);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--medal) 30%, transparent), var(--panel));
+  box-shadow: inset 0 1px 0 var(--hi);
+}
+.pod-step b { font-size: 1.7rem; line-height: 1; color: var(--medal); }
+.pod-step span { font-size: .72rem; color: var(--dim); padding: 0 .3rem; }
+.pod.gold { --medal: var(--gold); } .pod.silver { --medal: var(--silver); } .pod.bronze { --medal: var(--bronze); }
+.pod.gold .pod-step { height: 7.5rem; } .pod.silver .pod-step { height: 6rem; } .pod.bronze .pod-step { height: 5rem; }
+.pod.me .pod-name { color: var(--lamp2); }
+.pod.me .pod-step { box-shadow: 0 0 0 2px var(--lamp2), 0 10px 28px -12px var(--lamp2); }
+
+.rk-me { margin: 0 0 1rem; padding: .75rem .9rem; border-radius: 12px; background: var(--raised); border: 1px solid var(--line); font-size: .9rem; }
+.rk-n { min-width: 2.2rem; font-weight: 700; color: var(--dim); font-variant-numeric: tabular-nums; }
+.user.me { border-color: var(--lamp2); }
+@media (max-width: 480px) { .wallet-balance b { font-size: 2.2rem; } .wallet-stats { gap: 1.2rem; } }
