@@ -98,4 +98,12 @@
   const mark = () => document.querySelectorAll(".empty").forEach((e) => e.classList.toggle("loading", /^Đang tải/.test(e.textContent.trim())));
   mark();
   new MutationObserver(() => requestAnimationFrame(mark)).observe(document.body, { childList: true, subtree: true, characterData: true });
+
+  /* Bấm logo: xoay nhẹ rồi tải lại trang (giữ nguyên tab đang mở) */
+  const logo = document.getElementById("logo");
+  if (logo) logo.addEventListener("click", (e) => {
+    e.preventDefault();
+    logo.classList.add("spin");
+    setTimeout(() => location.reload(), 320);
+  });
 })();

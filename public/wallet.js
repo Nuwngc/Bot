@@ -9,11 +9,12 @@
   let wal = null;
 
   /* Số dư hiện ngay trên thanh trên cùng */
-  const compact = new Intl.NumberFormat("vi-VN", { notation: "compact", maximumFractionDigits: 1 });
+  const short = (n) => n >= 1e9 ? (n / 1e9).toLocaleString("vi-VN", { maximumFractionDigits: 1 }) + " tỷ"
+    : n >= 1e7 ? (n / 1e6).toLocaleString("vi-VN", { maximumFractionDigits: 1 }) + " tr" : fmt(n);
   function setChip(n) {
     const b = $("chipBal");
     if (!b) return;
-    const t = n >= 1e7 ? compact.format(n) : fmt(n);
+    const t = short(n);
     if (b.textContent === t) return;
     const first = b.textContent === "…";
     b.textContent = t;
