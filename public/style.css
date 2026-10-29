@@ -1,20 +1,20 @@
 :root {
-  --ink:    #0b0d1f;
-  --panel:  rgba(26, 30, 58, 0.66);
+  --ink:    #12142b;
+  --panel:  rgba(34, 38, 76, 0.70);
   --raised: rgba(255, 255, 255, 0.06);
   --line:   rgba(255, 255, 255, 0.10);
   --paper:  #eef0ff;
   --dim:    #939ac8;
-  --lamp:   #8b8cff;
-  --lamp2:  #5eead4;
+  --lamp:   #ec407a;
+  --lamp2:  #a77dff;
   --alert:  #ff6b8d;
   --ok:     #4fe0b0;
   --grad:   linear-gradient(135deg, var(--lamp2), var(--lamp));
   --sp: 1rem;
   --r: 16px;
   --ease: cubic-bezier(.2, .8, .2, 1);
-  --field: rgba(8,10,26,.55); --bar: rgba(11,13,31,.72); --toast: rgba(30,34,66,.85);
-  --hover: rgba(255,255,255,.1); --line-strong: rgba(255,255,255,.24); --drawer: #12152e;
+  --field: rgba(10,12,30,.5); --bar: rgba(18,20,43,.8); --toast: rgba(30,34,66,.85);
+  --hover: rgba(255,255,255,.1); --line-strong: rgba(255,255,255,.24); --drawer: #181b3a;
   color-scheme: dark;
 }
 
@@ -34,8 +34,8 @@ body::before {
   content: "";
   position: fixed; inset: 0; z-index: -1;
   background:
-    radial-gradient(55vmax 38vmax at 92% -8%, rgba(139,140,255,.24), transparent),
-    radial-gradient(48vmax 36vmax at -8% 108%, rgba(94,234,212,.14), transparent);
+    radial-gradient(55vmax 38vmax at 92% -8%, rgba(232,64,122,.24), transparent),
+    radial-gradient(48vmax 36vmax at -8% 108%, rgba(167,125,255,.14), transparent);
 }
 
 a { color: var(--lamp2); text-decoration: none; }
@@ -97,8 +97,8 @@ section h3 { font-size: .95rem; font-weight: 600; margin: 1.75rem 0 .65rem; }
 .tabs button:hover { color: var(--paper); border: 0; }
 .tabs button.on {
   color: var(--paper); font-weight: 600;
-  background: linear-gradient(135deg, rgba(94,234,212,.16), rgba(139,140,255,.24));
-  box-shadow: inset 0 0 0 1px rgba(139,140,255,.4);
+  background: linear-gradient(135deg, rgba(167,125,255,.16), rgba(232,64,122,.24));
+  box-shadow: inset 0 0 0 1px rgba(232,64,122,.4);
 }
 .tabs button[hidden] { display: none; }
 
@@ -150,7 +150,7 @@ input::placeholder, textarea::placeholder { color: rgba(147,154,200,.55); }
 input:hover, textarea:hover, select:hover { border-color: var(--line-strong); }
 input:focus, textarea:focus, select:focus {
   outline: 0; border-color: var(--lamp);
-  box-shadow: 0 0 0 4px rgba(139,140,255,.2);
+  box-shadow: 0 0 0 4px rgba(232,64,122,.2);
 }
 textarea {
   min-height: 7rem; resize: vertical;
@@ -192,7 +192,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--lamp2); outline
 
 button.primary {
   background: var(--grad); border-color: transparent;
-  color: #07102a; font-weight: 600;
+  color: #ffffff; font-weight: 600;
 }
 button.primary::after {
   content: ""; position: absolute; inset: 0;
@@ -243,7 +243,7 @@ button.wide { width: 100%; }
   transition: transform .25s var(--ease), border-color .25s, box-shadow .3s;
 }
 .bot-card:hover { transform: translateY(-2px); border-color: var(--line-strong); }
-.bot-card.sel { border-color: var(--lamp); box-shadow: 0 0 0 3px rgba(139,140,255,.18), 0 12px 30px -16px var(--lamp); }
+.bot-card.sel { border-color: var(--lamp); box-shadow: 0 0 0 3px rgba(232,64,122,.18), 0 12px 30px -16px var(--lamp); }
 .bot-main { flex: 1; min-width: 0; }
 .bot-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bot-sub { font-size: .8rem; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -375,15 +375,15 @@ button.wide { width: 100%; }
 /* ================= Giao diện sáng ================= */
 html[data-theme=light] {
   --ink: #f3f4ff; --panel: rgba(255,255,255,.82); --raised: rgba(30,35,90,.06); --line: rgba(30,35,90,.13);
-  --paper: #171a3a; --dim: #5d6392; --lamp: #4f5df0; --lamp2: #0f9d8a; --alert: #d9345f; --ok: #0b8f63;
+  --paper: #171a3a; --dim: #5d6392; --lamp: #d6336f; --lamp2: #7c4ddb; --alert: #d9345f; --ok: #0b8f63;
   --field: rgba(255,255,255,.9); --bar: rgba(243,244,255,.8); --toast: rgba(255,255,255,.92);
   --hover: rgba(30,35,90,.09); --line-strong: rgba(30,35,90,.28); --drawer: #ffffff;
   color-scheme: light;
 }
 html[data-theme=light] body::before {
   background:
-    radial-gradient(55vmax 38vmax at 92% -8%, rgba(79,93,240,.16), transparent),
-    radial-gradient(48vmax 36vmax at -8% 108%, rgba(15,157,138,.12), transparent);
+    radial-gradient(55vmax 38vmax at 92% -8%, rgba(214,51,111,.16), transparent),
+    radial-gradient(48vmax 36vmax at -8% 108%, rgba(124,77,219,.12), transparent);
 }
 html, body { transition: background-color .4s, color .4s; }
 
@@ -400,7 +400,7 @@ html, body { transition: background-color .4s, color .4s; }
 }
 .theme-toggle svg {
   position: absolute; inset: 0; margin: auto; width: .95rem; height: .95rem;
-  fill: none; stroke: #07102a; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  fill: none; stroke: #ffffff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
   transition: transform .5s var(--ease), opacity .3s;
 }
 .theme-toggle .sun { opacity: 0; transform: rotate(-90deg) scale(.4); }
@@ -433,7 +433,7 @@ body.menu-open .drawer { transform: none; visibility: visible; transition: trans
 .drawer-close svg, .eye svg { width: 1.1rem; height: 1.1rem; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .drawer nav { display: flex; flex-direction: column; gap: .3rem; }
 .drawer nav button { width: 100%; justify-content: flex-start; text-align: left; border: 0; background: none; padding: .8rem .9rem; border-radius: 12px; color: var(--dim); }
-.drawer nav button.on { color: var(--paper); font-weight: 600; background: linear-gradient(135deg, rgba(94,234,212,.16), rgba(139,140,255,.24)); box-shadow: inset 0 0 0 1px rgba(139,140,255,.4); }
+.drawer nav button.on { color: var(--paper); font-weight: 600; background: linear-gradient(135deg, rgba(167,125,255,.16), rgba(232,64,122,.24)); box-shadow: inset 0 0 0 1px rgba(232,64,122,.4); }
 body.menu-open .drawer nav button { animation: in .45s var(--ease) both; animation-delay: calc(var(--i, 0) * 50ms + 120ms); }
 .drawer-foot { margin-top: auto; display: flex; flex-direction: column; gap: .75rem; }
 .drawer-row { display: flex; align-items: center; justify-content: space-between; color: var(--dim); font-size: .9rem; }
@@ -501,7 +501,7 @@ button.danger:not(:disabled):hover { background-color: var(--raised); background
 /* nút chuyển chế độ (Dán cookie / Email + mật khẩu): thanh phân đoạn */
 .seg:not(.plan-opts) { display: flex; gap: .2rem; padding: .25rem; border-radius: 14px; background: var(--raised); border: 1px solid var(--line); }
 .seg:not(.plan-opts) > button { flex: 1; border-color: transparent; background-color: transparent; box-shadow: none; border-radius: 10px; color: var(--dim); }
-.seg:not(.plan-opts) > button.primary { color: #07102a; }
+.seg:not(.plan-opts) > button.primary { color: #ffffff; }
 
 /* chọn gói: các ô lớn */
 .plan-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr)); gap: .5rem; }
@@ -643,12 +643,12 @@ html[data-theme=light] { --gold: #c8891a; --silver: #7f88b5; --bronze: #b5642a; 
 
 .wallet-hero {
   position: relative; overflow: hidden; padding: 1.6rem 1.4rem 1.3rem; border-radius: 22px;
-  background: linear-gradient(135deg, rgba(94,234,212,.16), rgba(139,140,255,.26)), var(--panel);
+  background: linear-gradient(135deg, rgba(167,125,255,.16), rgba(232,64,122,.26)), var(--panel);
   border: 1px solid var(--line); box-shadow: 0 24px 50px -30px var(--lamp);
 }
 .wallet-hero::after {
   content: ""; position: absolute; right: -3rem; top: -3rem; width: 11rem; height: 11rem; border-radius: 50%;
-  background: radial-gradient(circle, rgba(139,140,255,.35), transparent 70%); pointer-events: none;
+  background: radial-gradient(circle, rgba(232,64,122,.35), transparent 70%); pointer-events: none;
 }
 .wallet-label { color: var(--dim); font-size: .85rem; }
 .wallet-balance { display: flex; align-items: baseline; gap: .5rem; margin: .15rem 0 1.1rem; }
@@ -684,3 +684,40 @@ button.link-btn { padding: .12rem .65rem; font-size: .8rem; border-radius: 99px;
 .rk-n { min-width: 2.2rem; font-weight: 700; color: var(--dim); font-variant-numeric: tabular-nums; }
 .user.me { border-color: var(--lamp2); }
 @media (max-width: 480px) { .wallet-balance b { font-size: 2.2rem; } .wallet-stats { gap: 1.2rem; } }
+
+/* ================= v4: thanh trên cùng, ví hiện số dư, menu bên trái ================= */
+.topbar {
+  position: sticky; top: calc(.5rem + env(safe-area-inset-top, 0px)); z-index: 25;
+  min-height: 3.6rem; padding: .6rem .7rem; margin: 0 0 1rem; gap: .6rem; border-radius: 20px;
+  background: var(--bar); border: 1px solid var(--line); box-shadow: 0 14px 34px -22px rgba(0,0,0,.7);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+}
+.topbar h1 { display: flex; align-items: center; flex: none; }
+.topbar h1::before { width: 1.7rem; height: 1.7rem; margin-right: .6rem; border-radius: .6rem; vertical-align: 0; box-shadow: 0 8px 20px -8px var(--lamp); }
+.tabs { top: calc(4.8rem + env(safe-area-inset-top, 0px)); }
+
+.burger { background: var(--raised); border: 1px solid var(--line); }
+.burger i { background: var(--lamp); }
+
+.wallet-chip { display: flex; align-items: center; gap: .5rem; height: 2.4rem; padding: 0 .85rem 0 .7rem; border-radius: 14px; flex: none; background: var(--raised); border: 1px solid var(--line); font-weight: 600; font-variant-numeric: tabular-nums; }
+.wallet-chip svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: var(--lamp); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.wallet-chip small { color: var(--dim); font-weight: 500; }
+.wallet-chip b.bump { animation: live-bump .45s var(--ease); }
+.wallet-chip .plus { display: grid; place-items: center; width: 1.25rem; height: 1.25rem; border-radius: 50%; background: var(--grad); color: #fff; font-size: .95rem; line-height: 1; margin-left: .1rem; }
+
+.drawer { left: 0; right: auto; width: min(21rem, 88vw); border-left: 0; border-right: 1px solid var(--line); box-shadow: 30px 0 60px -30px rgba(0,0,0,.6); transform: translateX(-105%); }
+.drawer nav { gap: .2rem; }
+.drawer nav button { display: flex; align-items: center; gap: 1rem; padding: .95rem 1rem; font-size: 1.02rem; border-radius: 16px; }
+.drawer nav button svg { width: 1.4rem; height: 1.4rem; flex: none; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.drawer nav button.on { color: var(--lamp); background: rgba(232,64,122,.16); box-shadow: inset 0 0 0 1px rgba(232,64,122,.3), 0 10px 26px -16px var(--lamp); }
+
+@media (max-width: 480px) {
+  .topbar h1 span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .topbar h1::before { margin-right: 0; }
+  .wallet-chip small { display: none; }
+  .top-actions { gap: .45rem; }
+}
+
+/* sửa nhỏ v4 */
+#wAmount { text-transform: none; }
+.drawer nav button:not(.on) { box-shadow: none; }

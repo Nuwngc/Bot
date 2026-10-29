@@ -155,7 +155,7 @@ function payOrder(user, product, botId, planId, coupon) {
   return tx(() => {
     const bal = balance(user.id);
     if (qt.total > bal) {
-      throw new Error(`Số dư không đủ: cần ${fmt(qt.total)} coin, ví đang có ${fmt(bal)}. Hãy nạp thêm ở tab Ví.`);
+      throw new Error(`Số dư không đủ: cần ${fmt(qt.total)} coin, ví đang có ${fmt(bal)}. Hãy nạp thêm ở tab Nạp tiền.`);
     }
     const expires = billing.extendBot(product, qt.botId, qt.days); // throw neu bot da bi xoa
     const code = randomCode("V", (c) => q.orderByCode.get(c));
@@ -251,6 +251,8 @@ function register(router, auth) {
       history: wq.history.all(id),
     });
   });
+
+  router.get("/wallet/balance", (req, res) => res.json({ balance: balance(req.user.id) }));
 
   router.post("/wallet/deposit", (req, res) => {
     try { res.json({ ok: true, deposit: createDeposit(req.user, req.body?.amount) }); } catch (e) { fail(res, e); }

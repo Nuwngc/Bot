@@ -7,6 +7,26 @@
   const CHIPS = [20000, 50000, 100000, 200000, 500000];
   const MEDAL = ["gold", "silver", "bronze"];
   let wal = null;
+
+  /* Số dư hiện ngay trên thanh trên cùng */
+  const compact = new Intl.NumberFormat("vi-VN", { notation: "compact", maximumFractionDigits: 1 });
+  function setChip(n) {
+    const b = $("chipBal");
+    if (!b) return;
+    const t = n >= 1e7 ? compact.format(n) : fmt(n);
+    if (b.textContent === t) return;
+    const first = b.textContent === "…";
+    b.textContent = t;
+    $("walletChip").title = `${fmt(n)} coin`;
+    if (!first) { b.classList.remove("bump"); void b.offsetWidth; b.classList.add("bump"); }
+  }
+  const refreshBalance = () => api("/wallet/balance").then((d) => setChip(d.balance)).catch(() => {});
+  $("walletChip")?.addEventListener("click", () => showTab("wallet"));
+  const baseBilling = window.onBillingLoaded;
+  window.onBillingLoaded = function () { baseBilling?.(); if (billingData && billingData.wallet != null) setChip(billingData.wallet); };
+  refreshBalance();
+  setInterval(() => { if (!document.hidden) refreshBalance(); }, 45000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshBalance(); });
   const money = (el) => el.addEventListener("input", () => { const n = num(el.value); el.value = n ? fmt(n) : ""; });
 
   /* ================= Ví ================= */
@@ -39,6 +59,7 @@
 
   async function loadWallet() {
     try { wal = await api("/wallet"); } catch (e) { return say(e.message, "bad"); }
+    setChip(wal.balance);
     $("wBalance").textContent = fmt(wal.balance);
     $("wTotal").textContent = fmt(wal.totalDeposited);
     $("wMonth").textContent = fmt(wal.monthDeposited);
