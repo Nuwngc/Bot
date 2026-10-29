@@ -648,3 +648,39 @@ $("coupons").addEventListener("click", async (e) => {
     say(err.message, "bad");
   }
 });
+
+
+/* ---------- Số người online / bot đang chạy ---------- */
+
+function setLive(id, value) {
+  const b = $(id);
+  if (b.textContent === String(value)) return;
+  const first = b.dataset.init !== "1";
+  b.textContent = value;
+  b.dataset.init = "1";
+  if (!first) {
+    b.classList.remove("bump");
+    void b.offsetWidth;
+    b.classList.add("bump");
+  }
+}
+
+async function loadStats() {
+  try {
+    const d = await api("/stats");
+    setLive("liveOnline", d.online);
+    setLive("liveBots", d.botsRunning);
+    const parts = [];
+    if (d.fb !== null) parts.push(`Facebook ${d.fb}`);
+    if (d.zalo !== null) parts.push(`Zalo ${d.zalo}`);
+    $("liveBotsChip").title = parts.join(" · ");
+    $("live").hidden = false;
+  } catch (_) {
+    /* mất mạng một lúc thì thôi, lần sau tự cập nhật lại */
+  }
+}
+
+loadStats();
+// Mỗi lần gọi là một "nhịp online": chỉ gọi khi đang xem trang, tab bị ẩn thì ngừng
+setInterval(() => { if (!document.hidden) loadStats(); }, 20000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) loadStats(); });

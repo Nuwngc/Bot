@@ -53,6 +53,13 @@ function runningCount() {
   return n;
 }
 
+/** So bot dang hoat dong thuc su (da dang nhap xong), khong tinh bot dang khoi dong */
+function activeCount() {
+  let n = 0;
+  for (const i of instances.values()) if (i.status === "running") n++;
+  return n;
+}
+
 /* Hang doi dang nhap: moi lan chi 1 bot dang nhap */
 let loginChain = Promise.resolve();
 function queued(fn) {
@@ -201,4 +208,4 @@ function stopAll() {
   }
 }
 
-module.exports = { start, stop, status, logs, log, forget, stopAll, runningCount, MAX_CONCURRENT };
+module.exports = { start, stop, status, logs, log, forget, stopAll, runningCount, activeCount, MAX_CONCURRENT };

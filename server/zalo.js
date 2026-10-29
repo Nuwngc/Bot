@@ -174,6 +174,13 @@ function runningCount() {
   return n;
 }
 
+/** So bot Zalo dang hoat dong thuc su (status = running) */
+function activeCount() {
+  let n = 0;
+  for (const st of procs.values()) if (st.child && st.status === "running") n++;
+  return n;
+}
+
 const confPath = (id) => path.join(CONF_DIR, `${id}.json`);
 
 function removeConf(id) {
@@ -374,5 +381,6 @@ module.exports = {
   logs,
   log,
   runningCount,
+  activeCount,
   busy,
 };

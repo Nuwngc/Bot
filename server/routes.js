@@ -7,6 +7,7 @@ const userBots = require("./userBots");
 const { fq } = require("./fbBots");
 const zaloMod = require("./zalo");
 const botManager = require("../src/bot/manager");
+const presence = require("./presence");
 
 const router = express.Router();
 
@@ -87,6 +88,23 @@ function sectionsFor(user) {
     zalo: isAdmin || getSetting("hide_zalo") !== "1",
   };
 }
+
+/**
+ * So nguoi dang online + so bot dang hoat dong. Trang goi moi ~20 giay, moi lan goi la mot nhip online.
+ * Nguoi dung thuong chi thay so cua muc ma admin khong an.
+ */
+router.get("/stats", (req, res) => {
+  presence.touch(req.user.id);
+  const sec = sectionsFor(req.user);
+  const fb = sec.fb ? botManager.activeCount() : null;
+  const zalo = sec.zalo ? zaloMod.activeCount() : null;
+  res.json({
+    online: presence.onlineCount(),
+    botsRunning: (fb || 0) + (zalo || 0),
+    fb,
+    zalo,
+  });
+});
 
 router.get("/me", (req, res) => {
   const bot = ensureBotRow(req.user.id);

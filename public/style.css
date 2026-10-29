@@ -618,3 +618,21 @@ body.dlg-open { overflow: hidden; }
 /* thông báo nhỏ: bấm để đóng, trượt xuống khi mất */
 .note { cursor: pointer; }
 .note.out { animation: note-out .22s ease both; }
+
+/* ---------- Số người online / bot đang chạy ---------- */
+.live { display: flex; flex-wrap: wrap; gap: .5rem; margin: -.2rem 0 1rem; }
+.live[hidden] { display: none; }
+.live-chip {
+  display: inline-flex; align-items: center; gap: .45rem;
+  padding: .32rem .75rem; border-radius: 999px;
+  font-size: .8rem; color: var(--dim);
+  background: var(--panel, rgba(255, 255, 255, .04)); border: 1px solid var(--line);
+}
+.live-chip b { color: var(--paper); font-weight: 650; font-variant-numeric: tabular-nums; }
+.live-chip b.bump { animation: live-bump .45s var(--ease); }
+.live-chip svg { width: .9rem; height: .9rem; fill: none; stroke: var(--lamp); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.live-dot { position: relative; width: .5rem; height: .5rem; border-radius: 50%; background: var(--ok); flex: none; }
+.live-dot::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; background: var(--ok); opacity: .35; animation: live-ping 2s ease-out infinite; }
+@keyframes live-ping { from { transform: scale(.5); opacity: .45; } to { transform: scale(1.4); opacity: 0; } }
+@keyframes live-bump { 40% { transform: scale(1.35); color: var(--ok); } }
+@media (prefers-reduced-motion: reduce) { .live-dot::after, .live-chip b.bump { animation: none; } }
