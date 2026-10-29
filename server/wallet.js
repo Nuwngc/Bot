@@ -47,7 +47,8 @@ db.exec(`
 
 const MIN_DEPOSIT = 10000;
 const MAX_DEPOSIT = 50000000;
-const DEFAULT_REWARDS = [50000, 30000, 10000]; // admin chinh trong tab Quan tri
+const RANKS = 10;                                                  // so hang co bang xep hang / co the co thuong
+const DEFAULT_REWARDS = [50000, 30000, 10000, 0, 0, 0, 0, 0, 0, 0]; // admin chinh trong tab Quan tri (0 = khong thuong)
 
 const MONTH_SQL = "strftime('%Y-%m', datetime(t.created_at, '+7 hours'))";
 const fmt = (n) => Number(n || 0).toLocaleString("vi-VN");
@@ -86,7 +87,7 @@ const wq = {
   rewardMark: db.prepare("INSERT INTO reward_months (month) VALUES (?)"),
   rewardLog: db.prepare(
     `SELECT t.ref, t.amount, u.username FROM wallet_tx t JOIN users u ON u.id = t.user_id
-      WHERE t.kind = 'reward' AND t.ref LIKE ? ORDER BY t.ref`
+      WHERE t.kind = 'reward' AND t.ref LIKE ? ORDER BY CAST(substr(t.ref, instr(t.ref, '#') + 1) AS INTEGER)`
   ),
 };
 
@@ -179,14 +180,14 @@ function maskName(n) {
 }
 
 function rewards() {
-  return [1, 2, 3].map((r, i) => {
-    const v = getSetting("reward_top" + r);
+  return Array.from({ length: RANKS }, (_, i) => {
+    const v = getSetting("reward_top" + (i + 1));
     return v === null || v === "" ? DEFAULT_REWARDS[i] : Math.max(0, Math.floor(Number(v)) || 0);
   });
 }
 
 function saveRewards(list) {
-  if (!Array.isArray(list) || list.length !== 3) throw new Error("Cần đủ 3 mức thưởng");
+  if (!Array.isArray(list) || list.length !== RANKS) throw new Error(`Cần đủ ${RANKS} mức thưởng`);
   list.forEach((v, i) => {
     const n = Math.round(Number(String(v).replace(/[^0-9]/g, "")));
     if (!(n >= 0 && n <= 100000000)) throw new Error("Mức thưởng từ 0 đến 100.000.000 coin");
@@ -202,7 +203,7 @@ function leaderboard(user) {
   const prev = prevMonthOf();
   return {
     month, label: label(month), endsAt: nextMonthStart(), rewards: rewards(),
-    top: all.slice(0, 10).map((r, i) => ({ rank: i + 1, name: maskName(r.username), total: r.total, me: r.user_id === user.id })),
+    top: all.slice(0, RANKS).map((r, i) => ({ rank: i + 1, name: maskName(r.username), total: r.total, me: r.user_id === user.id })),
     me: idx < 0 ? null : { rank: idx + 1, total: all[idx].total, toNext: idx > 0 ? all[idx - 1].total - all[idx].total + 1 : 0 },
     last: {
       label: label(prev),
@@ -216,7 +217,7 @@ function awardMonth(month) {
   tx(() => {
     if (wq.rewardDone.get(month)) return;
     const rw = rewards();
-    wq.top.all(month, 3).forEach((r, i) => {
+    wq.top.all(month, RANKS).forEach((r, i) => {
       if (rw[i] > 0) credit(r.user_id, "reward", rw[i], `${month}#${i + 1}`, `Thưởng top ${i + 1} tháng ${label(month)}`);
     });
     wq.rewardMark.run(month);
@@ -301,4 +302,4 @@ function register(router, auth) {
   });
 }
 
-module.exports = { register, balance, payOrder, createDeposit, approveDeposit, leaderboard, runRewards, awardMonth, rewards };
+module.exports = { saveRewards, register, balance, payOrder, createDeposit, approveDeposit, leaderboard, runRewards, awardMonth, rewards };

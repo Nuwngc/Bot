@@ -298,13 +298,9 @@
     </section>
 
     <section id="rewardBox" hidden>
-      <h2>Phần thưởng xếp hạng</h2>
-      <p>Đầu mỗi tháng (giờ Việt Nam), hệ thống tự cộng coin vào ví top 1, 2, 3 của tháng trước theo tổng tiền nạp. Đặt 0 để tắt. Tài khoản quản trị không tham gia xếp hạng.</p>
-      <div class="row">
-        <div class="field"><label for="rw1">Top 1 (coin)</label><input type="text" id="rw1" inputmode="numeric"></div>
-        <div class="field"><label for="rw2">Top 2 (coin)</label><input type="text" id="rw2" inputmode="numeric"></div>
-        <div class="field"><label for="rw3">Top 3 (coin)</label><input type="text" id="rw3" inputmode="numeric"></div>
-      </div>
+      <h2>Phần thưởng xếp hạng (top 10)</h2>
+      <p>Đầu mỗi tháng (giờ Việt Nam), hệ thống tự cộng coin vào ví 10 người nạp nhiều nhất của tháng trước, mỗi hạng một mức thưởng riêng. Đặt 0 để hạng đó không có thưởng. Tài khoản quản trị không tham gia xếp hạng.</p>
+      <div class="reward-grid" id="rwGrid"></div>
       <button class="primary" id="rwSave">Lưu phần thưởng</button>
       <h3>Cộng hoặc trừ coin thủ công</h3>
       <div class="row">

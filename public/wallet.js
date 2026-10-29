@@ -6,6 +6,7 @@
   const KIND = { deposit: "Nạp tiền", spend: "Thanh toán", reward: "Thưởng", adjust: "Điều chỉnh" };
   const CHIPS = [20000, 50000, 100000, 200000, 500000];
   const MEDAL = ["gold", "silver", "bronze"];
+  const RANKS = 10;
   let wal = null;
 
   /* Số dư hiện ngay trên thanh trên cùng */
@@ -101,7 +102,7 @@
     try { d = await api("/leaderboard"); } catch (e) { return say(e.message, "bad"); }
     const left = Math.max(0, Math.ceil((new Date(d.endsAt) - Date.now()) / 86400000));
     $("rkTitle").textContent = `Bảng xếp hạng nạp tháng ${d.label}`;
-    $("rkSub").textContent = `Xếp theo tổng coin nạp trong tháng. Còn ${left} ngày. Hết tháng, top 1, 2, 3 được tự động cộng thưởng vào ví.`;
+    $("rkSub").textContent = `Xếp theo tổng coin nạp trong tháng. Còn ${left} ngày. Hết tháng, các hạng có thưởng được tự động cộng coin vào ví.`;
 
     const slot = (i) => {
       const r = d.top[i];
@@ -116,9 +117,14 @@
       ? `Hạng của bạn: <strong>#${d.me.rank}</strong> · ${fmt(d.me.total)} coin` + (d.me.toNext ? ` · cần thêm ${fmt(d.me.toNext)} coin để lên hạng` : " · đang dẫn đầu")
       : `Bạn chưa nạp trong tháng này. <button type="button" class="link-btn" data-wallet>Nạp ngay</button>`;
 
-    const rest = d.top.slice(3);
-    $("rkList").innerHTML = rest.map((r) => `<div class="user${r.me ? " me" : ""}"><span class="rk-n">#${r.rank}</span>
-      <span class="name">${esc(r.name)}</span><span class="spacer"></span><span class="tag">${fmt(r.total)} coin</span></div>`).join("");
+    const rows = [];
+    for (let i = 3; i < RANKS; i++) {
+      const r = d.top[i], rw = d.rewards[i];
+      rows.push(`<div class="user${r?.me ? " me" : ""}${r ? "" : " vacant"}"><span class="rk-n">#${i + 1}</span>
+        <span class="name">${r ? esc(r.name) : "Chưa có"}</span>${rw ? `<span class="tag ok">Thưởng ${fmt(rw)}</span>` : ""}
+        <span class="spacer"></span><span class="tag">${r ? fmt(r.total) + " coin" : "—"}</span></div>`);
+    }
+    $("rkList").innerHTML = rows.join("");
 
     $("rkLastBox").hidden = !d.last.winners.length;
     $("rkLast").innerHTML = d.last.winners.map((w) => `<div class="user"><span class="rk-n">#${w.rank}</span>
@@ -167,7 +173,9 @@
     } catch (err) { say(err.message, "bad"); }
   });
 
-  for (const id of ["rw1", "rw2", "rw3", "adjAmount"]) if (id !== "adjAmount") money($(id));
+  $("rwGrid").innerHTML = Array.from({ length: RANKS }, (_, i) =>
+    `<div class="field"><label for="rw${i + 1}">Top ${i + 1}</label><input type="text" id="rw${i + 1}" inputmode="numeric" placeholder="0"></div>`).join("");
+  for (let i = 1; i <= RANKS; i++) money($("rw" + i));
 
   async function loadRewards() {
     const { rewards } = await api("/admin/rewards");
@@ -175,7 +183,7 @@
   }
   $("rwSave").addEventListener("click", async () => {
     try {
-      await api("/admin/rewards", { method: "POST", body: JSON.stringify({ rewards: [1, 2, 3].map((i) => num($("rw" + i).value)) }) });
+      await api("/admin/rewards", { method: "POST", body: JSON.stringify({ rewards: Array.from({ length: RANKS }, (_, i) => num($("rw" + (i + 1)).value)) }) });
       say("Đã lưu phần thưởng xếp hạng.");
     } catch (e) { say(e.message, "bad"); }
   });

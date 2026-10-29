@@ -789,3 +789,8 @@ html.intro-on:not(.intro-done) .wrap > .tab:not([hidden]) { animation-delay: cal
 
 /* làm mờ kính ở thanh dính (cuộn trang là tính lại liên tục): giảm độ mờ, tăng độ đặc */
 .topbar, .tabs { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+
+/* ================= Top 10 ================= */
+.reward-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 .75rem; margin-bottom: .5rem; }
+@media (min-width: 640px) { .reward-grid { grid-template-columns: repeat(5, 1fr); } }
+.user.vacant { opacity: .55; }
