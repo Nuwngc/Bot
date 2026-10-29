@@ -733,3 +733,35 @@ button.link-btn { padding: .12rem .65rem; font-size: .8rem; border-radius: 99px;
 .login-card h1::before { display: none; }
 .login-logo { display: block; width: 3rem; height: 3rem; margin-bottom: 1.1rem; border-radius: .9rem; box-shadow: 0 12px 28px -10px var(--lamp); }
 @media (max-width: 480px) { .topbar h1 .logo { margin-right: 0; } }
+
+/* ================= Hiệu ứng mở màn: đường kẻ mọc ra, tách đôi như mở rèm ================= */
+.intro { display: none; }
+html.intro-on .intro { display: block; position: fixed; inset: 0; z-index: 9999; pointer-events: none; animation: intro-hide 0s 1.45s forwards; }
+@keyframes intro-hide { to { visibility: hidden; } }
+.intro i { position: absolute; left: 0; right: 0; background: var(--ink); }
+.intro-top { top: 0; height: 50%; border-bottom: 1px solid color-mix(in srgb, var(--paper) 55%, transparent); animation: intro-up .7s cubic-bezier(.76, 0, .24, 1) .5s both; }
+.intro-bot { bottom: 0; height: 50%; border-top: 1px solid color-mix(in srgb, var(--paper) 55%, transparent); animation: intro-down .7s cubic-bezier(.76, 0, .24, 1) .5s both; }
+@keyframes intro-up { to { transform: translateY(-101%); } }
+@keyframes intro-down { to { transform: translateY(101%); } }
+.intro-line {
+  top: 50%; height: 1px; margin-top: -.5px; background: linear-gradient(90deg, transparent, var(--paper) 25%, var(--paper) 75%, transparent);
+  box-shadow: 0 0 18px var(--lamp); transform: scaleX(0);
+  animation: intro-grow .45s var(--ease) .05s forwards, intro-off .1s linear .5s forwards;
+}
+@keyframes intro-grow { to { transform: scaleX(1); } }
+@keyframes intro-off { to { opacity: 0; } }
+
+/* nội dung trồi lên lần lượt sau khi rèm mở */
+@keyframes rise { from { opacity: 0; transform: translateY(var(--dy, 16px)); filter: blur(6px); } }
+html.intro-on .wrap { animation: none; }
+html.intro-on .wrap > * { animation: rise .75s var(--ease) both; animation-delay: calc(.7s + var(--i, 0) * 90ms); }
+html.intro-on .wrap > .topbar { --dy: -18px; animation-delay: .62s; }
+html.intro-on .wrap > :nth-child(2) { --i: 1; } html.intro-on .wrap > :nth-child(3) { --i: 2; } html.intro-on .wrap > :nth-child(4) { --i: 3; }
+html.intro-on .wrap > :nth-child(5) { --i: 4; } html.intro-on .wrap > :nth-child(n+6) { --i: 5; }
+html.intro-on .login-card { animation: rise .8s var(--ease) .7s both; }
+
+/* tiêu đề hiện từng chữ */
+.w { display: inline-block; white-space: nowrap; }
+.ch { display: inline-block; }
+html.intro-on .ch { animation: letter .7s var(--ease) both; animation-delay: calc(.85s + var(--c, 0) * 40ms); }
+@keyframes letter { from { opacity: 0; transform: translateY(.55em); filter: blur(6px); } }

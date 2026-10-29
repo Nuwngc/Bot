@@ -106,4 +106,19 @@
     logo.classList.add("spin");
     setTimeout(() => location.reload(), 320);
   });
+
+  /* Tách tiêu đề thành từng chữ cho hiệu ứng mở màn (chỉ khi hiệu ứng đang bật) */
+  if (root.classList.contains("intro-on")) {
+    document.querySelectorAll(".login-card h1, .list-head h2").forEach((h) => {
+      if (h.children.length || !h.textContent.trim()) return;
+      const text = h.textContent.trim(); let c = 0;
+      h.setAttribute("aria-label", text); h.textContent = "";
+      text.split(" ").forEach((word, wi, all) => {
+        const w = el("span", "w"); w.setAttribute("aria-hidden", "true");
+        [...word].forEach((ch) => { const s = el("span", "ch"); s.textContent = ch; s.style.setProperty("--c", c++); w.append(s); });
+        h.append(w);
+        if (wi < all.length - 1) { h.append(" "); c++; }
+      });
+    });
+  }
 })();
