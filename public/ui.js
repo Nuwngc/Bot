@@ -59,7 +59,7 @@
     const sync = () => {
       nav.textContent = "";
       [...tabs.querySelectorAll("button")].filter((b) => !b.hidden).forEach((b, i) => {
-        const n = btn(b.classList.contains("on") ? "on" : "", b.textContent.trim(), (ICONS[b.dataset.tab] || "") + "<span></span>");
+        const n = btn(b.classList.contains("on") ? "on" : "", b.textContent.trim(), (ICONS[b.dataset.tab] || b.dataset.icon || "") + "<span></span>");
         n.lastChild.textContent = b.textContent.trim();
         n.style.setProperty("--i", i); n.onclick = () => { b.click(); set(false); }; nav.append(n);
       });

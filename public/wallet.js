@@ -205,3 +205,6 @@
     loadRewards().catch(() => {});
   };
 })();
+
+// Trang Hướng dẫn: nạp file riêng
+(() => { const s = document.createElement("script"); s.src = "/guide.js"; document.body.append(s); })();
