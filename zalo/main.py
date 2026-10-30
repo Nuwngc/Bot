@@ -23,6 +23,7 @@ from modules.creat_menu.menu_zl import handle_menu_zl_command
 from modules.creat_menu.pro_hiden import handle_hiden_commands
 from modules.creat_menu.pro_menu import handle_menu_commands
 from modules.dhbc.pro_dhbc import handle_dhbc_command
+from modules.masoi.pro_masoi import handle_masoi_command
 from modules.func_allan.pro_allan import command_allan_for_link, command__allan_cd
 from modules.func_disbox.pro_disbox import handle_disbox
 from modules.func_friend.pro_friend import addallfriongr, addfrito, blockto, removefrito, unblockto
@@ -1755,6 +1756,8 @@ class bot(ZaloAPI):
             elif message_lower.startswith(f"{prefix}girl"):
                 handle_anhgai_command(message, message_object, thread_id, thread_type, author_id, self)
 
+            elif message_lower.startswith(f"{prefix}masoi"):
+                handle_masoi_command(self, message_object, author_id, thread_id, thread_type, message)
             elif message_lower.startswith(f"{prefix}baucua"):
                 handle_baucua_command(self, message_object, author_id, thread_id, thread_type, message)    
 
