@@ -50,10 +50,10 @@
       let input = null, err = null;
       if (isPrompt) {
         input = el("input", "dlg-input");
-        input.type = "text";
+        input.type = o.type === "password" ? "password" : "text";
         input.value = o.value || "";
         input.placeholder = o.placeholder || "";
-        input.autocomplete = "off";
+        input.autocomplete = o.type === "password" ? "current-password" : "off";
         input.autocapitalize = "off";
         input.spellcheck = false;
         if (o.maxLength) input.maxLength = o.maxLength;
@@ -88,7 +88,7 @@
 
       const submit = () => {
         if (!isPrompt) return close(true);
-        const v = input.value.trim();
+        const v = o.type === "password" ? input.value : input.value.trim();
         let msg = "";
         if (!v && !o.allowEmpty) msg = "Hãy nhập một giá trị.";
         else if (o.validate) msg = o.validate(v) || "";
@@ -173,6 +173,7 @@
       placeholder: opts.placeholder,
       maxLength: opts.maxLength,
       allowEmpty: !!opts.allowEmpty,
+      type: opts.type,
       validate: opts.validate,
     });
 })();

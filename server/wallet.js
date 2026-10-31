@@ -56,7 +56,7 @@ const fmt = (n) => Number(n || 0).toLocaleString("vi-VN");
 const wq = {
   sum: db.prepare("SELECT COALESCE(SUM(amount), 0) AS n FROM wallet_tx WHERE user_id = ?"),
   add: db.prepare("INSERT INTO wallet_tx (user_id, kind, amount, balance, ref, note) VALUES (?, ?, ?, ?, ?, ?)"),
-  history: db.prepare("SELECT kind, amount, balance, note, created_at FROM wallet_tx WHERE user_id = ? ORDER BY id DESC LIMIT 30"),
+  history: db.prepare("SELECT id, kind, amount, balance, note, created_at FROM wallet_tx WHERE user_id = ? ORDER BY id DESC LIMIT 30"),
   deposited: db.prepare("SELECT COALESCE(SUM(amount), 0) AS n FROM wallet_tx WHERE user_id = ? AND kind = 'deposit'"),
   depositedMonth: db.prepare(
     `SELECT COALESCE(SUM(amount), 0) AS n FROM wallet_tx t WHERE user_id = ? AND kind = 'deposit' AND ${MONTH_SQL} = ?`

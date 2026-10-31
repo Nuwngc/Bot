@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quên mật khẩu — Bảng điều khiển bot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<meta name="theme-color" content="#12142b">
+<script>try{var t=localStorage.theme;document.documentElement.dataset.theme=t||(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark")}catch(e){}</script>
+<script>if(!matchMedia("(prefers-reduced-motion: reduce)").matches)document.documentElement.classList.add("intro-on")</script>
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/logo-192.png">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="intro" aria-hidden="true"><i class="intro-top"></i><i class="intro-bot"></i><i class="intro-line"></i></div>
+<main class="login-shell">
+  <div class="login-card">
+    <img class="login-logo" src="/logo.svg" width="48" height="48" alt="">
+    <h1>Quên mật khẩu</h1>
+    <p class="lead" id="lead">Nhập tên đăng nhập hoặc email đã liên kết. Hệ thống sẽ gửi mã 6 số tới email đó.</p>
+
+    <div class="note" id="note"></div>
+
+    <form id="f1">
+      <div class="field">
+        <label for="id">Tên đăng nhập hoặc email</label>
+        <input type="text" id="id" autocomplete="username" autocapitalize="off" required>
+      </div>
+      <button class="primary wide" type="submit" id="b1">Gửi mã</button>
+    </form>
+
+    <form id="f2" hidden>
+      <div class="field">
+        <label for="code">Mã 6 số trong email</label>
+        <input type="text" id="code" class="code-input" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="••••••" required>
+      </div>
+      <div class="field">
+        <label for="pw">Mật khẩu mới (tối thiểu 8 ký tự)</label>
+        <input type="password" id="pw" autocomplete="new-password" required>
+      </div>
+      <div class="field">
+        <label for="pw2">Nhập lại mật khẩu mới</label>
+        <input type="password" id="pw2" autocomplete="new-password" required>
+      </div>
+      <button class="primary wide" type="submit" id="b2">Đặt lại mật khẩu</button>
+      <p class="aux" style="margin-top:.9rem">
+        <button type="button" class="link-btn" id="resend" disabled>Gửi lại mã</button>
+        <button type="button" class="link-btn" id="back">Dùng tên khác</button>
+      </p>
+    </form>
+
+    <p class="aux" style="margin-top:1.2rem"><a href="/login.html">← Quay lại đăng nhập</a></p>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const note = $("note");
+let who = "", cd = 0, timer = null;
+
+const say = (t, bad) => { note.className = "note" + (bad ? " bad" : ""); note.textContent = t; };
+async function post(path, body) {
+  const r = await fetch("/api" + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || "Có lỗi xảy ra, thử lại sau.");
+  return d;
+}
+function startCooldown(s) {
+  cd = s;
+  clearInterval(timer);
+  const paint = () => {
+    $("resend").disabled = cd > 0;
+    $("resend").textContent = cd > 0 ? `Gửi lại mã sau ${cd}s` : "Gửi lại mã";
+    if (cd <= 0) clearInterval(timer);
+    cd--;
+  };
+  paint();
+  timer = setInterval(paint, 1000);
+}
+async function sendCode(btn) {
+  btn.disabled = true;
+  say("");
+  try {
+    const d = await post("/forgot", { identifier: who });
+    $("f1").hidden = true;
+    $("f2").hidden = false;
+    $("lead").textContent = "Nhập mã 6 số trong email và chọn mật khẩu mới. Nhớ kiểm tra cả mục Spam.";
+    say(d.message);
+    startCooldown(60);
+    $("code").focus();
+  } catch (err) {
+    say(err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+$("f1").addEventListener("submit", (e) => {
+  e.preventDefault();
+  who = $("id").value.trim();
+  sendCode($("b1"));
+});
+$("resend").addEventListener("click", () => sendCode($("resend")));
+$("back").addEventListener("click", () => {
+  $("f2").hidden = true;
+  $("f1").hidden = false;
+  $("lead").textContent = "Nhập tên đăng nhập hoặc email đã liên kết. Hệ thống sẽ gửi mã 6 số tới email đó.";
+  say("");
+});
+$("code").addEventListener("input", (e) => (e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6)));
+
+$("f2").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if ($("pw").value !== $("pw2").value) return say("Hai lần nhập mật khẩu mới chưa giống nhau.", true);
+  $("b2").disabled = true;
+  try {
+    await post("/forgot/reset", { identifier: who, code: $("code").value, password: $("pw").value });
+    $("f2").hidden = true;
+    $("lead").textContent = "Xong rồi! Bạn có thể đăng nhập bằng mật khẩu mới.";
+    say("Đã đặt lại mật khẩu. Các thiết bị đang đăng nhập đã bị đăng xuất.");
+    note.insertAdjacentHTML("afterend", '<a class="primary wide" style="display:block;text-align:center;margin-top:1rem;text-decoration:none" href="/login.html" id="goLogin">Đăng nhập</a>');
+  } catch (err) {
+    say(err.message, true);
+    $("b2").disabled = false;
+  }
+});
+
+fetch("/api/public").then((r) => r.json()).then((d) => {
+  if (!d.mailEnabled) {
+    $("f1").hidden = true;
+    $("lead").textContent = "Hệ thống chưa bật gửi email. Hãy nhắn quản trị viên để được cấp lại mật khẩu.";
+  }
+}).catch(() => {});
+</script>
+<script src="/ui.js"></script>
+</body>
+</html>

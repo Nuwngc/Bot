@@ -20,7 +20,7 @@
   <div class="login-card">
     <img class="login-logo" src="/logo.svg" width="48" height="48" alt="">
     <h1>Bảng điều khiển bot</h1>
-    <p class="lead">Tài khoản do quản trị viên cấp.</p>
+    <p class="lead" id="lead">Đăng nhập để quản lý bot của bạn.</p>
 
     <div class="note" id="note"></div>
 
@@ -33,6 +33,7 @@
         <label for="p">Mật khẩu</label>
         <input type="password" id="p" name="password" autocomplete="current-password" required>
       </div>
+      <p class="aux" id="forgotLine"><a href="/forgot.html" id="forgotLink" hidden>Quên mật khẩu?</a><span id="forgotOff" hidden>Quên mật khẩu? Hãy nhắn quản trị viên để được cấp lại.</span></p>
       <button class="primary wide" type="submit" id="btn">Đăng nhập</button>
     </form>
 
@@ -46,7 +47,13 @@
 const note = document.getElementById("note");
 
 fetch("/api/public").then(r => r.json()).then(d => {
-  if (d.signupOpen) document.getElementById("signupLine").hidden = false;
+  if (d.signupOpen) {
+    document.getElementById("signupLine").hidden = false;
+    document.getElementById("lead").textContent = "Đăng nhập, hoặc tạo tài khoản mới nếu bạn chưa có.";
+  } else {
+    document.getElementById("lead").textContent = "Tài khoản do quản trị viên cấp.";
+  }
+  document.getElementById(d.mailEnabled ? "forgotLink" : "forgotOff").hidden = false;
 }).catch(() => {});
 document.getElementById("form").addEventListener("submit", async (e) => {
   e.preventDefault();

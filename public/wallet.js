@@ -66,13 +66,43 @@
     $("wTotal").textContent = fmt(wal.totalDeposited);
     $("wMonth").textContent = fmt(wal.monthDeposited);
     $("wPending").innerHTML = wal.pending.map(depositCard).join("");
-    $("wHistory").innerHTML = wal.history.length
-      ? wal.history.map((h) => `<div class="user">
-          <span class="name">${esc(h.note || KIND[h.kind] || h.kind)}</span>
-          <span class="tag ${h.amount > 0 ? "ok" : "off"}">${h.amount > 0 ? "+" : "−"}${fmt(Math.abs(h.amount))}</span>
-          <span class="spacer"></span><span class="dim" style="font-size:0.8rem">${fmtDate(h.created_at)}</span></div>`).join("")
-      : '<div class="empty">Chưa có giao dịch nào.</div>';
+    histKind = "";
+    for (const b of $("wKinds").children) b.classList.toggle("on", b.dataset.kind === "");
+    $("wHistory").innerHTML = "";
+    addHistory(wal.history, wal.history.length >= 30);
   }
+
+  /* Lịch sử ví đầy đủ: 30 giao dịch mỗi lần, bấm "Xem thêm" để tải tiếp, lọc theo loại */
+  let histKind = "", histBusy = false;
+  const histRow = (h) => `<div class="user" data-id="${h.id}">
+    <span class="name">${esc(h.note || KIND[h.kind] || h.kind)}</span>
+    <span class="tag ${h.amount > 0 ? "ok" : "off"}">${h.amount > 0 ? "+" : "−"}${fmt(Math.abs(h.amount))}</span>
+    <span class="spacer"></span><span class="dim" style="font-size:0.8rem">${fmtDate(h.created_at)}</span></div>`;
+  function addHistory(rows, more) {
+    const box = $("wHistory");
+    box.querySelector(".empty")?.remove();
+    box.insertAdjacentHTML("beforeend", rows.map(histRow).join(""));
+    if (!box.children.length) box.innerHTML = '<div class="empty">Chưa có giao dịch nào.</div>';
+    $("wMore").hidden = !more;
+  }
+  async function moreHistory(reset) {
+    if (histBusy) return;
+    histBusy = true;
+    try {
+      const last = reset ? "" : $("wHistory").lastElementChild?.dataset.id;
+      const d = await api(`/wallet/history?kind=${histKind}${last ? "&before=" + last : ""}`);
+      if (reset) $("wHistory").innerHTML = "";
+      addHistory(d.rows, d.more);
+    } catch (e) { say(e.message, "bad"); } finally { histBusy = false; }
+  }
+  $("wMore").addEventListener("click", () => moreHistory(false));
+  $("wKinds").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-kind]");
+    if (!b) return;
+    histKind = b.dataset.kind;
+    for (const x of $("wKinds").children) x.classList.toggle("on", x === b);
+    moreHistory(true);
+  });
 
   $("wDeposit").addEventListener("click", async () => {
     const amount = num($("wAmount").value);
@@ -205,6 +235,3 @@
     loadRewards().catch(() => {});
   };
 })();
-
-// Trang Hướng dẫn: nạp file riêng
-(() => { const s = document.createElement("script"); s.src = "/guide.js"; document.body.append(s); })();
