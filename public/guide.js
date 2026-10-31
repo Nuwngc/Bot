@@ -111,6 +111,17 @@
         "Tab **Xếp hạng** cho thấy hạng của bạn, còn thiếu bao nhiêu coin để lên hạng, và danh sách vinh danh tháng trước.",
       ]) },
 
+    { id: "tools", title: "Công cụ tiện ích", html:
+      p("Tab **Công cụ** có các tiện ích chạy ngay trên trình duyệt, không lưu dữ liệu của bạn. Bấm vào từng công cụ để mở.") +
+      list([
+        "**Chuyển đổi cookie**: đổi cookie giữa dạng chuỗi và JSON, hiện UID Facebook và cho biết thiếu `c_user` hay `xs`. Cookie không gửi lên máy chủ.",
+        "**Tạo mã QR**: từ văn bản, liên kết, hoặc mã QR chuyển khoản VietQR (chọn ngân hàng, số tài khoản, số tiền, nội dung). Ảnh QR do dịch vụ bên ngoài tạo.",
+        "**Xử lý văn bản**: bỏ dấu tiếng Việt, đổi chữ hoa thường, tạo slug, xoá dòng trùng, sắp xếp, đếm ký tự.",
+        "**Tạo mật khẩu mạnh**: ngẫu nhiên an toàn, chọn độ dài và loại ký tự.",
+        "**Chọn ngẫu nhiên / chia đội**: bốc thăm người trúng thưởng hoặc chia đội đều nhau từ danh sách tên.",
+        "**Đổi thời gian**: đổi timestamp sang giờ Việt Nam và ngược lại, tính ngày sau khi cộng thêm N ngày.",
+      ]) },
+
     { id: "tips", title: "Mẹo dùng trên điện thoại", html:
       list([
         "Nút **3 gạch** ở thanh trên mở menu chuyển tab.",
@@ -158,7 +169,7 @@
       ]) },
   ];
 
-  const CHIPS = [["start", "Bắt đầu"], ["fb", "Facebook"], ["zalo", "Zalo"], ["cmds", "Lệnh"], ["masoi", "Ma sói"], ["pay", "Nạp & thanh toán"], ["rank", "Xếp hạng"], ["account", "Cá nhân"], ["faq", "Hỏi đáp"]];
+  const CHIPS = [["start", "Bắt đầu"], ["fb", "Facebook"], ["zalo", "Zalo"], ["cmds", "Lệnh"], ["masoi", "Ma sói"], ["pay", "Nạp & thanh toán"], ["rank", "Xếp hạng"], ["tools", "Công cụ"], ["account", "Cá nhân"], ["faq", "Hỏi đáp"]];
 
   /* ---------- CSS ---------- */
   const css = document.createElement("style");

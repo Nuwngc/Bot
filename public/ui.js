@@ -23,6 +23,7 @@
     plan: ic("M6 3h12v18l-3-2-3 2-3-2-3 2V3zM9 8h6M9 12h6"),
     profile: ic("M20 21a8 8 0 0 0-16 0M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"),
     stats: ic("M4 20h16M7 20v-7M12 20V5M17 20v-10"),
+    tools: ic("M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.7 2.7-2.3-.7-.7-2.3z"),
     admin: ic("M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"),
   };
   const SUN = '<svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
@@ -127,10 +128,13 @@
   /* Hết hiệu ứng mở màn: bỏ độ trễ để chuyển tab hiện ngay */
   if (root.classList.contains("intro-on")) setTimeout(() => root.classList.add("intro-done"), 2200);
 
-  /* Nạp trang Hướng dẫn (guide.js tự bỏ qua nếu đã được nạp ở nơi khác) */
-  if (tabs && !document.getElementById("tab-guide")) {
-    const gs = document.createElement("script");
-    gs.src = "/guide.js";
-    document.body.append(gs);
+  /* Nạp các tab tự dựng bằng JS: Hướng dẫn, Công cụ (mỗi file tự bỏ qua nếu đã được nạp) */
+  if (tabs) {
+    [["tab-guide", "/guide.js"], ["tab-tools", "/tools.js"]].forEach(([id, src]) => {
+      if (document.getElementById(id)) return;
+      const s = document.createElement("script");
+      s.src = src;
+      document.body.append(s);
+    });
   }
 })();
