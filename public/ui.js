@@ -21,6 +21,8 @@
     wallet: ic("M4 7a2 2 0 0 1 2-2h11v3M4 7v11a2 2 0 0 0 2 2h13V8H6a2 2 0 0 1-2-1zM16 14h2"),
     rank: ic("M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"),
     plan: ic("M6 3h12v18l-3-2-3 2-3-2-3 2V3zM9 8h6M9 12h6"),
+    profile: ic("M20 21a8 8 0 0 0-16 0M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"),
+    stats: ic("M4 20h16M7 20v-7M12 20V5M17 20v-10"),
     admin: ic("M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"),
   };
   const SUN = '<svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
@@ -124,4 +126,11 @@
 
   /* Hết hiệu ứng mở màn: bỏ độ trễ để chuyển tab hiện ngay */
   if (root.classList.contains("intro-on")) setTimeout(() => root.classList.add("intro-done"), 2200);
+
+  /* Nạp trang Hướng dẫn (guide.js tự bỏ qua nếu đã được nạp ở nơi khác) */
+  if (tabs && !document.getElementById("tab-guide")) {
+    const gs = document.createElement("script");
+    gs.src = "/guide.js";
+    document.body.append(gs);
+  }
 })();
