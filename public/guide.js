@@ -20,7 +20,7 @@
   const SECTIONS = [
     { id: "start", title: "Bắt đầu nhanh", open: true, html:
       steps([
-        "Đăng nhập bằng tài khoản của bạn.",
+        "Đăng nhập bằng tài khoản của bạn, hoặc bấm **Tạo tài khoản** ở trang đăng nhập nếu web đang mở đăng ký. Sau đó liên kết email ở tab **Cá nhân**.",
         "Vào tab **Facebook** hoặc **Zalo**, bấm **+ Thêm bot** rồi đăng nhập tài khoản mạng xã hội cho bot (dán cookie).",
         "Bấm **Bật**, sau đó xem phần **Nhật ký** bên dưới để chắc chắn bot đã chạy.",
         "Vào nhóm chat và gõ lệnh, ví dụ `!help` (Messenger).",
@@ -119,18 +119,36 @@
         "Muốn có biểu tượng trên màn hình chính: trong menu trình duyệt chọn **Thêm vào màn hình chính**.",
       ]) },
 
+    { id: "account", title: "Tài khoản cá nhân và lấy lại mật khẩu", html:
+      h("Liên kết email") +
+      steps([
+        "Vào tab **Cá nhân**.",
+        "Nhập **địa chỉ email** của bạn và bấm **Gửi mã xác thực**.",
+        "Mở email, lấy mã 6 số, nhập vào ô mã và bấm **Xác nhận**.",
+      ]) +
+      p("Cần thay email thì bấm **Đổi email**, muốn bỏ thì bấm **Gỡ liên kết**. Nên liên kết email ngay sau khi tạo tài khoản.") +
+      h("Quên mật khẩu") +
+      steps([
+        "Ở trang đăng nhập bấm **Quên mật khẩu?**.",
+        "Nhập tên đăng nhập hoặc email đã liên kết, bấm **Gửi mã**. Hệ thống gửi mã 6 số tới email đó.",
+        "Nhập mã 6 số và mật khẩu mới (tối thiểu 8 ký tự), bấm **Đặt lại mật khẩu**.",
+        "Chưa nhận được mã thì bấm **Gửi lại mã**.",
+      ]) +
+      note("warn", "Chỉ lấy lại được tài khoản đã **liên kết email**. Chưa liên kết thì liên hệ quản trị viên.") },
+
     { id: "faq", title: "Hỏi đáp nhanh", html: qa([
       ["Bot không trả lời lệnh?", "Kiểm tra bot đã bấm Bật, còn hạn ở tab Thanh toán, và xem Nhật ký có báo lỗi đăng nhập không. Lệnh phải bắt đầu đúng ký tự lệnh bạn đã đặt."],
       ["Nhật ký báo cookie hết hạn hoặc bị checkpoint?", "Đăng nhập lại tài khoản bot trên trình duyệt, xử lý yêu cầu xác minh nếu có, rồi dán cookie mới vào web."],
       ["Chuyển khoản rồi mà chưa thấy coin?", "Coin vào ví sau khi quản trị viên xác nhận. Kiểm tra bạn đã chuyển đúng số tiền và đúng nội dung có mã `NAP`. Chờ lâu thì báo quản trị viên."],
       ["Bot hết hạn thì sao?", "Bot tự dừng. Nạp coin rồi thanh toán gia hạn, sau đó bấm Bật lại."],
       ["Ma sói không nhắn riêng được cho tôi?", "Hãy nhắn cho bot một câu bất kỳ trước, rồi vào phòng chơi."],
-      ["Quên mật khẩu?", "Liên hệ quản trị viên để được cấp lại mật khẩu."],
+      ["Quên mật khẩu?", "Ở trang đăng nhập bấm Quên mật khẩu? rồi làm theo mã 6 số gửi về email (xem mục Tài khoản cá nhân). Tài khoản chưa liên kết email thì liên hệ quản trị viên."],
     ]) },
 
     { id: "admin", title: "Dành cho quản trị viên", admin: true, html:
       list([
         "**Tài khoản**: tạo tài khoản mới (mật khẩu tối thiểu 8 ký tự), cấp quyền quản trị, khoá hoặc xoá.",
+        "**Doanh thu**: thống kê tiền nạp và coin chi thuê bot, xem danh sách giao dịch toàn hệ thống và lọc theo nhu cầu.",
         "**Nạp coin chờ duyệt**: đối chiếu nội dung chuyển khoản với mã `NAP` rồi bấm **Xác nhận**. Bấm **Huỷ** nếu không hợp lệ.",
         "**Phần thưởng xếp hạng**: đặt mức thưởng cho top 1 đến top 10, hệ thống tự cộng đầu tháng. Đặt 0 để hạng đó không có thưởng.",
         "**Cộng hoặc trừ coin thủ công**: nhập tên tài khoản, số coin (số âm là trừ) và ghi chú.",
@@ -140,7 +158,7 @@
       ]) },
   ];
 
-  const CHIPS = [["start", "Bắt đầu"], ["fb", "Facebook"], ["zalo", "Zalo"], ["cmds", "Lệnh"], ["masoi", "Ma sói"], ["pay", "Nạp & thanh toán"], ["rank", "Xếp hạng"], ["faq", "Hỏi đáp"]];
+  const CHIPS = [["start", "Bắt đầu"], ["fb", "Facebook"], ["zalo", "Zalo"], ["cmds", "Lệnh"], ["masoi", "Ma sói"], ["pay", "Nạp & thanh toán"], ["rank", "Xếp hạng"], ["account", "Cá nhân"], ["faq", "Hỏi đáp"]];
 
   /* ---------- CSS ---------- */
   const css = document.createElement("style");
@@ -210,8 +228,9 @@
   btn.dataset.tab = "guide";
   btn.textContent = "Hướng dẫn";
   btn.dataset.icon = '<svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5v-16zM4 21.5A2.5 2.5 0 0 1 6.5 19H20M9 7h7"/></svg>';
-  const adminBtn = document.getElementById("tabAdminBtn");
-  if (adminBtn) adminBtn.before(btn); else tabs.append(btn);
+  // đứng sau tab Cá nhân, trước các tab dành cho admin (Doanh thu, Quản trị)
+  const anchor = document.getElementById("tabStatsBtn") || document.getElementById("tabAdminBtn");
+  if (anchor) anchor.before(btn); else tabs.append(btn);
 
   /* ---------- tương tác ---------- */
   const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d");
