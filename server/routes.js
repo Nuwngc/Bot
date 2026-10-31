@@ -9,6 +9,8 @@ const { fq } = require("./fbBots");
 const zaloMod = require("./zalo");
 const botManager = require("../src/bot/manager");
 const presence = require("./presence");
+const emailAuth = require("./emailAuth");
+const mailer = require("./mailer");
 
 const router = express.Router();
 
@@ -30,7 +32,7 @@ router.post("/login", (req, res) => {
 
   auth.noteOk(ip);
   q.touchLogin.run(user.id);
-  req.session.userId = user.id;
+  auth.startSession(req, user.id);
   res.json({ ok: true, role: user.role });
 });
 
@@ -40,7 +42,7 @@ router.get("/public", (req, res) => {
     signupOpen: getSetting("signup_open") === "1",
     trialDays: Number(getSetting("trial_days") || 0),
     prices: billing.priceTable(),
-    wallet: wallet.balance(req.user.id),
+    mailEnabled: mailer.isEnabled(), // trang dang nhap hien link "Quen mat khau" khi he thong gui duoc email
   });
 });
 
@@ -70,7 +72,7 @@ router.post("/register", (req, res) => {
   const info = q.insertUser.run(username, auth.hash(password), "user", null, 1);
   const id = Number(info.lastInsertRowid);
   ensureBotRow(id);
-  req.session.userId = id;
+  auth.startSession(req, id);
   res.json({ ok: true, trialDays: trial });
 });
 
@@ -78,9 +80,14 @@ router.post("/logout", (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
 });
 
+emailAuth.registerPublic(router);
+
 /* ================= Can dang nhap ================= */
 
 router.use(auth.requireLogin);
+
+emailAuth.registerPrivate(router);
+emailAuth.registerAdmin(router, auth.requireAdmin);
 
 /** Muc Facebook / Zalo nao nguoi dung nay duoc thay */
 function sectionsFor(user) {
@@ -126,6 +133,8 @@ router.get("/me", (req, res) => {
     aiManagedByAdmin: req.user.role !== "admin",
     // Muc nao bi admin an thi nguoi dung thuong khong thay (admin luon thay)
     sections: sectionsFor(req.user),
+    emailVerified: !!req.user.email_verified,
+    mailEnabled: mailer.isEnabled(),
   });
 });
 
@@ -144,6 +153,7 @@ router.get("/billing", (req, res) => {
   ];
   res.json({
     prices: billing.priceTable(),
+    wallet: wallet.balance(req.user.id),
     unlimited: req.user.role === "admin",
     trialDays: Number(getSetting("trial_days") || 0),
     bank: {
@@ -212,6 +222,7 @@ router.post("/settings", (req, res) => {
 router.get("/admin/users", auth.requireAdmin, (req, res) => {
   const users = q.allUsers.all().map((u) => ({
     ...u,
+    email: u.email_verified && u.email ? emailAuth.maskEmail(u.email) : null,
     bots: userBots.summary(u.id),
   }));
   res.json({ users });
@@ -242,7 +253,7 @@ router.post("/admin/users", auth.requireAdmin, (req, res) => {
 router.post("/admin/users/:id/password", auth.requireAdmin, (req, res) => {
   const password = String(req.body?.password || "");
   if (password.length < 8) return res.status(400).json({ error: "Mat khau toi thieu 8 ky tu" });
-  q.setPassword.run(auth.hash(password), Number(req.params.id));
+  q.setPasswordAt.run(auth.hash(password), Date.now(), Number(req.params.id));
   res.json({ ok: true });
 });
 
@@ -418,5 +429,6 @@ function safeCount(json) {
 }
 
 wallet.register(router, auth);
+require("./revenue").register(router, auth);
 
 module.exports = router;

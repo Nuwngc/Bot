@@ -216,3 +216,20 @@ src/
   games/              nối từ, ma sói
   ai/reply.js         gọi API trả lời khi bị tag
 ```
+
+## Email: liên kết tài khoản và quên mật khẩu
+
+Người dùng vào tab **Cá nhân** để liên kết email: hệ thống gửi mã 6 số tới email, nhập đúng mã là xong. Email đã xác thực dùng để lấy lại tài khoản ở trang **Quên mật khẩu** (`/forgot.html`): nhập tên đăng nhập hoặc email, nhận mã, đặt mật khẩu mới. Mã có hiệu lực 10 phút, nhập sai quá 5 lần thì phải xin mã mới, đổi mật khẩu xong các thiết bị khác bị đăng xuất.
+
+Admin bật gửi email ở tab **Quản trị → Email gửi mã xác thực** (hoặc đặt bằng biến môi trường):
+
+| Cách | Khi nào dùng | Cấu hình |
+| --- | --- | --- |
+| **Brevo (API)** | Render gói free (Render chặn cổng SMTP) hoặc bất kỳ đâu | Biến `BREVO_API_KEY` + `MAIL_FROM` (email đã xác minh trong Brevo) |
+| **SMTP** | VPS, Termux | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` (Gmail dùng mật khẩu ứng dụng) |
+
+Brevo miễn phí 300 email/ngày, chỉ cần xác minh một email người gửi (Gmail cũng được), không cần tên miền. Khoá và mật khẩu SMTP nhập trong trang quản trị được mã hoá bằng `APP_SECRET` trước khi lưu. Thử trên máy mà không gửi thật: đặt `MAIL_PROVIDER=console`, nội dung email (kèm mã) in ra log của server.
+
+## Doanh thu và lịch sử giao dịch (admin)
+
+Tab **Doanh thu** (chỉ admin thấy): tiền thật đã nhận hôm nay, 7 ngày, tháng này, tất cả; biểu đồ 30 ngày và 12 tháng; chi tiết coin dùng thuê bot Facebook/Zalo, thưởng đã trao, số dư coin còn trong ví khách, lệnh nạp chờ duyệt. Bên dưới là **lịch sử giao dịch đầy đủ** của mọi tài khoản, lọc theo loại, tên, ghi chú, khoảng ngày và xuất CSV (mở được bằng Excel). Tiền thật đã nhận = coin nạp cộng đơn thuê bot chuyển khoản trực tiếp ngày trước; không tính tài khoản quản trị.

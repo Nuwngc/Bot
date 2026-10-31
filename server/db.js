@@ -90,6 +90,12 @@ addColumn("orders", "base_amount", "INTEGER");
 addColumn("orders", "discount", "INTEGER NOT NULL DEFAULT 0");
 addColumn("users", "trial_fb_used", "INTEGER NOT NULL DEFAULT 0");
 addColumn("users", "trial_zalo_used", "INTEGER NOT NULL DEFAULT 0");
+// Email lien ket (de lay lai mat khau): xem emailAuth.js. Chi email DA XAC THUC moi dung de khoi phuc.
+addColumn("users", "email", "TEXT");
+addColumn("users", "email_verified", "INTEGER NOT NULL DEFAULT 0");
+// Moc thoi gian (ms) doi mat khau: phien dang nhap cu hon moc nay bi huy
+addColumn("users", "pw_changed_at", "INTEGER NOT NULL DEFAULT 0");
+db.exec("CREATE UNIQUE INDEX IF NOT EXISTS users_email_verified ON users(lower(email)) WHERE email_verified = 1");
 
 /* ---------- Cau hinh chung ---------- */
 
@@ -131,6 +137,13 @@ function setSetting(key, value) {
   qsSet.run(key, value == null ? "" : String(value));
 }
 
+// Mo lai chuc nang tu dang ky MOT LAN theo yeu cau (truoc day trang dang ky luon hien "tam dong"
+// vi API /api/public bi loi). Sau do admin tat/bat lai tuy y bang o "Cho phep tu dang ky".
+if (getSetting("signup_opened_v1") !== "1") {
+  setSetting("signup_open", "1");
+  setSetting("signup_opened_v1", "1");
+}
+
 function allSettings() {
   const out = { ...DEFAULT_SETTINGS };
   for (const k of Object.keys(DEFAULT_SETTINGS)) out[k] = getSetting(k);
@@ -143,12 +156,16 @@ const q = {
   userByName: db.prepare("SELECT * FROM users WHERE username = ?"),
   userById: db.prepare("SELECT * FROM users WHERE id = ?"),
   allUsers: db.prepare(
-    "SELECT id, username, role, active, created_at, last_login, plan_expires, self_signup FROM users ORDER BY id"
+    "SELECT id, username, role, active, created_at, last_login, plan_expires, self_signup, email, email_verified FROM users ORDER BY id"
   ),
   insertUser: db.prepare(
     "INSERT INTO users (username, password_hash, role, plan_expires, self_signup) VALUES (?, ?, ?, ?, ?)"
   ),
   setPassword: db.prepare("UPDATE users SET password_hash = ? WHERE id = ?"),
+  // Doi mat khau + huy cac phien dang nhap cu
+  setPasswordAt: db.prepare("UPDATE users SET password_hash = ?, pw_changed_at = ? WHERE id = ?"),
+  userByEmail: db.prepare("SELECT * FROM users WHERE email_verified = 1 AND lower(email) = ?"),
+  setEmail: db.prepare("UPDATE users SET email = ?, email_verified = ? WHERE id = ?"),
   setActive: db.prepare("UPDATE users SET active = ? WHERE id = ?"),
   setExpiry: db.prepare("UPDATE users SET plan_expires = ? WHERE id = ?"),
   touchLogin: db.prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?"),

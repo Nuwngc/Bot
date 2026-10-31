@@ -47,6 +47,7 @@ async function loadMe() {
   isAdmin = me.role === "admin";
   $("adminBox").hidden = !isAdmin;
   $("tabAdminBtn").hidden = !isAdmin;
+  $("tabStatsBtn").hidden = !isAdmin;
   applySections(me.sections);
 
   $("aiModel").value = me.settings.aiModel;
@@ -72,6 +73,7 @@ async function loadMe() {
     loadGlobalSettings();
     loadPricing();
     if (typeof loadWalletAdmin === "function") loadWalletAdmin();
+    if (typeof loadMailAdmin === "function") loadMailAdmin();
   }
 }
 

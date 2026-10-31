@@ -32,12 +32,21 @@
     <span class="live-chip" id="liveBotsChip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3 5 13.5h6L10 21l8-10.5h-6L13 3z"/></svg><b id="liveBots">0</b> bot đang chạy</span>
   </div>
 
+  <div class="notice" id="mailNotice" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path d="m4.5 7.5 7.5 6 7.5-6"/></svg>
+    <span id="mailNoticeText"></span>
+    <button type="button" class="link-btn" id="mailNoticeGo"></button>
+    <button type="button" class="notice-x" id="mailNoticeX" aria-label="Ẩn nhắc nhở">×</button>
+  </div>
+
   <nav class="tabs" id="tabs">
     <button data-tab="fb" class="on">Facebook</button>
     <button data-tab="zalo">Zalo</button>
     <button data-tab="wallet">Nạp tiền</button>
     <button data-tab="rank">Xếp hạng</button>
     <button data-tab="plan">Thanh toán</button>
+    <button data-tab="profile">Cá nhân</button>
+    <button data-tab="stats" id="tabStatsBtn" hidden>Doanh thu</button>
     <button data-tab="admin" id="tabAdminBtn" hidden>Quản trị</button>
   </nav>
 
@@ -237,7 +246,14 @@
     </section>
     <section>
       <h2>Lịch sử ví</h2>
+      <div class="chips" id="wKinds">
+        <button type="button" data-kind="" class="on">Tất cả</button>
+        <button type="button" data-kind="deposit">Nạp tiền</button>
+        <button type="button" data-kind="spend">Thanh toán</button>
+        <button type="button" data-kind="reward">Thưởng</button>
+      </div>
       <div class="users" id="wHistory"><div class="empty">Đang tải…</div></div>
+      <button type="button" class="wide" id="wMore" hidden>Xem thêm giao dịch cũ</button>
     </section>
   </div>
 
@@ -256,12 +272,108 @@
     </section>
   </div>
 
+  <!-- ================= Cá nhân ================= -->
+  <div class="tab" id="tab-profile" hidden>
+    <section>
+      <div class="pf-head">
+        <div class="pf-avatar" id="pfAvatar">?</div>
+        <div>
+          <div class="pf-name" id="pfName">…</div>
+          <div class="pf-sub" id="pfSub"></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Email khôi phục</h2>
+      <p id="pfEmailHint">Liên kết email để có thể lấy lại tài khoản khi quên mật khẩu. Hệ thống sẽ gửi mã 6 số tới email để xác thực.</p>
+      <div id="pfEmail"></div>
+    </section>
+
+    <section>
+      <h2>Đổi mật khẩu</h2>
+      <div class="field">
+        <label for="pwCur">Mật khẩu hiện tại</label>
+        <input type="password" id="pwCur" autocomplete="current-password">
+      </div>
+      <div class="field">
+        <label for="pwNew">Mật khẩu mới (tối thiểu 8 ký tự)</label>
+        <input type="password" id="pwNew" autocomplete="new-password">
+      </div>
+      <div class="field">
+        <label for="pwNew2">Nhập lại mật khẩu mới</label>
+        <input type="password" id="pwNew2" autocomplete="new-password">
+      </div>
+      <button class="primary" id="pwSave">Đổi mật khẩu</button>
+      <p class="hint" style="margin-top:.7rem">Đổi mật khẩu xong, các thiết bị khác đang đăng nhập sẽ bị đăng xuất.</p>
+    </section>
+  </div>
+
+  <!-- ================= Doanh thu (admin) ================= -->
+  <div class="tab" id="tab-stats" hidden>
+    <section>
+      <h2>Doanh thu</h2>
+      <p>Tiền thật đã nhận = coin nạp (admin đã xác nhận) cộng đơn thuê bot chuyển khoản trực tiếp ngày trước. Coin dùng để thuê bot không tính là tiền mới. Không tính tài khoản quản trị. Ngày, tháng theo giờ Việt Nam.</p>
+      <div class="stat-grid" id="stCards"><div class="empty">Đang tải…</div></div>
+    </section>
+
+    <section>
+      <div class="list-head">
+        <h3>Biểu đồ tiền nhận</h3>
+        <div class="chips" id="stRange">
+          <button type="button" data-range="day" class="on">30 ngày</button>
+          <button type="button" data-range="month">12 tháng</button>
+        </div>
+      </div>
+      <div class="bars" id="stBars"></div>
+      <div class="bars-cap" id="stCap">Chạm vào một cột để xem số tiền.</div>
+    </section>
+
+    <section>
+      <h3>Chi tiết</h3>
+      <div class="chips" id="stScope">
+        <button type="button" data-scope="month" class="on">Tháng này</button>
+        <button type="button" data-scope="all">Tất cả</button>
+      </div>
+      <div class="users" id="stDetail"></div>
+    </section>
+
+    <section>
+      <h2>Lịch sử giao dịch</h2>
+      <p>Toàn bộ giao dịch của mọi tài khoản: nạp, thanh toán bằng ví, thưởng, điều chỉnh của admin và đơn chuyển khoản cũ.</p>
+      <div class="ledger-filters">
+        <select id="lgKind" aria-label="Loại giao dịch">
+          <option value="">Mọi loại</option>
+          <option value="deposit">Nạp tiền</option>
+          <option value="spend">Thanh toán</option>
+          <option value="reward">Thưởng</option>
+          <option value="adjust">Điều chỉnh</option>
+          <option value="legacy">Đơn chuyển khoản cũ</option>
+        </select>
+        <input type="text" id="lgQ" placeholder="Tìm tài khoản, ghi chú, mã" autocomplete="off">
+        <input type="date" id="lgFrom" aria-label="Từ ngày">
+        <input type="date" id="lgTo" aria-label="Đến ngày">
+      </div>
+      <div class="row" style="margin:.6rem 0">
+        <button class="primary" id="lgGo">Lọc</button>
+        <button id="lgCsv">Xuất CSV</button>
+      </div>
+      <p class="hint" id="lgSum"></p>
+      <div class="users ledger" id="lgList"><div class="empty">Đang tải…</div></div>
+      <div class="pager" id="lgPager" hidden>
+        <button type="button" id="lgPrev">‹ Trước</button>
+        <span id="lgPage"></span>
+        <button type="button" id="lgNext">Sau ›</button>
+      </div>
+    </section>
+  </div>
+
   <!-- ================= Quản trị ================= -->
   <div class="tab" id="tab-admin" hidden>
   <!-- Admin -->
     <section id="adminBox" hidden>
       <h2>Tài khoản</h2>
-      <p>Người dùng không tự đăng ký được. Tạo tài khoản tại đây rồi đưa mật khẩu cho họ.</p>
+      <p>Người dùng có thể tự đăng ký ở trang đăng nhập (bật hoặc tắt ở mục Cấu hình chung). Bạn cũng có thể tạo tài khoản tại đây rồi đưa mật khẩu cho họ.</p>
   
       <div class="field">
         <label for="nu">Tên đăng nhập mới</label>
@@ -291,6 +403,61 @@
       <div class="users" id="orders"></div>
     </section>
   
+    <section id="mailBox" hidden>
+      <h2>Email gửi mã xác thực</h2>
+      <p>Hệ thống tự gửi mã 6 số tới email người dùng để xác thực email và khôi phục mật khẩu khi họ quên.</p>
+      <div class="mail-state"><span class="tag" id="mailState">…</span><small id="mailFromEnv" hidden>Đang dùng cấu hình từ biến môi trường</small></div>
+      <div class="field">
+        <label for="mailProvider">Cách gửi</label>
+        <select id="mailProvider">
+          <option value="">Tắt gửi email</option>
+          <option value="brevo">Brevo (qua API)</option>
+          <option value="smtp">SMTP (Gmail, Outlook…)</option>
+        </select>
+        <p class="hint" style="margin:.5rem 0 0">Brevo gửi qua API nên chạy được cả trên Render gói free. SMTP phù hợp khi chạy trên VPS hoặc Termux.</p>
+      </div>
+      <div id="mailCommon" hidden>
+        <div class="field">
+          <label for="mailFrom">Email người gửi</label>
+          <input type="text" id="mailFrom" placeholder="vidu@gmail.com" autocomplete="off" autocapitalize="off">
+        </div>
+        <div class="field">
+          <label for="mailName">Tên hiển thị</label>
+          <input type="text" id="mailName" placeholder="Bảng điều khiển bot" autocomplete="off">
+        </div>
+      </div>
+      <div id="mailBrevo" hidden>
+        <div class="field">
+          <label for="brevoKey">API key Brevo (v3)</label>
+          <input type="password" id="brevoKey" autocomplete="off" placeholder="Dán key mới để thay, để trống thì giữ nguyên">
+        </div>
+        <details class="guide">
+          <summary>Cách lấy API key Brevo (miễn phí 300 email/ngày)</summary>
+          <ol>
+            <li>Đăng ký tại brevo.com bằng email của bạn.</li>
+            <li>Vào <b>Senders, Domains & Dedicated IPs → Senders → Add a sender</b>, nhập email gửi (Gmail cũng được) rồi bấm link xác minh Brevo gửi vào email đó.</li>
+            <li>Vào <b>SMTP & API → API Keys → Generate a new API key</b>, sao chép key.</li>
+            <li>Dán key vào ô trên, nhập đúng email người gửi đã xác minh, bấm Lưu rồi Gửi thử.</li>
+          </ol>
+        </details>
+      </div>
+      <div id="mailSmtp" hidden>
+        <div class="field"><label for="smtpHost">Máy chủ SMTP</label><input type="text" id="smtpHost" placeholder="smtp.gmail.com" autocomplete="off" autocapitalize="off"></div>
+        <div class="field"><label for="smtpPort">Cổng (587 hoặc 465)</label><input type="text" id="smtpPort" inputmode="numeric" placeholder="587" style="max-width:8rem"></div>
+        <div class="field"><label for="smtpUser">Tài khoản</label><input type="text" id="smtpUser" autocomplete="off" autocapitalize="off"></div>
+        <div class="field"><label for="smtpPass">Mật khẩu (Gmail dùng mật khẩu ứng dụng)</label><input type="password" id="smtpPass" autocomplete="new-password" placeholder="Để trống thì giữ nguyên"></div>
+        <p class="hint">Render gói free chặn cổng SMTP. Nếu chạy trên Render hãy chọn Brevo.</p>
+      </div>
+      <div class="row" style="margin:.4rem 0 .9rem">
+        <button class="primary" id="mailSave">Lưu cấu hình</button>
+      </div>
+      <h3>Gửi thử</h3>
+      <div class="coupon-row">
+        <input type="text" id="mailTo" style="text-transform:none" placeholder="Email nhận thử" autocomplete="off" autocapitalize="off">
+        <button id="mailTest">Gửi thử</button>
+      </div>
+    </section>
+
     <section id="depositsBox" hidden>
       <h2>Nạp coin chờ duyệt</h2>
       <p>Đối chiếu nội dung chuyển khoản với mã nạp rồi xác nhận. Coin vào ví người dùng ngay khi xác nhận.</p>
@@ -411,6 +578,8 @@
 <script src="/app.js"></script>
 <script src="/bots.js"></script>
 <script src="/wallet.js"></script>
+<script src="/account.js"></script>
+<script src="/revenue.js"></script>
 <script src="/ui.js"></script>
 </body>
 </html>

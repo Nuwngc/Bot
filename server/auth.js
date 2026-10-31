@@ -31,6 +31,14 @@ function noteFail(ip) {
 
 const noteOk = (ip) => attempts.delete(ip);
 
+/* ---------- Phien dang nhap ---------- */
+
+/** Bat dau phien dang nhap. loginAt de huy phien cu khi nguoi dung doi / dat lai mat khau. */
+function startSession(req, userId) {
+  req.session.userId = userId;
+  req.session.loginAt = Date.now();
+}
+
 /* ---------- Middleware ---------- */
 
 function requireLogin(req, res, next) {
@@ -48,6 +56,14 @@ function requireLogin(req, res, next) {
     req.session.destroy(() => {});
     if (isApi) {
       return res.status(401).json({ error: "Tai khoan da bi khoa" });
+    }
+    return res.redirect("/login.html");
+  }
+  // Mat khau da doi sau khi phien nay duoc tao -> bat dang nhap lai
+  if (user.pw_changed_at && (req.session.loginAt || 0) < user.pw_changed_at) {
+    req.session.destroy(() => {});
+    if (isApi) {
+      return res.status(401).json({ error: "Mat khau da doi, hay dang nhap lai" });
     }
     return res.redirect("/login.html");
   }
@@ -115,6 +131,7 @@ function bootstrapAdmin() {
 module.exports = {
   hash,
   verify,
+  startSession,
   signupQuota,
   validUsername,
   throttled,
