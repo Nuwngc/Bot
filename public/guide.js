@@ -45,9 +45,11 @@
     { id: "zalo", title: "Bot Zalo", html:
       steps([
         "Vào tab **Zalo**, bấm **+ Thêm bot** và đặt tên.",
-        "Mục **Đăng nhập Zalo** cần **IMEI** và **Cookie**: lấy khi bạn đang đăng nhập `chat.zalo.me` trên trình duyệt.",
-        "Đặt **Ký tự lệnh** (ví dụ `/`), bấm **Bật** và xem **Nhật ký**.",
+        "Ở mục **Đăng nhập Zalo**, bấm **Đăng nhập bằng mã QR**. Web hiện mã QR, bạn mở Zalo trên điện thoại, quét mã rồi bấm **Đồng ý**. Web tự lấy cookie và IMEI, lưu lại và bật bot.",
+        "Đặt **Ký tự lệnh** (ví dụ `/`), bấm **Bật** nếu bot chưa chạy và xem **Nhật ký**.",
       ]) +
+      p("Chỉ có một điện thoại? Bấm **Lưu ảnh QR**, rồi trong màn hình quét mã của Zalo chọn ảnh từ thư viện. Mã QR hết hạn sau ít phút, bấm **Tạo mã QR mới** để lấy mã khác.") +
+      p("Cách cũ vẫn dùng được: nhập **IMEI** và **Cookie** thủ công (lấy khi đang đăng nhập `chat.zalo.me` trên trình duyệt). **Đừng dùng tiện ích hay công cụ lạ để lấy cookie**, vì cookie là chìa khoá vào tài khoản Zalo của bạn.") +
       p("Bot Zalo có các game riêng như `/baucua`, `/dhbc`, `/taixiu`, `/masoi`. Một số game cần admin bot bật cho từng nhóm trước, ví dụ `/masoi on`. Bot không trả lời thì nhờ admin bot bật game cho nhóm.") +
       note("warn", "Bot Zalo cũng nên chạy bằng tài khoản phụ. Muốn chơi ma sói với bot, mọi người cần **nhắn cho bot một câu trước** để bot nhắn riêng được.") },
 
@@ -153,6 +155,7 @@
       ["Chuyển khoản rồi mà chưa thấy coin?", "Coin vào ví sau khi quản trị viên xác nhận. Kiểm tra bạn đã chuyển đúng số tiền và đúng nội dung có mã `NAP`. Chờ lâu thì báo quản trị viên."],
       ["Bot hết hạn thì sao?", "Bot tự dừng. Nạp coin rồi thanh toán gia hạn, sau đó bấm Bật lại."],
       ["Ma sói không nhắn riêng được cho tôi?", "Hãy nhắn cho bot một câu bất kỳ trước, rồi vào phòng chơi."],
+      ["Quét QR Zalo mà không thấy đăng nhập xong?", "Chờ vài giây sau khi bấm Đồng ý trên điện thoại. Nếu mã báo hết hạn hoặc bị từ chối, bấm Tạo mã QR mới. Vẫn lỗi thì dùng cách nhập thủ công IMEI và cookie."],
       ["Quên mật khẩu?", "Ở trang đăng nhập bấm Quên mật khẩu? rồi làm theo mã 6 số gửi về email (xem mục Tài khoản cá nhân). Tài khoản chưa liên kết email thì liên hệ quản trị viên."],
     ]) },
 

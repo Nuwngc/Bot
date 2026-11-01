@@ -4,6 +4,7 @@ const zalo = require("./zalo");
 const { MAX_PER_USER, canCreate } = require("./fbBots");
 
 const billing = require("./billing");
+const qr = require("./zaloQr");
 const { getSetting } = require("./db");
 
 /** Chan bat bot khi CHINH bot do chua thanh toan / het han */
@@ -97,6 +98,13 @@ router.delete("/bots/:id", (req, res) => {
   res.json({ ok: true });
 });
 
+/** Luu dang nhap Zalo (IMEI + cookie) cho bot. Dung chung cho nhap tay va dang nhap QR. */
+function saveLogin(id, imei, cookies) {
+  zalo.zq.setLogin.run(zalo.encrypt(JSON.stringify(cookies)), zalo.encrypt(imei), id);
+  const warn = cookies.zpw_sek ? null : "Khong thay cookie zpw_sek - kiem tra lai co dung cookie chat.zalo.me khong.";
+  return { count: Object.keys(cookies).length, warn };
+}
+
 router.post("/bots/:id/login", (req, res) => {
   const z = ownBot(req, res, true);
   if (!z) return;
@@ -108,9 +116,44 @@ router.post("/bots/:id/login", (req, res) => {
   } catch (e) {
     return res.status(400).json({ error: e.message });
   }
-  zalo.zq.setLogin.run(zalo.encrypt(JSON.stringify(cookies)), zalo.encrypt(imei), z.id);
-  const warn = cookies.zpw_sek ? null : "Khong thay cookie zpw_sek - kiem tra lai co dung cookie chat.zalo.me khong.";
-  res.json({ ok: true, count: Object.keys(cookies).length, warn });
+  res.json({ ok: true, ...saveLogin(z.id, imei, cookies) });
+});
+
+/* ---------- Dang nhap bang ma QR ---------- */
+
+router.get("/qr/support", async (req, res) => res.json({ available: await qr.isAvailable() }));
+
+router.post("/bots/:id/qr/start", async (req, res) => {
+  const z = ownBot(req, res, true);
+  if (!z) return;
+  try {
+    const v = await qr.start({
+      botId: z.id,
+      userId: req.user.id,
+      onCreds: async ({ imei, cookies }) => {
+        const cur = zalo.zq.byId.get(z.id);
+        if (!cur || cur.user_id !== req.user.id) throw new Error("Bot không còn tồn tại.");
+        if (cur.locked && req.user.role !== "admin") throw new Error("Bot này đã bị quản trị viên khoá.");
+        return saveLogin(z.id, imei, cookies);
+      },
+    });
+    res.json({ ok: true, ...v });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+router.get("/bots/:id/qr", (req, res) => {
+  const z = ownBot(req, res, false);
+  if (!z) return;
+  res.json(qr.get(z.id, req.user.id));
+});
+
+router.post("/bots/:id/qr/cancel", (req, res) => {
+  const z = ownBot(req, res, false);
+  if (!z) return;
+  qr.cancel(z.id);
+  res.json({ ok: true });
 });
 
 router.delete("/bots/:id/login", (req, res) => {

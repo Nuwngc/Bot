@@ -128,9 +128,9 @@
   /* Hết hiệu ứng mở màn: bỏ độ trễ để chuyển tab hiện ngay */
   if (root.classList.contains("intro-on")) setTimeout(() => root.classList.add("intro-done"), 2200);
 
-  /* Nạp các tab tự dựng bằng JS: Hướng dẫn, Công cụ (mỗi file tự bỏ qua nếu đã được nạp) */
+  /* Nạp các phần tự dựng bằng JS: tab Hướng dẫn, tab Công cụ, nút đăng nhập Zalo bằng QR (mỗi file tự bỏ qua nếu đã được nạp) */
   if (tabs) {
-    [["tab-guide", "/guide.js"], ["tab-tools", "/tools.js"]].forEach(([id, src]) => {
+    [["tab-guide", "/guide.js"], ["tab-tools", "/tools.js"], ["zqStart", "/zaloqr.js"]].forEach(([id, src]) => {
       if (document.getElementById(id)) return;
       const s = document.createElement("script");
       s.src = src;
