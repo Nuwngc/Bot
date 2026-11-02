@@ -429,6 +429,7 @@ function safeCount(json) {
 }
 
 wallet.register(router, auth);
+require("./tempmail").register(router, auth);
 require("./revenue").register(router, auth);
 
 module.exports = router;

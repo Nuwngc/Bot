@@ -143,6 +143,17 @@
   /* ---------- giao diện ---------- */
   const ic = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
   const TOOLS = [
+    { id: "mail", title: "Mail 5 phút", desc: "Email tạm thời tự xoá, nhận mã xác nhận", icon: ic('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>'), html: `
+      <p class="tl-note">Địa chỉ email dùng một lần, tự xoá sau 5 phút, để nhận mã xác nhận khi tạo tài khoản phụ. Ai biết địa chỉ đều đọc được thư, đừng dùng cho tài khoản quan trọng. Thư đi qua máy chủ của bạn và dịch vụ mail.tm.</p>
+      <div id="ml-start"><button class="primary" id="ml-new" type="button">Tạo email tạm</button></div>
+      <div id="ml-box" hidden>
+        <div class="tl-mailaddr"><code id="ml-addr"></code></div>
+        <div class="tl-chips"><span class="tl-chip" id="ml-left">Còn 05:00</span><span class="tl-chip" id="ml-count">0 thư</span></div>
+        <div class="row"><button class="primary" id="ml-copy" type="button">Sao chép địa chỉ</button><button id="ml-ext" type="button">+5 phút</button></div>
+        <div class="row"><button id="ml-new2" type="button">Địa chỉ mới</button><button class="danger" id="ml-del" type="button">Xoá ngay</button></div>
+        <div class="tl-maillist" id="ml-list"></div>
+        <div class="tl-mailview" id="ml-view" hidden></div>
+      </div>` },
     { id: "cookie", title: "Chuyển đổi cookie", desc: "Chuỗi ↔ JSON, kiểm tra UID và c_user, xs", icon: ic('<circle cx="12" cy="12" r="9"/><path d="M8.5 9h.01M15 8h.01M10 14.5h.01M15.5 14h.01M12.5 11.5h.01"/>'), html: `
       <p class="tl-note">Xử lý ngay trên trình duyệt, cookie không gửi lên máy chủ.</p>
       <div class="field"><label for="ck-in">Dán cookie (chuỗi hoặc JSON)</label><textarea id="ck-in" rows="5" spellcheck="false" placeholder="c_user=...; xs=...   hoặc   [{&quot;key&quot;:&quot;c_user&quot;,&quot;value&quot;:&quot;...&quot;}]"></textarea></div>
@@ -222,6 +233,18 @@
   .tl-teams{display:grid;gap:.5rem;font-family:inherit;white-space:normal}.tl-teams div{padding:.5rem .7rem;border-radius:10px;background:var(--raised)}
   .tl-qrbox{margin:1rem 0 .4rem;text-align:center}.tl-qrbox img{display:block;margin:0 auto .6rem;max-width:100%;border-radius:12px;background:#fff;padding:6px}
   .tl-qrbox a{color:var(--lamp2)}
+  .tl-mailaddr code{display:block;padding:.75rem .85rem;margin:.2rem 0 .6rem;border-radius:12px;background:var(--field);border:1px solid var(--line);word-break:break-all;font-size:.95rem;color:var(--lamp2)}
+  .tl-maillist{display:grid;gap:.4rem;margin-top:.8rem}
+  .tl-maillist .tl-empty{padding:1rem;text-align:center;color:var(--dim);font-size:.9rem;border:1px dashed var(--line);border-radius:12px}
+  .tl-maillist button{display:block;width:100%;text-align:left;padding:.65rem .8rem;border-radius:12px;overflow:visible}
+  .tl-maillist button b{display:block;font-weight:600}.tl-maillist button small{display:block;color:var(--dim);font-size:.78rem;word-break:break-word}
+  .tl-maillist button.new{border-color:rgba(232,64,122,.55);box-shadow:0 0 0 3px rgba(232,64,122,.12)}
+  .tl-mailview{margin-top:.8rem;padding:.9rem;border-radius:14px;border:1px solid var(--line);background:var(--raised)}
+  .tl-mailview h4{margin:0 0 .15rem;font-size:1rem}.tl-mailview .tl-mf{color:var(--dim);font-size:.8rem;margin-bottom:.6rem;word-break:break-word}
+  .tl-codes{display:flex;gap:.5rem;flex-wrap:wrap;margin:.4rem 0}
+  .tl-code{font:700 1.3rem ui-monospace,Menlo,monospace;letter-spacing:.12em;padding:.5rem .9rem;border-radius:12px;color:#fff;background:var(--grad);border:0}
+  .tl-mailview pre{margin:.6rem 0;padding:.7rem;border-radius:10px;background:var(--field);white-space:pre-wrap;word-break:break-word;font:.85rem/1.55 inherit;max-height:16rem;overflow:auto}
+  .tl-links{display:grid;gap:.3rem;font-size:.82rem}.tl-links a{color:var(--lamp2);word-break:break-all}
   .tl-win{animation:tlpop .35s var(--ease)}@keyframes tlpop{from{transform:scale(.92);opacity:.5}}`;
   document.head.append(css);
 
@@ -357,6 +380,87 @@
     toast("Nhập timestamp, chọn ngày giờ hoặc số ngày cần cộng.", "bad");
   };
   g("tm-now").onclick = () => { g("tm-ts").value = Math.floor(Date.now() / 1000); g("tm-dt").value = ""; g("tm-add").value = ""; tmShow(Date.now()); };
+
+  // 7. mail 5 phút (thư hiển thị bằng textContent, không bao giờ innerHTML)
+  const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const mmss = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  let mlExp = 0, mlClock = null, mlPoll = null, mlKnown = null;
+  const mlStop = () => { clearInterval(mlClock); clearInterval(mlPoll); mlClock = mlPoll = null; };
+  function mlReset(msg) {
+    mlStop(); mlKnown = null;
+    g("ml-box").hidden = true; g("ml-start").hidden = false; g("ml-view").hidden = true;
+    if (msg) toast(msg, "bad");
+  }
+  function mlTick() {
+    const s = Math.max(0, Math.round((mlExp - Date.now()) / 1000));
+    g("ml-left").textContent = "Còn " + mmss(s);
+    g("ml-left").className = "tl-chip" + (s < 60 ? " bad" : "");
+    if (s <= 0) mlReset("Hộp thư tạm đã hết hạn.");
+  }
+  function mlSetBox(b) {
+    mlExp = Date.now() + b.secondsLeft * 1000;
+    g("ml-addr").textContent = b.address;
+    g("ml-ext").hidden = !b.canExtend;
+    g("ml-ext").textContent = `+${b.ttlMinutes} phút`;
+    g("ml-start").hidden = true; g("ml-box").hidden = false;
+    if (!mlClock) mlClock = setInterval(mlTick, 1000);
+    if (!mlPoll) mlPoll = setInterval(() => mlFetch(false), 5000);
+    mlTick();
+  }
+  function mlList(msgs) {
+    g("ml-count").textContent = `${msgs.length} thư`;
+    const box = g("ml-list"); box.textContent = "";
+    const fresh = mlKnown ? msgs.filter((m) => !mlKnown.has(m.id)) : [];
+    if (fresh.length) toast(fresh.length === 1 ? "Có thư mới." : `Có ${fresh.length} thư mới.`);
+    if (!msgs.length) { box.append(mk("div", "tl-empty", "Đang chờ thư… Danh sách tự cập nhật mỗi 5 giây.")); }
+    msgs.forEach((m) => {
+      const b = mk("button", "tl-mrow" + (fresh.includes(m) ? " new" : "")); b.type = "button";
+      b.append(mk("b", "", m.subject), mk("small", "", `${m.name || m.from}${m.name && m.from ? " <" + m.from + ">" : ""}`));
+      b.onclick = () => mlOpen(m.id);
+      box.append(b);
+    });
+    mlKnown = new Set(msgs.map((m) => m.id));
+  }
+  async function mlFetch(force) {
+    if (!force && (document.hidden || !g("tl-mail").open || g("tab-tools").hidden)) return;
+    try { const d = await api("/tempmail/inbox"); mlSetBox(d.box); mlList(d.messages); }
+    catch (e) { if (/hết hạn|Chưa có hộp/.test(e.message)) mlReset(); else if (force) toast(e.message, "bad"); }
+  }
+  async function mlOpen(id) {
+    try {
+      const { message: m } = await api(`/tempmail/messages/${encodeURIComponent(id)}`);
+      const v = g("ml-view"); v.textContent = ""; v.hidden = false;
+      v.append(mk("h4", "", m.subject), mk("div", "tl-mf", `${m.name ? m.name + " " : ""}${m.from}${m.createdAt ? " · " + fmtVn(Date.parse(m.createdAt)) : ""}`));
+      if (m.codes.length) {
+        const row = mk("div", "tl-codes");
+        m.codes.forEach((c) => { const b = mk("button", "tl-code", c); b.type = "button"; b.title = "Bấm để sao chép"; b.onclick = () => copyText(c); row.append(b); });
+        v.append(mk("div", "tl-note", "Mã xác nhận tìm thấy (bấm để sao chép):"), row);
+      }
+      v.append(mk("pre", "", m.text || "(thư không có nội dung chữ)"));
+      if (m.links.length) {
+        const ls = mk("div", "tl-links"); ls.append(mk("div", "tl-note", "Liên kết trong thư. Chỉ mở nếu bạn tin tưởng người gửi:"));
+        m.links.forEach((u) => { const a = mk("a", "", u); a.href = u; a.target = "_blank"; a.rel = "noopener noreferrer nofollow"; ls.append(a); });
+        v.append(ls);
+      }
+      const close = mk("button", "", "Đóng thư"); close.type = "button"; close.onclick = () => (v.hidden = true); v.append(close);
+      v.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    } catch (e) { toast(e.message, "bad"); }
+  }
+  async function mlNew() {
+    const btn = g("ml-new"), btn2 = g("ml-new2"); btn.disabled = btn2.disabled = true;
+    try {
+      const d = await api("/tempmail/new", { method: "POST", body: "{}" });
+      mlKnown = null; g("ml-view").hidden = true; mlSetBox(d.box); await mlFetch(true);
+    } catch (e) { toast(e.message, "bad"); } finally { btn.disabled = btn2.disabled = false; }
+  }
+  g("ml-new").onclick = g("ml-new2").onclick = mlNew;
+  g("ml-copy").onclick = () => copyText(g("ml-addr").textContent);
+  g("ml-ext").onclick = async () => { try { const d = await api("/tempmail/extend", { method: "POST", body: "{}" }); mlSetBox(d.box); toast("Đã gia hạn thêm."); } catch (e) { toast(e.message, "bad"); } };
+  g("ml-del").onclick = async () => { try { await api("/tempmail", { method: "DELETE" }); } catch (_) {} mlReset(); toast("Đã xoá hộp thư tạm."); };
+  g("tl-mail").addEventListener("toggle", async () => {
+    if (!g("tl-mail").open || mlClock) return;
+    try { const d = await api("/tempmail"); if (d.box) { mlSetBox(d.box); await mlFetch(true); } } catch (_) {}
+  });
 
   // mở thẳng bằng #tools (bots.js đã đổi hash trước khi file này nạp xong)
   const baseShow = window.showTab;
