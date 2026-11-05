@@ -117,6 +117,7 @@
       p("Tab **Công cụ** có các tiện ích chạy ngay trên trình duyệt, không lưu dữ liệu của bạn. Bấm vào từng công cụ để mở.") +
       list([
         "**Mail 5 phút**: tạo địa chỉ email dùng một lần, tự xoá sau 5 phút (gia hạn thêm được), thư mới tự hiện kèm mã xác nhận để sao chép. Hợp để tạo tài khoản phụ. Ai biết địa chỉ đều đọc được thư.",
+        "**Mail 12h / 24h**: email có tên đăng nhập và mật khẩu, dùng 12 hoặc 24 giờ rồi tự xoá. Bạn tự đặt tên và mật khẩu (hoặc để web tạo), xem thư ngay trên web hoặc đăng nhập tại mail.tm. Tối đa 3 hộp còn hạn cùng lúc.",
         "**Chuyển đổi cookie**: đổi cookie giữa dạng chuỗi và JSON, hiện UID Facebook và cho biết thiếu `c_user` hay `xs`. Cookie không gửi lên máy chủ.",
         "**Tạo mã QR**: từ văn bản, liên kết, hoặc mã QR chuyển khoản VietQR (chọn ngân hàng, số tài khoản, số tiền, nội dung). Ảnh QR do dịch vụ bên ngoài tạo.",
         "**Xử lý văn bản**: bỏ dấu tiếng Việt, đổi chữ hoa thường, tạo slug, xoá dòng trùng, sắp xếp, đếm ký tự.",

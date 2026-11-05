@@ -154,6 +154,16 @@
         <div class="tl-maillist" id="ml-list"></div>
         <div class="tl-mailview" id="ml-view" hidden></div>
       </div>` },
+    { id: "maillong", title: "Mail 12h / 24h", desc: "Email có tài khoản và mật khẩu, tự xoá sau 12 hoặc 24 giờ", icon: ic('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>'), html: `
+      <p class="tl-note">Tạo email có <b>tên đăng nhập và mật khẩu</b>, dùng được 12 hoặc 24 giờ rồi tự xoá. Xem thư ngay trên web, hoặc đăng nhập tại mail.tm bằng chính địa chỉ và mật khẩu này. Ai biết mật khẩu đều đọc được thư, đừng dùng cho tài khoản quan trọng.</p>
+      <div class="seg row" id="lg-hours"><button class="primary" data-h="12" type="button">12 giờ</button><button data-h="24" type="button">24 giờ</button></div>
+      <div class="field"><label for="lg-name">Tên email (không bắt buộc)</label><input id="lg-name" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="để trống sẽ tạo ngẫu nhiên"></div>
+      <div class="field"><label for="lg-domain">Tên miền</label><select id="lg-domain"><option value="">Ngẫu nhiên</option></select></div>
+      <div class="field"><label for="lg-pass">Mật khẩu (không bắt buộc, 8 ký tự trở lên)</label><input id="lg-pass" type="text" autocomplete="off" spellcheck="false" placeholder="để trống sẽ tạo ngẫu nhiên"></div>
+      <button class="primary" id="lg-create" type="button">Tạo email</button>
+      <div class="tl-lgnew" id="lg-new" hidden></div>
+      <h4 class="tl-lgtitle">Hộp thư của bạn</h4>
+      <div id="lg-list"></div>` },
     { id: "cookie", title: "Chuyển đổi cookie", desc: "Chuỗi ↔ JSON, kiểm tra UID và c_user, xs", icon: ic('<circle cx="12" cy="12" r="9"/><path d="M8.5 9h.01M15 8h.01M10 14.5h.01M15.5 14h.01M12.5 11.5h.01"/>'), html: `
       <p class="tl-note">Xử lý ngay trên trình duyệt, cookie không gửi lên máy chủ.</p>
       <div class="field"><label for="ck-in">Dán cookie (chuỗi hoặc JSON)</label><textarea id="ck-in" rows="5" spellcheck="false" placeholder="c_user=...; xs=...   hoặc   [{&quot;key&quot;:&quot;c_user&quot;,&quot;value&quot;:&quot;...&quot;}]"></textarea></div>
@@ -245,6 +255,16 @@
   .tl-code{font:700 1.3rem ui-monospace,Menlo,monospace;letter-spacing:.12em;padding:.5rem .9rem;border-radius:12px;color:#fff;background:var(--grad);border:0}
   .tl-mailview pre{margin:.6rem 0;padding:.7rem;border-radius:10px;background:var(--field);white-space:pre-wrap;word-break:break-word;font:.85rem/1.55 inherit;max-height:16rem;overflow:auto}
   .tl-links{display:grid;gap:.3rem;font-size:.82rem}.tl-links a{color:var(--lamp2);word-break:break-all}
+  .tl-lgtitle{margin:1.1rem 0 .2rem;font-size:.9rem;color:var(--lamp)}
+  .tl-lgnew{margin:.9rem 0 0;padding:.9rem;border-radius:14px;border:1px solid rgba(79,224,176,.5);background:rgba(79,224,176,.08)}
+  .tl-lgnew .tl-lgrow{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:.3rem 0}
+  .tl-lgcard{padding:.8rem;border:1px solid var(--line);border-radius:14px;background:var(--raised);margin-top:.6rem}
+  .tl-lgcard button,.tl-lgnew button{padding:.4rem .75rem;font-size:.82rem;border-radius:10px}
+  .tl-lgh,.tl-lgpw{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}.tl-lgpw{margin:.5rem 0}
+  .tl-lgh code,.tl-lgnew code{flex:1;min-width:0;word-break:break-all;color:var(--lamp2);font-size:.9rem}
+  .tl-lgpw code{flex:0 1 auto;min-width:9ch;word-break:break-all;color:var(--lamp2);font-size:.9rem}
+  .tl-lgl{color:var(--dim);font-size:.82rem}.tl-lgcard .row{margin:.5rem 0 0}
+  .tl-lgcard .tl-lgbox{margin-top:.6rem}.tl-lgcard a.btn-link{display:inline-flex;align-items:center;padding:.4rem .75rem;font-size:.82rem;border-radius:10px;border:1px solid var(--line);background:var(--raised);color:var(--paper);text-decoration:none}
   .tl-win{animation:tlpop .35s var(--ease)}@keyframes tlpop{from{transform:scale(.92);opacity:.5}}`;
   document.head.append(css);
 
@@ -426,25 +446,26 @@
     try { const d = await api("/tempmail/inbox"); mlSetBox(d.box); mlList(d.messages); }
     catch (e) { if (/hết hạn|Chưa có hộp/.test(e.message)) mlReset(); else if (force) toast(e.message, "bad"); }
   }
+  function renderMessage(v, m) {
+    v.textContent = ""; v.hidden = false;
+    v.append(mk("h4", "", m.subject), mk("div", "tl-mf", `${m.name ? m.name + " " : ""}${m.from}${m.createdAt ? " · " + fmtVn(Date.parse(m.createdAt)) : ""}`));
+    if (m.codes.length) {
+      const row = mk("div", "tl-codes");
+      m.codes.forEach((c) => { const b = mk("button", "tl-code", c); b.type = "button"; b.title = "Bấm để sao chép"; b.onclick = () => copyText(c); row.append(b); });
+      v.append(mk("div", "tl-note", "Mã xác nhận tìm thấy (bấm để sao chép):"), row);
+    }
+    v.append(mk("pre", "", m.text || "(thư không có nội dung chữ)"));
+    if (m.links.length) {
+      const ls = mk("div", "tl-links"); ls.append(mk("div", "tl-note", "Liên kết trong thư. Chỉ mở nếu bạn tin tưởng người gửi:"));
+      m.links.forEach((u) => { const a = mk("a", "", u); a.href = u; a.target = "_blank"; a.rel = "noopener noreferrer nofollow"; ls.append(a); });
+      v.append(ls);
+    }
+    const close = mk("button", "", "Đóng thư"); close.type = "button"; close.onclick = () => (v.hidden = true); v.append(close);
+    v.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
   async function mlOpen(id) {
-    try {
-      const { message: m } = await api(`/tempmail/messages/${encodeURIComponent(id)}`);
-      const v = g("ml-view"); v.textContent = ""; v.hidden = false;
-      v.append(mk("h4", "", m.subject), mk("div", "tl-mf", `${m.name ? m.name + " " : ""}${m.from}${m.createdAt ? " · " + fmtVn(Date.parse(m.createdAt)) : ""}`));
-      if (m.codes.length) {
-        const row = mk("div", "tl-codes");
-        m.codes.forEach((c) => { const b = mk("button", "tl-code", c); b.type = "button"; b.title = "Bấm để sao chép"; b.onclick = () => copyText(c); row.append(b); });
-        v.append(mk("div", "tl-note", "Mã xác nhận tìm thấy (bấm để sao chép):"), row);
-      }
-      v.append(mk("pre", "", m.text || "(thư không có nội dung chữ)"));
-      if (m.links.length) {
-        const ls = mk("div", "tl-links"); ls.append(mk("div", "tl-note", "Liên kết trong thư. Chỉ mở nếu bạn tin tưởng người gửi:"));
-        m.links.forEach((u) => { const a = mk("a", "", u); a.href = u; a.target = "_blank"; a.rel = "noopener noreferrer nofollow"; ls.append(a); });
-        v.append(ls);
-      }
-      const close = mk("button", "", "Đóng thư"); close.type = "button"; close.onclick = () => (v.hidden = true); v.append(close);
-      v.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    } catch (e) { toast(e.message, "bad"); }
+    try { const { message: m } = await api(`/tempmail/messages/${encodeURIComponent(id)}`); renderMessage(g("ml-view"), m); }
+    catch (e) { toast(e.message, "bad"); }
   }
   async function mlNew() {
     const btn = g("ml-new"), btn2 = g("ml-new2"); btn.disabled = btn2.disabled = true;
@@ -460,6 +481,115 @@
   g("tl-mail").addEventListener("toggle", async () => {
     if (!g("tl-mail").open || mlClock) return;
     try { const d = await api("/tempmail"); if (d.box) { mlSetBox(d.box); await mlFetch(true); } } catch (_) {}
+  });
+
+  // 8. mail 12h / 24h (có tên đăng nhập + mật khẩu)
+  const hms = (s) => `${String(Math.floor(s / 3600)).padStart(2, "0")}:${mmss(s % 3600)}`;
+  let lgHours = 12, lgClock = null, lgInit = false;
+  const lgPolls = new Map();
+  const lgStopPolls = () => { lgPolls.forEach((x) => clearInterval(x)); lgPolls.clear(); };
+
+  g("lg-hours").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-h]"); if (!b) return;
+    lgHours = Number(b.dataset.h);
+    g("lg-hours").querySelectorAll("button").forEach((x) => x.classList.toggle("primary", x === b));
+  });
+
+  function lgCard(b) {
+    const c = mk("div", "tl-lgcard");
+    const head = mk("div", "tl-lgh"), cp = mk("button", "", "Sao chép"); cp.type = "button"; cp.onclick = () => copyText(b.address);
+    head.append(mk("code", "", b.address), cp);
+
+    let plain = null, shown = false;
+    const getPw = async () => (plain ??= (await api(`/tempmail/long/${b.id}/password`)).password);
+    const pwv = mk("code", "", "••••••••"), showBtn = mk("button", "", "Hiện"), cpp = mk("button", "", "Sao chép mật khẩu");
+    showBtn.type = cpp.type = "button";
+    showBtn.onclick = async () => { try { shown = !shown; pwv.textContent = shown ? await getPw() : "••••••••"; showBtn.textContent = shown ? "Ẩn" : "Hiện"; } catch (e) { shown = false; toast(e.message, "bad"); } };
+    cpp.onclick = async () => { try { copyText(await getPw()); } catch (e) { toast(e.message, "bad"); } };
+    const pw = mk("div", "tl-lgpw"); pw.append(mk("span", "tl-lgl", "Mật khẩu:"), pwv, showBtn, cpp);
+
+    const left = mk("span", "tl-chip"), count = mk("span", "tl-chip", "0 thư");
+    left.dataset.exp = String(Date.now() + b.secondsLeft * 1000);
+    const chips = mk("div", "tl-chips"); chips.append(mk("span", "tl-chip", `${b.hours} giờ`), left, count);
+
+    const open = mk("button", "primary", "Mở hộp thư"), login = mk("a", "btn-link", "Đăng nhập mail.tm"), del = mk("button", "danger", "Xoá");
+    open.type = del.type = "button"; login.href = "https://mail.tm"; login.target = "_blank"; login.rel = "noopener noreferrer";
+    const row = mk("div", "row"); row.append(open, login, del);
+
+    const box = mk("div", "tl-lgbox"), list = mk("div", "tl-maillist"), view = mk("div", "tl-mailview");
+    box.hidden = view.hidden = true; box.append(list, view);
+    let known = null;
+    const refresh = async () => {
+      try {
+        const d = await api(`/tempmail/long/${b.id}/inbox`);
+        count.textContent = `${d.messages.length} thư`;
+        const fresh = known ? d.messages.filter((m) => !known.has(m.id)) : [];
+        if (fresh.length) toast(fresh.length === 1 ? "Có thư mới." : `Có ${fresh.length} thư mới.`);
+        list.textContent = "";
+        if (!d.messages.length) list.append(mk("div", "tl-empty", "Chưa có thư. Danh sách tự cập nhật khi đang mở."));
+        d.messages.forEach((m) => {
+          const r = mk("button", "tl-mrow" + (fresh.includes(m) ? " new" : "")); r.type = "button";
+          r.append(mk("b", "", m.subject), mk("small", "", `${m.name || m.from}${m.name && m.from ? " <" + m.from + ">" : ""}`));
+          r.onclick = async () => { try { const { message } = await api(`/tempmail/long/${b.id}/messages/${encodeURIComponent(m.id)}`); renderMessage(view, message); } catch (e) { toast(e.message, "bad"); } };
+          list.append(r);
+        });
+        known = new Set(d.messages.map((m) => m.id));
+      } catch (e) { if (/Không tìm thấy/.test(e.message)) lgLoad(); }
+    };
+    open.onclick = () => {
+      box.hidden = !box.hidden;
+      open.textContent = box.hidden ? "Mở hộp thư" : "Đóng hộp thư";
+      clearInterval(lgPolls.get(b.id)); lgPolls.delete(b.id);
+      if (!box.hidden) { refresh(); lgPolls.set(b.id, setInterval(() => { if (!document.hidden && !g("tab-tools").hidden && g("tl-maillong").open) refresh(); }, 8000)); }
+    };
+    del.onclick = async () => {
+      if (!(await confirmBox("Hộp thư này và toàn bộ thư trong đó sẽ bị xoá.", { title: "Xoá hộp thư?", ok: "Xoá", cancel: "Giữ lại", danger: true }))) return;
+      try { await api(`/tempmail/long/${b.id}`, { method: "DELETE" }); toast("Đã xoá hộp thư."); lgLoad(); } catch (e) { toast(e.message, "bad"); }
+    };
+    c.append(head, pw, chips, row, box);
+    return c;
+  }
+
+  function lgTick() {
+    let expired = false;
+    document.querySelectorAll("#lg-list [data-exp]").forEach((el) => {
+      const s = Math.max(0, Math.round((Number(el.dataset.exp) - Date.now()) / 1000));
+      el.textContent = "Còn " + hms(s);
+      el.className = "tl-chip" + (s < 600 ? " bad" : "");
+      if (s <= 0) expired = true;
+    });
+    if (expired) lgLoad();
+  }
+  async function lgLoad() {
+    try {
+      const d = await api("/tempmail/long");
+      lgStopPolls();
+      const list = g("lg-list"); list.textContent = "";
+      if (!d.boxes.length) list.append(mk("div", "tl-empty", "Chưa có hộp thư 12h/24h nào còn hạn."));
+      d.boxes.forEach((b) => list.append(lgCard(b)));
+      lgTick();
+      if (!lgClock) lgClock = setInterval(lgTick, 1000);
+    } catch (e) { toast(e.message, "bad"); }
+  }
+  g("lg-create").onclick = async () => {
+    const btn = g("lg-create"); btn.disabled = true;
+    try {
+      const d = await api("/tempmail/long", { method: "POST", body: JSON.stringify({ hours: lgHours, name: g("lg-name").value, domain: g("lg-domain").value, password: g("lg-pass").value }) });
+      g("lg-name").value = g("lg-pass").value = "";
+      const n = g("lg-new"); n.textContent = ""; n.hidden = false;
+      const row = (label, val) => { const r = mk("div", "tl-lgrow"); r.append(mk("span", "tl-lgl", label), mk("code", "", val)); const b = mk("button", "", "Sao chép"); b.type = "button"; b.onclick = () => copyText(val); r.append(b); return r; };
+      const both = mk("button", "primary", "Sao chép cả hai"); both.type = "button"; both.onclick = () => copyText(`Email: ${d.box.address}\nMật khẩu: ${d.password}`);
+      n.append(mk("b", "", `Đã tạo email ${d.box.hours} giờ. Lưu lại thông tin đăng nhập:`), row("Email:", d.box.address), row("Mật khẩu:", d.password), both);
+      await lgLoad();
+    } catch (e) { toast(e.message, "bad"); } finally { btn.disabled = false; }
+  };
+  g("tl-maillong").addEventListener("toggle", async () => {
+    if (!g("tl-maillong").open) return;
+    if (!lgInit) {
+      lgInit = true;
+      try { const d = await api("/tempmail/domains"); g("lg-domain").append(...d.domains.map((x) => { const o = mk("option", "", x); o.value = x; return o; })); } catch (_) {}
+    }
+    lgLoad();
   });
 
   // mở thẳng bằng #tools (bots.js đã đổi hash trước khi file này nạp xong)
