@@ -6,6 +6,7 @@ const api = require("./routes");
 const zaloApi = require("./zaloRoutes");
 const fbApi = require("./fbRoutes");
 const { requireLogin } = require("./auth");
+const linkcoin = require("./linkcoin");
 
 function createApp() {
   const app = express();
@@ -55,6 +56,7 @@ function createApp() {
   app.get("/", (req, res) => {
     res.redirect(req.session?.userId ? "/dashboard.html" : "/login.html");
   });
+  app.get("/linkcoin/done", requireLogin, linkcoin.doneHandler);
   app.get("/dashboard.html", requireLogin, (req, res) => {
     res.sendFile(path.join(PUBLIC, "dashboard.html"));
   });

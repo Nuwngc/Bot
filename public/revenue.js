@@ -2,7 +2,7 @@
    Dùng các hàm có sẵn: $, api, say, esc, fmtDate, showTab. */
 (() => {
   const fmt = (n) => Number(n || 0).toLocaleString("vi-VN");
-  const KIND = { deposit: "Nạp tiền", spend: "Thanh toán", reward: "Thưởng", adjust: "Điều chỉnh", legacy: "Đơn chuyển khoản cũ" };
+  const KIND = { deposit: "Nạp tiền", spend: "Thanh toán", reward: "Thưởng", task: "Vượt link", adjust: "Điều chỉnh", legacy: "Đơn chuyển khoản cũ" };
   let st = null, range = "day", scope = "month", sel = -1;
   const lg = { page: 1 };
 

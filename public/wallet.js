@@ -3,7 +3,7 @@
 (() => {
   const fmt = (n) => Number(n || 0).toLocaleString("vi-VN");
   const num = (s) => Number(String(s).replace(/[^\d]/g, "")) || 0;
-  const KIND = { deposit: "Nạp tiền", spend: "Thanh toán", reward: "Thưởng", adjust: "Điều chỉnh" };
+  const KIND = { deposit: "Nạp tiền", spend: "Thanh toán", reward: "Thưởng", task: "Vượt link", adjust: "Điều chỉnh" };
   const CHIPS = [20000, 50000, 100000, 200000, 500000];
   const MEDAL = ["gold", "silver", "bronze"];
   const RANKS = 10;

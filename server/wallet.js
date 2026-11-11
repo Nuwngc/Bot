@@ -302,4 +302,4 @@ function register(router, auth) {
   });
 }
 
-module.exports = { saveRewards, register, balance, payOrder, createDeposit, approveDeposit, leaderboard, runRewards, awardMonth, rewards };
+module.exports = { credit, tx, saveRewards, register, balance, payOrder, createDeposit, approveDeposit, leaderboard, runRewards, awardMonth, rewards };
