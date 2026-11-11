@@ -115,6 +115,25 @@ async function shorten(provider, destUrl) {
   return out;
 }
 
+/**
+ * Cho phep admin dan nguyen link mau cua nha cung cap
+ * (vd https://link4m.co/api-shorten/v2?api=ABC&url=yourdestinationlink.com):
+ * tu dong doi gia tri url= thanh {url} va tach api= thanh {token}.
+ */
+function normalizeApi(apiUrl, token) {
+  let u = String(apiUrl || "").trim();
+  let t = String(token || "").trim();
+  if (!u.includes("{url}")) u = u.replace(/([?&]url=)[^&]*/i, "$1{url}");
+  if (!u.includes("{token}")) {
+    const m = u.match(/([?&](?:api|apikey|api_key|key|token)=)([^&{]+)/i);
+    if (m) {
+      if (!t) t = decodeURIComponent(m[2]);
+      u = u.replace(m[0], m[1] + "{token}");
+    }
+  }
+  return { apiUrl: u, token: t };
+}
+
 /* ---------- Bat dau mot luot ---------- */
 
 async function start(req) {
@@ -215,7 +234,8 @@ function register(router, auth) {
     try {
       const b = req.body || {};
       const name = String(b.name || "").trim().slice(0, 40);
-      const apiUrl = String(b.api_url || "").trim();
+      const norm = normalizeApi(b.api_url, b.token);
+      const apiUrl = norm.apiUrl;
       if (!name) throw new Error("Thiếu tên nhà cung cấp");
       if (!/^https:\/\//i.test(apiUrl) || !apiUrl.includes("{url}")) {
         throw new Error("API URL phải bắt đầu bằng https:// và chứa {url} (và {token} nếu cần)");
@@ -225,7 +245,7 @@ function register(router, auth) {
       const minSec = intIn(b.min_seconds, 5, 600, 20);
       const active = b.active === false || b.active === 0 ? 0 : 1;
       const old = b.id ? lq.provider.get(Number(b.id)) : null;
-      const newToken = String(b.token || "").trim();
+      const newToken = norm.token;
       const tokenEnc = newToken ? encrypt(newToken) : old?.token_enc || null;
       if (old) lq.updProvider.run(name, apiUrl, tokenEnc, reward, limit, minSec, active, old.id);
       else lq.insProvider.run(name, apiUrl, tokenEnc, reward, limit, minSec, active);
@@ -239,4 +259,4 @@ function register(router, auth) {
   });
 }
 
-module.exports = { register, doneHandler };
+module.exports = { register, doneHandler, normalizeApi };

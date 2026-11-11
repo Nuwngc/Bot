@@ -36,7 +36,7 @@
         <input id="lcMin" inputmode="numeric" placeholder="Thời gian vượt tối thiểu (giây)">
         <button type="submit" class="wide">Lưu nhà cung cấp</button>
       </form>
-      <p class="hint">Mẫu API phổ biến: https://domain-nha-cung-cap/api?api={token}&amp;url={url}. Xem đúng địa chỉ trong trang tài liệu API của từng dịch vụ.</p>
+      <p class="hint">Có thể dán nguyên link mẫu của nhà cung cấp (vd https://link4m.co/api-shorten/v2?api=TOKEN&amp;url=abc.com), hệ thống tự tách token và thay phần url= cho đúng.</p>
     </section>`;
   const anchor = $("tab-wallet");
   anchor ? anchor.after(tab) : document.body.appendChild(tab);

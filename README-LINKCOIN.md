@@ -18,3 +18,5 @@ Giao diện menu:
 - public/ui.js   : thêm icon cho tab "Vượt link" (ICONS.linkcoin), nút "Đăng xuất" có icon
 - public/style.css: cuối file thêm CSS cho menu bên (cuộn được, nút Đăng xuất luôn nằm sát đáy)
 - public/dashboard.html: chữ "Thoát" -> "Đăng xuất"
+
+Nhập nhà cung cấp: có thể dán nguyên link mẫu (vd link4m); server tự đổi url=... thành {url} và tách api=... thành token.
