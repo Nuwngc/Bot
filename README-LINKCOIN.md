@@ -13,3 +13,8 @@ Cấu hình:
 2. Đăng nhập admin -> tab "Vượt link" -> thêm nhà cung cấp:
    API URL dạng https://.../api?api={token}&url={url} (lấy đúng từ tài liệu API của dịch vụ),
    token, coin mỗi lượt, số lượt/ngày, thời gian vượt tối thiểu.
+
+Giao diện menu:
+- public/ui.js   : thêm icon cho tab "Vượt link" (ICONS.linkcoin), nút "Đăng xuất" có icon
+- public/style.css: cuối file thêm CSS cho menu bên (cuộn được, nút Đăng xuất luôn nằm sát đáy)
+- public/dashboard.html: chữ "Thoát" -> "Đăng xuất"

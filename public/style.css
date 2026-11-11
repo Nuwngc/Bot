@@ -877,3 +877,9 @@ details.guide b { color: var(--paper); font-weight: 600; }
 .lg-amt small { display: block; font-weight: 400; font-size: .7rem; color: var(--dim); }
 .pager { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin-top: .8rem; font-size: .85rem; color: var(--dim); }
 .pager[hidden] { display: none; }
+
+/* Menu bên: cuộn được, nút Đăng xuất luôn nằm sát đáy */
+.drawer { overflow-y: auto; overscroll-behavior: contain; }
+.drawer-foot { position: sticky; bottom: 0; z-index: 1; margin-top: auto; background: var(--drawer); border-top: 1px solid var(--line); padding: .75rem 0 calc(.25rem + env(safe-area-inset-bottom, 0px)); }
+.drawer-foot .logout-btn { display: flex; align-items: center; justify-content: center; gap: .6rem; padding: .85rem 1rem; border-radius: 16px; font-size: 1.02rem; }
+.drawer-foot .logout-btn svg { width: 1.3rem; height: 1.3rem; flex: none; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
