@@ -147,8 +147,9 @@
       <p class="tl-note">Đọc to văn bản bằng tiếng Việt. Ưu tiên giọng có sẵn trên máy; máy nào không có giọng tiếng Việt sẽ tự dùng giọng máy chủ (cần mạng, văn bản được gửi lên máy chủ để tạo âm thanh).</p>
       <div class="field"><label for="tt-in">Văn bản cần đọc</label><textarea id="tt-in" rows="6" spellcheck="false" placeholder="Dán hoặc gõ văn bản ở đây"></textarea></div>
       <div class="field"><label for="tt-voice">Giọng đọc</label><select id="tt-voice"><option value="">Đang tải danh sách giọng…</option></select></div>
-      <div class="field"><label for="tt-rate">Tốc độ đọc: <b id="tt-ratev">1.0</b>x</label><input id="tt-rate" type="range" min="0.5" max="2" step="0.1" value="1"></div>
-      <div class="tl-btns" id="tt-speeds"><button data-r="0.75" type="button">0.75x</button><button data-r="1" type="button">1x</button><button data-r="1.25" type="button">1.25x</button><button data-r="1.5" type="button">1.5x</button><button data-r="2" type="button">2x</button></div>
+      <div class="field"><label for="tt-rate">Tốc độ đọc: <b id="tt-ratev">1.0</b>x</label><input id="tt-rate" type="range" min="0.5" max="4" step="0.1" value="1"></div>
+      <div class="tl-btns" id="tt-speeds"><button data-r="0.75" type="button">0.75x</button><button data-r="1" type="button">1x</button><button data-r="1.25" type="button">1.25x</button><button data-r="1.5" type="button">1.5x</button><button data-r="2" type="button">2x</button><button data-r="3" type="button">3x</button><button data-r="4" type="button">4x</button></div>
+      <p class="tl-note">Tốc độ từ 3x trở lên có thể bị một số giọng trên máy giới hạn ở mức thấp hơn. Giọng máy chủ chạy được đến 4x.</p>
       <div class="row"><button class="primary" id="tt-play" type="button">Đọc</button><button id="tt-pause" type="button" disabled>Tạm dừng</button><button id="tt-stop" type="button" disabled>Dừng</button><button id="tt-test" type="button">Nghe thử giọng</button></div>
       <div class="tl-chips" id="tt-status"></div>
       <p class="tl-note" id="tt-hint" hidden></p>` },
