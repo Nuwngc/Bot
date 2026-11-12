@@ -18,25 +18,61 @@
       <div class="wallet-hero">
         <div class="wallet-label">Số dư ví</div>
         <div class="wallet-balance"><b id="lcBalance">0</b><span>coin</span></div>
+        <div class="wallet-stats">
+          <div><small>Lượt còn hôm nay</small><strong id="lcLeft">0</strong></div>
+          <div><small>Coin có thể nhận</small><strong id="lcMax">0</strong></div>
+        </div>
       </div>
-      <p class="hint">Chọn một nhà cung cấp, vượt link rồi quay lại để nhận coin. Lượt mới có từ 00:00 mỗi ngày.
-        Không dùng tool bypass: vượt quá nhanh hoặc khác trình duyệt sẽ không được tính.</p>
-      <div class="users" id="lcList"><div class="empty">Đang tải…</div></div>
     </section>
+
+    <section>
+      <h2>Vượt link nhận coin</h2>
+      <p>Chọn một nhà cung cấp, vượt link rồi quay lại web để nhận coin. Lượt mới có từ 00:00 mỗi ngày. Vượt quá nhanh, dùng tool bypass hoặc đổi trình duyệt giữa chừng sẽ không được tính.</p>
+      <div class="users" id="lcList"><div class="empty loading">Đang tải…</div></div>
+    </section>
+
     <section id="lcAdmin" hidden>
-      <h2>Quản trị: nhà cung cấp link</h2>
+      <h2>Quản lý nhà cung cấp</h2>
+      <p>Mỗi nhà cung cấp là một dịch vụ rút gọn link. Bạn đặt số coin thưởng, số lượt mỗi ngày và thời gian vượt tối thiểu.</p>
       <div class="users" id="lcAdminList"></div>
-      <form id="lcForm" autocomplete="off">
+
+      <form class="lc-card" id="lcForm" autocomplete="off">
+        <h3 id="lcFormTitle">Thêm nhà cung cấp</h3>
         <input type="hidden" id="lcId">
-        <input id="lcName" placeholder="Tên (vd link4m)" maxlength="40">
-        <input id="lcApi" placeholder="API URL, chứa {token} và {url}">
-        <input id="lcToken" placeholder="API token (để trống = giữ token cũ)">
-        <input id="lcReward" inputmode="numeric" placeholder="Coin mỗi lượt">
-        <input id="lcLimit" inputmode="numeric" placeholder="Số lượt / ngày / người">
-        <input id="lcMin" inputmode="numeric" placeholder="Thời gian vượt tối thiểu (giây)">
-        <button type="submit" class="wide">Lưu nhà cung cấp</button>
+        <div class="field">
+          <label for="lcName">Tên hiển thị</label>
+          <input type="text" id="lcName" placeholder="Ví dụ: link4m" maxlength="40">
+        </div>
+        <div class="field">
+          <label for="lcApi">API URL</label>
+          <input type="text" id="lcApi" placeholder="https://link4m.co/api-shorten/v2?api=...&url=..." inputmode="url" autocapitalize="off" spellcheck="false">
+          <div class="hint">Dán nguyên link mẫu của nhà cung cấp, hệ thống tự tách token và thay phần <code>url=</code>.</div>
+        </div>
+        <div class="field">
+          <label for="lcToken">API token</label>
+          <input type="text" id="lcToken" placeholder="Để trống nếu link trên đã chứa token" autocapitalize="off" spellcheck="false">
+          <div class="hint" id="lcTokenHint">Token được mã hoá khi lưu và không hiển thị lại.</div>
+        </div>
+        <div class="lc-grid">
+          <div class="field">
+            <label for="lcReward">Coin mỗi lượt</label>
+            <input type="text" id="lcReward" inputmode="numeric" placeholder="300">
+          </div>
+          <div class="field">
+            <label for="lcLimit">Lượt / ngày</label>
+            <input type="text" id="lcLimit" inputmode="numeric" placeholder="3">
+          </div>
+          <div class="field">
+            <label for="lcMin">Tối thiểu (giây)</label>
+            <input type="text" id="lcMin" inputmode="numeric" placeholder="20">
+          </div>
+        </div>
+        <label class="lc-check"><input type="checkbox" id="lcActive" checked> Đang bật cho khách sử dụng</label>
+        <div class="row">
+          <button type="submit" class="primary" id="lcSave">Lưu nhà cung cấp</button>
+          <button type="button" id="lcCancel" hidden>Huỷ sửa</button>
+        </div>
       </form>
-      <p class="hint">Có thể dán nguyên link mẫu của nhà cung cấp (vd https://link4m.co/api-shorten/v2?api=TOKEN&amp;url=abc.com), hệ thống tự tách token và thay phần url= cho đúng.</p>
     </section>`;
   const anchor = $("tab-wallet");
   anchor ? anchor.after(tab) : document.body.appendChild(tab);
@@ -47,12 +83,19 @@
     try {
       const d = await api("/linkcoin");
       $("lcBalance").textContent = fmt(d.balance);
+      let left = 0, max = 0;
+      for (const p of d.providers) { const l = Math.max(0, p.limit - p.used); left += l; max += l * p.reward; }
+      $("lcLeft").textContent = fmt(left);
+      $("lcMax").textContent = fmt(max);
       $("lcList").innerHTML = d.providers.length
         ? d.providers.map((p) => {
-            const left = p.limit - p.used;
-            return `<div class="user-row" style="display:flex;justify-content:space-between;align-items:center;gap:0.75rem;padding:0.6rem 0">
-              <div><b>${esc(p.name)}</b> · +${fmt(p.reward)} coin<br><small class="dim">${left > 0 ? `Còn ${left}/${p.limit} lượt hôm nay` : "Hết lượt hôm nay"}</small></div>
-              <button type="button" data-go="${p.id}" ${left > 0 ? "" : "disabled"}>Vượt link</button>
+            const l = Math.max(0, p.limit - p.used);
+            return `<div class="user${l ? "" : " off"}">
+              <span class="name">${esc(p.name)}</span>
+              <span class="tag ok">+${fmt(p.reward)} coin</span>
+              <span class="tag ${l ? "" : "off"}">${l ? `Còn ${l}/${p.limit} lượt` : "Hết lượt hôm nay"}</span>
+              <span class="spacer"></span>
+              <button type="button" class="primary" data-go="${p.id}" ${l ? "" : "disabled"}>Vượt link</button>
             </div>`;
           }).join("")
         : `<div class="empty">Chưa có nhà cung cấp nào đang mở.</div>`;
@@ -63,27 +106,47 @@
     const b = e.target.closest("[data-go]");
     if (!b) return;
     b.disabled = true;
+    b.textContent = "Đang tạo link…";
     try {
       const r = await api("/linkcoin/start", { method: "POST", body: JSON.stringify({ providerId: Number(b.dataset.go) }) });
       location.href = r.url; // sang trang rút gọn; xong sẽ quay về /linkcoin/done
     } catch (err) {
       say(err.message, "bad");
       b.disabled = false;
+      b.textContent = "Vượt link";
     }
   });
 
   /* ---------- Quản trị ---------- */
 
   let providers = [];
+
+  function resetForm() {
+    $("lcForm").reset();
+    $("lcId").value = "";
+    $("lcActive").checked = true;
+    $("lcFormTitle").textContent = "Thêm nhà cung cấp";
+    $("lcTokenHint").textContent = "Token được mã hoá khi lưu và không hiển thị lại.";
+    $("lcCancel").hidden = true;
+  }
+
   async function loadAdmin() {
     const d = await api("/admin/linkcoin");
     providers = d.providers;
-    $("lcAdminList").innerHTML = providers.map((p) => `
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.5rem 0">
-        <div><b>${esc(p.name)}</b> ${p.active ? "" : "(tắt)"}<br>
-          <small class="dim">+${fmt(p.reward)} coin · ${p.daily_limit} lượt/ngày · ≥${p.min_seconds}s ${p.hasToken ? "" : "· chưa có token"}</small></div>
-        <span><button type="button" data-edit="${p.id}">Sửa</button> <button type="button" class="danger" data-del="${p.id}">Xoá</button></span>
-      </div>`).join("") || `<div class="empty">Chưa có nhà cung cấp.</div>`;
+    $("lcAdminList").innerHTML = providers.length
+      ? providers.map((p) => `
+        <div class="user${p.active ? "" : " off"}">
+          <span class="name">${esc(p.name)}</span>
+          <span class="tag ok">+${fmt(p.reward)} coin</span>
+          <span class="tag">${p.daily_limit} lượt/ngày</span>
+          <span class="tag">≥ ${p.min_seconds}s</span>
+          <span class="tag ${p.hasToken ? "ok" : "off"}">${p.hasToken ? "Có token" : "Thiếu token"}</span>
+          ${p.active ? "" : `<span class="tag off">Đang tắt</span>`}
+          <span class="spacer"></span>
+          <button type="button" data-edit="${p.id}">Sửa</button>
+          <button type="button" class="danger" data-del="${p.id}">Xoá</button>
+        </div>`).join("")
+      : `<div class="empty">Chưa có nhà cung cấp nào. Thêm ở form bên dưới.</div>`;
   }
 
   $("lcAdminList").addEventListener("click", async (e) => {
@@ -91,29 +154,51 @@
     const del = e.target.closest("[data-del]");
     if (ed) {
       const p = providers.find((x) => x.id === Number(ed.dataset.edit));
-      $("lcId").value = p.id; $("lcName").value = p.name; $("lcApi").value = p.api_url; $("lcToken").value = "";
-      $("lcReward").value = p.reward; $("lcLimit").value = p.daily_limit; $("lcMin").value = p.min_seconds;
-      $("lcName").focus();
+      $("lcId").value = p.id;
+      $("lcName").value = p.name;
+      $("lcApi").value = p.api_url;
+      $("lcToken").value = "";
+      $("lcReward").value = p.reward;
+      $("lcLimit").value = p.daily_limit;
+      $("lcMin").value = p.min_seconds;
+      $("lcActive").checked = p.active;
+      $("lcFormTitle").textContent = `Sửa: ${p.name}`;
+      $("lcTokenHint").textContent = p.hasToken ? "Để trống để giữ token hiện tại." : "Nhà cung cấp này chưa có token.";
+      $("lcCancel").hidden = false;
+      $("lcForm").scrollIntoView({ behavior: "smooth", block: "center" });
     } else if (del && confirm("Xoá nhà cung cấp này?")) {
-      await api(`/admin/linkcoin/${del.dataset.del}/delete`, { method: "POST", body: "{}" });
-      loadAdmin(); load();
+      try {
+        await api(`/admin/linkcoin/${del.dataset.del}/delete`, { method: "POST", body: "{}" });
+        say("Đã xoá nhà cung cấp");
+        resetForm(); loadAdmin(); load();
+      } catch (err) { say(err.message, "bad"); }
     }
   });
 
+  $("lcCancel").addEventListener("click", resetForm);
+
   $("lcForm").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const save = $("lcSave");
+    save.disabled = true;
     try {
       await api("/admin/linkcoin", {
         method: "POST",
         body: JSON.stringify({
-          id: $("lcId").value || undefined, name: $("lcName").value, api_url: $("lcApi").value, token: $("lcToken").value,
-          reward: $("lcReward").value, daily_limit: $("lcLimit").value, min_seconds: $("lcMin").value,
+          id: $("lcId").value || undefined,
+          name: $("lcName").value,
+          api_url: $("lcApi").value,
+          token: $("lcToken").value,
+          reward: $("lcReward").value,
+          daily_limit: $("lcLimit").value,
+          min_seconds: $("lcMin").value,
+          active: $("lcActive").checked,
         }),
       });
-      e.target.reset(); $("lcId").value = "";
       say("Đã lưu nhà cung cấp");
-      loadAdmin(); load();
+      resetForm(); loadAdmin(); load();
     } catch (err) { say(err.message, "bad"); }
+    save.disabled = false;
   });
 
   // Hiện khu quản trị nếu là admin

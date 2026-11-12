@@ -883,3 +883,14 @@ details.guide b { color: var(--paper); font-weight: 600; }
 .drawer-foot { position: sticky; bottom: 0; z-index: 1; margin-top: auto; background: var(--drawer); border-top: 1px solid var(--line); padding: .75rem 0 calc(.25rem + env(safe-area-inset-bottom, 0px)); }
 .drawer-foot .logout-btn { display: flex; align-items: center; justify-content: center; gap: .6rem; padding: .85rem 1rem; border-radius: 16px; font-size: 1.02rem; }
 .drawer-foot .logout-btn svg { width: 1.3rem; height: 1.3rem; flex: none; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- Tab Vượt link ---------- */
+.lc-card { margin-top: 1rem; padding: 1.1rem 1rem 1rem; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; }
+.lc-card h3 { margin: 0 0 1rem; font-size: .98rem; font-weight: 600; }
+.lc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; }
+.lc-grid .field { margin-bottom: .9rem; min-width: 0; }
+.lc-grid label { font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lc-check { display: flex; align-items: center; gap: .6rem; margin: .2rem 0 1rem; color: var(--paper); cursor: pointer; }
+.lc-card .field .hint { margin: .4rem 0 0; }
+.user.off .tag:not(.off) { opacity: .6; }
+@media (max-width: 420px) { .lc-grid { grid-template-columns: 1fr 1fr; } .lc-grid .field:last-child { grid-column: 1 / -1; } }
