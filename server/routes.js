@@ -433,5 +433,6 @@ require("./tempmail").register(router, auth);
 require("./revenue").register(router, auth);
 require("./linkcoin").register(router, auth);
 require("./tts").register(router, auth);
+require("./pagetext").register(router, auth);
 
 module.exports = router;

@@ -143,6 +143,19 @@
       <button class="primary wide" id="it-go" type="button" disabled>Xử lý ảnh</button>
       <div class="of-list" id="it-out"></div>` },
 
+    { id: "pagetext", title: "Lấy văn bản từ link", desc: "Sao chép chữ từ trang web chặn bôi đen hoặc chặn sao chép", icon: ic('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'), html: `
+      <p class="tl-note">Dán link trang web chặn bôi đen hoặc sao chép. Máy chủ tải trang, bỏ phần menu và quảng cáo rồi trả về chữ để bạn sao chép. Chỉ dùng cho nội dung bạn có quyền đọc và hãy tôn trọng bản quyền của tác giả. Trang cần đăng nhập hoặc nạp chữ bằng JavaScript có thể không lấy được.</p>
+      <div class="field"><label for="pg-url">Link trang web</label><input id="pg-url" type="text" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="https://..."></div>
+      <div class="seg row" id="pg-mode"><button class="primary" data-m="main" type="button">Nội dung chính</button><button data-m="all" type="button">Cả trang</button></div>
+      <div class="row"><button class="primary" id="pg-go" type="button">Lấy văn bản</button><button id="pg-paste" type="button">Dán link</button></div>
+      <div id="pg-out" hidden>
+        <p class="tl-note" id="pg-title"></p>
+        <div class="tl-chips" id="pg-stats"></div>
+        <p class="tl-note" id="pg-note" hidden></p>
+        <div class="field"><label for="pg-text">Văn bản</label><textarea id="pg-text" rows="12" spellcheck="false"></textarea></div>
+        <div class="row"><button class="primary" id="pg-copy" type="button">Sao chép tất cả</button><button id="pg-say" type="button">Đọc to</button><button id="pg-clear" type="button">Xoá</button></div>
+      </div>` },
+
     { id: "tts", title: "Đọc văn bản", desc: "Đọc to văn bản, chọn giọng đọc và tốc độ đọc", icon: ic('<path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/>'), html: `
       <p class="tl-note">Đọc to văn bản bằng tiếng Việt. Ưu tiên giọng có sẵn trên máy; máy nào không có giọng tiếng Việt sẽ tự dùng giọng máy chủ (cần mạng, văn bản được gửi lên máy chủ để tạo âm thanh).</p>
       <div class="field"><label for="tt-in">Văn bản cần đọc</label><textarea id="tt-in" rows="6" spellcheck="false" placeholder="Dán hoặc gõ văn bản ở đây"></textarea></div>
@@ -212,6 +225,7 @@
     initImg2Pdf();
     initImgTool();
     initTts();
+    initPageText();
     initNum2Vi();
     initVat();
     initWordCount();
@@ -347,6 +361,62 @@
       go.textContent = "Xử lý ảnh";
       go.disabled = !files.length;
     };
+  }
+
+  /* ================= LẤY VĂN BẢN TỪ LINK ================= */
+  function initPageText() {
+    let mode = "main";
+    const go = g("pg-go"), out = g("pg-out"), ta = g("pg-text");
+
+    async function copyText(t) {
+      try { await navigator.clipboard.writeText(t); return true; } catch (_) {}
+      try { ta.focus(); ta.select(); const ok = document.execCommand("copy"); ta.setSelectionRange(0, 0); return ok; } catch (_) { return false; }
+    }
+
+    g("pg-mode").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-m]");
+      if (!b) return;
+      mode = b.dataset.m;
+      g("pg-mode").querySelectorAll("button").forEach((x) => x.classList.toggle("primary", x === b));
+    });
+
+    g("pg-paste").onclick = async () => {
+      try { g("pg-url").value = (await navigator.clipboard.readText()).trim(); }
+      catch { toast("Trình duyệt không cho đọc bộ nhớ tạm, hãy giữ ô link rồi chọn Dán.", "bad"); }
+    };
+
+    async function run() {
+      const url = g("pg-url").value.trim();
+      if (!url) return toast("Hãy dán link của trang cần lấy chữ.", "bad");
+      go.disabled = true;
+      go.textContent = "Đang tải trang…";
+      try {
+        const d = await api("/pagetext", { method: "POST", body: JSON.stringify({ url, mode }) });
+        out.hidden = false;
+        g("pg-title").textContent = d.title ? "Trang: " + d.title : "";
+        g("pg-title").hidden = !d.title;
+        g("pg-stats").innerHTML = [`${fmt(d.words)} từ`, `${fmt(d.chars)} ký tự`].map((x) => `<span class="tl-chip">${x}</span>`).join("");
+        g("pg-note").hidden = !d.note;
+        g("pg-note").textContent = d.note || "";
+        ta.value = d.text;
+        out.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      } catch (e) { toast(e.message, "bad"); }
+      go.disabled = false;
+      go.textContent = "Lấy văn bản";
+    }
+    go.onclick = run;
+    g("pg-url").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); run(); } });
+
+    g("pg-copy").onclick = async () => {
+      if (!ta.value) return toast("Chưa có văn bản để sao chép.", "bad");
+      const ok = await copyText(ta.value);
+      toast(ok ? "Đã sao chép." : "Không sao chép được, hãy bôi đen trong ô văn bản rồi chọn Sao chép.", ok ? "good" : "bad");
+    };
+    g("pg-say").onclick = () => {
+      if (!ta.value.trim()) return toast("Chưa có văn bản để đọc.", "bad");
+      if (tts) tts.speak(ta.value); else toast("Thiết bị này không hỗ trợ đọc văn bản.", "bad");
+    };
+    g("pg-clear").onclick = () => { ta.value = ""; g("pg-url").value = ""; out.hidden = true; };
   }
 
   /* ================= ĐỌC VĂN BẢN (giọng đọc có sẵn của thiết bị) ================= */
