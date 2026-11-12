@@ -143,11 +143,21 @@
       <button class="primary wide" id="it-go" type="button" disabled>Xử lý ảnh</button>
       <div class="of-list" id="it-out"></div>` },
 
+    { id: "tts", title: "Đọc văn bản", desc: "Đọc to văn bản, chọn giọng đọc và tốc độ đọc", icon: ic('<path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/>'), html: `
+      <p class="tl-note">Dùng giọng đọc có sẵn trên thiết bị của bạn, văn bản không gửi đi đâu. Giọng nghe tự nhiên đến mức nào còn tuỳ máy và trình duyệt.</p>
+      <div class="field"><label for="tt-in">Văn bản cần đọc</label><textarea id="tt-in" rows="6" spellcheck="false" placeholder="Dán hoặc gõ văn bản ở đây"></textarea></div>
+      <div class="field"><label for="tt-voice">Giọng đọc</label><select id="tt-voice"><option value="">Đang tải danh sách giọng…</option></select></div>
+      <div class="field"><label for="tt-rate">Tốc độ đọc: <b id="tt-ratev">1.0</b>x</label><input id="tt-rate" type="range" min="0.5" max="2" step="0.1" value="1"></div>
+      <div class="tl-btns" id="tt-speeds"><button data-r="0.75" type="button">0.75x</button><button data-r="1" type="button">1x</button><button data-r="1.25" type="button">1.25x</button><button data-r="1.5" type="button">1.5x</button><button data-r="2" type="button">2x</button></div>
+      <div class="row"><button class="primary" id="tt-play" type="button">Đọc</button><button id="tt-pause" type="button" disabled>Tạm dừng</button><button id="tt-stop" type="button" disabled>Dừng</button><button id="tt-test" type="button">Nghe thử giọng</button></div>
+      <div class="tl-chips" id="tt-status"></div>
+      <p class="tl-note" id="tt-hint" hidden></p>` },
+
     { id: "num2vi", title: "Số thành chữ", desc: "Đọc số tiền bằng chữ tiếng Việt cho hoá đơn, hợp đồng", icon: ic('<path d="M5 8h14M5 12h9M5 16h6"/><path d="M16 15l2 2 3-4"/>'), html: `
       <div class="field"><label for="nv-in">Số tiền hoặc số cần đọc</label><input id="nv-in" type="text" inputmode="numeric" autocomplete="off" placeholder="Ví dụ: 1250000"></div>
       <div class="seg row" id="nv-unit"><button class="primary" data-u="dong" type="button">Đồng</button><button data-u="none" type="button">Chỉ đọc số</button></div>
       <div class="tl-result of-res" id="nv-out" hidden></div>
-      <div class="row"><button id="nv-copy" type="button">Sao chép</button></div>` },
+      <div class="row"><button id="nv-copy" type="button">Sao chép</button><button id="nv-say" type="button">Đọc to</button></div>` },
 
     { id: "vat", title: "Tính VAT và phần trăm", desc: "Cộng hoặc tách thuế GTGT, tính % tăng giảm", icon: ic('<path d="M6 18L18 6"/><circle cx="7.5" cy="7.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/>'), html: `
       <div class="seg row" id="vt-mode"><button class="primary" data-m="add" type="button">Cộng VAT</button><button data-m="split" type="button">Tách VAT</button><button data-m="pct" type="button">Phần trăm</button></div>
@@ -200,6 +210,7 @@
 
     initImg2Pdf();
     initImgTool();
+    initTts();
     initNum2Vi();
     initVat();
     initWordCount();
@@ -337,6 +348,131 @@
     };
   }
 
+  /* ================= ĐỌC VĂN BẢN (giọng đọc có sẵn của thiết bị) ================= */
+  /*TTS-START*/
+  let tts = null;
+
+  /** Cắt văn bản thành các câu ngắn (≤ 180 ký tự) vì nhiều trình duyệt tự dừng khi đọc một đoạn quá dài. */
+  function splitText(t) {
+    const out = [];
+    String(t).split(/\n+/).forEach((par) => {
+      par.replace(/([.!?…]+)\s+/g, "$1\u0001").split("\u0001").forEach((s) => {
+        s = s.trim();
+        while (s.length > 180) {
+          let cut = s.lastIndexOf(",", 180);
+          if (cut < 60) cut = s.lastIndexOf(" ", 180);
+          if (cut < 60) cut = 179;
+          out.push(s.slice(0, cut + 1).trim());
+          s = s.slice(cut + 1).trim();
+        }
+        if (s) out.push(s);
+      });
+    });
+    return out;
+  }
+
+  function initTts() {
+    const synth = window.speechSynthesis;
+    const hint = g("tt-hint"), status = g("tt-status");
+    const play = g("tt-play"), pause = g("tt-pause"), stop = g("tt-stop"), test = g("tt-test");
+    if (!synth || typeof SpeechSynthesisUtterance === "undefined") {
+      [play, pause, stop, test].forEach((b) => (b.disabled = true));
+      hint.hidden = false;
+      hint.textContent = "Trình duyệt này không hỗ trợ đọc văn bản. Hãy thử Chrome hoặc Safari bản mới.";
+      return;
+    }
+
+    const sel = g("tt-voice"), rateEl = g("tt-rate");
+    let voices = [], chunks = [], idx = 0, run = 0, state = "idle"; // idle | speak | pause
+
+    const save = () => { try { localStorage.setItem("of_tts", JSON.stringify({ voice: sel.value, rate: rateEl.value })); } catch (_) {} };
+    const saved = (() => { try { return JSON.parse(localStorage.getItem("of_tts")) || {}; } catch { return {}; } })();
+    if (saved.rate) rateEl.value = saved.rate;
+
+    const showRate = () => { g("tt-ratev").textContent = Number(rateEl.value).toFixed(1); };
+    const ui = () => {
+      play.textContent = state === "idle" ? "Đọc" : "Đọc lại";
+      pause.textContent = state === "pause" ? "Tiếp tục" : "Tạm dừng";
+      pause.disabled = state === "idle";
+      stop.disabled = state === "idle";
+      status.innerHTML = state === "idle" ? "" : `<span class="tl-chip ok">${state === "pause" ? "Đang tạm dừng" : "Đang đọc"} · câu ${Math.min(idx + 1, chunks.length)}/${chunks.length}</span>`;
+    };
+
+    function fillVoices() {
+      voices = synth.getVoices();
+      if (!voices.length) return;
+      const keep = sel.value || saved.voice;
+      const opt = (v) => `<option value="${esc(v.voiceURI)}">${esc(v.name)} (${esc(v.lang)})${v.localService ? "" : " · cần mạng"}</option>`;
+      const vi = voices.filter((v) => /^vi/i.test(v.lang)), other = voices.filter((v) => !/^vi/i.test(v.lang));
+      sel.innerHTML = (vi.length ? `<optgroup label="Tiếng Việt">${vi.map(opt).join("")}</optgroup>` : "") + (other.length ? `<optgroup label="Ngôn ngữ khác">${other.map(opt).join("")}</optgroup>` : "");
+      const want = voices.find((v) => v.voiceURI === keep) || vi[0] || voices[0];
+      sel.value = want.voiceURI;
+      hint.hidden = !!vi.length;
+      if (!vi.length) hint.textContent = "Máy chưa có giọng tiếng Việt. Trên Android: Cài đặt → Ngôn ngữ và nhập liệu → Chuyển văn bản thành giọng nói (Google) → tải gói tiếng Việt. Trên iPhone: Cài đặt → Trợ năng → Nội dung đã nói → Giọng nói.";
+    }
+    fillVoices();
+    synth.onvoiceschanged = fillVoices;
+    [400, 1500].forEach((ms) => setTimeout(() => { if (!voices.length) fillVoices(); }, ms)); // một số trình duyệt nạp giọng chậm
+    showRate();
+
+    function fail(e) { run++; state = "idle"; ui(); toast("Không đọc được: " + (e || "lỗi không rõ") + ". Thử chọn giọng khác.", "bad"); }
+
+    function speakAt(i, my) {
+      if (my !== run) return;
+      if (i >= chunks.length) { state = "idle"; idx = 0; ui(); return; }
+      idx = i;
+      const u = new SpeechSynthesisUtterance(chunks[i]);
+      const v = voices.find((x) => x.voiceURI === sel.value);
+      if (v) { u.voice = v; u.lang = v.lang; } else u.lang = "vi-VN";
+      u.rate = Number(rateEl.value) || 1;
+      u.onend = () => speakAt(i + 1, my);
+      u.onerror = (e) => { if (my === run && e.error !== "canceled" && e.error !== "interrupted") fail(e.error); };
+      ui();
+      synth.speak(u);
+    }
+
+    /** Bắt đầu (hoặc đọc tiếp từ câu `from`); hủy phần đang đọc trước đó. */
+    function begin(from) {
+      const my = ++run;
+      synth.cancel();
+      state = "speak";
+      ui();
+      setTimeout(() => speakAt(from, my), 60); // chờ lệnh hủy xong, tránh lỗi trên Chrome
+    }
+
+    function speak(text) {
+      const t = String(text || "").trim();
+      if (!t) return toast("Chưa có văn bản để đọc.", "bad");
+      chunks = splitText(t);
+      begin(0);
+    }
+
+    function halt() { run++; synth.cancel(); state = "idle"; idx = 0; ui(); }
+
+    play.onclick = () => speak(g("tt-in").value);
+    test.onclick = () => speak("Xin chào, đây là giọng đọc thử.");
+    stop.onclick = halt;
+    pause.onclick = () => {
+      if (state === "speak") { run++; synth.cancel(); state = "pause"; ui(); }   // dừng hẳn rồi đọc lại từ câu đang dở, chạy được cả trên Android
+      else if (state === "pause") begin(idx);
+    };
+    // đổi giọng hoặc tốc độ khi đang đọc: áp dụng ngay từ câu hiện tại
+    const retune = () => { save(); if (state === "speak") begin(idx); };
+    sel.onchange = retune;
+    rateEl.oninput = () => { showRate(); };
+    rateEl.onchange = retune;
+    g("tt-speeds").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-r]");
+      if (!b) return;
+      rateEl.value = b.dataset.r; showRate(); retune();
+    });
+    window.addEventListener("pagehide", () => synth.cancel());
+
+    tts = { speak };
+    ui();
+  }
+  /*TTS-END*/
+
   /* ================= 3. SỐ THÀNH CHỮ ================= */
   function initNum2Vi() {
     let unit = "dong", text = "";
@@ -364,6 +500,10 @@
       g("nv-unit").querySelectorAll("button").forEach((x) => x.classList.toggle("primary", x === b));
       run();
     });
+    g("nv-say").onclick = () => {
+      if (!text) return toast("Chưa có nội dung để đọc.", "bad");
+      if (tts) tts.speak(text); else toast("Thiết bị này không hỗ trợ đọc văn bản.", "bad");
+    };
     g("nv-copy").onclick = async () => {
       if (!text) return toast("Chưa có nội dung để sao chép.", "bad");
       try { await navigator.clipboard.writeText(text); toast("Đã sao chép."); } catch { toast("Không sao chép được, hãy bôi đen và copy thủ công.", "bad"); }
