@@ -144,7 +144,7 @@
       <div class="of-list" id="it-out"></div>` },
 
     { id: "tts", title: "Đọc văn bản", desc: "Đọc to văn bản, chọn giọng đọc và tốc độ đọc", icon: ic('<path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/>'), html: `
-      <p class="tl-note">Dùng giọng đọc có sẵn trên thiết bị của bạn, văn bản không gửi đi đâu. Giọng nghe tự nhiên đến mức nào còn tuỳ máy và trình duyệt.</p>
+      <p class="tl-note">Đọc to văn bản bằng tiếng Việt. Ưu tiên giọng có sẵn trên máy; máy nào không có giọng tiếng Việt sẽ tự dùng giọng máy chủ (cần mạng, văn bản được gửi lên máy chủ để tạo âm thanh).</p>
       <div class="field"><label for="tt-in">Văn bản cần đọc</label><textarea id="tt-in" rows="6" spellcheck="false" placeholder="Dán hoặc gõ văn bản ở đây"></textarea></div>
       <div class="field"><label for="tt-voice">Giọng đọc</label><select id="tt-voice"><option value="">Đang tải danh sách giọng…</option></select></div>
       <div class="field"><label for="tt-rate">Tốc độ đọc: <b id="tt-ratev">1.0</b>x</label><input id="tt-rate" type="range" min="0.5" max="2" step="0.1" value="1"></div>
@@ -371,11 +371,15 @@
     return out;
   }
 
+  const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=";
+
   function initTts() {
     const synth = window.speechSynthesis;
+    const hasDev = !!synth && typeof SpeechSynthesisUtterance !== "undefined";
+    const hasAudio = typeof Audio !== "undefined";
     const hint = g("tt-hint"), status = g("tt-status");
     const play = g("tt-play"), pause = g("tt-pause"), stop = g("tt-stop"), test = g("tt-test");
-    if (!synth || typeof SpeechSynthesisUtterance === "undefined") {
+    if (!hasDev && !hasAudio) {
       [play, pause, stop, test].forEach((b) => (b.disabled = true));
       hint.hidden = false;
       hint.textContent = "Trình duyệt này không hỗ trợ đọc văn bản. Hãy thử Chrome hoặc Safari bản mới.";
@@ -383,13 +387,19 @@
     }
 
     const sel = g("tt-voice"), rateEl = g("tt-rate");
-    let voices = [], chunks = [], idx = 0, run = 0, state = "idle"; // idle | speak | pause
+    // một thẻ <audio> dùng lại cho mọi câu: iOS chỉ cho phát khi đã "mở khoá" trong lúc người dùng bấm nút
+    const player = hasAudio ? new Audio() : null;
+    let devVoices = [], srvVoices = [], chunks = [], idx = 0, run = 0, state = "idle"; // idle | speak | pause
+    let engine = "dev", curVoice = "", resumeFn = null, urls = new Map(), userChose = !!saved0().voice;
 
-    const save = () => { try { localStorage.setItem("of_tts", JSON.stringify({ voice: sel.value, rate: rateEl.value })); } catch (_) {} };
-    const saved = (() => { try { return JSON.parse(localStorage.getItem("of_tts")) || {}; } catch { return {}; } })();
+    const rate = () => Number(rateEl.value) || 1;
+    function saved0() { try { return JSON.parse(localStorage.getItem("of_tts")) || {}; } catch { return {}; } }
+    const saved = saved0();
+    // chỉ nhớ giọng khi người dùng tự chọn, để máy tự chọn tạm (ví dụ giọng tiếng Anh) không bị lưu lại
+    const save = () => { try { localStorage.setItem("of_tts", JSON.stringify({ voice: userChose ? sel.value : saved.voice || "", rate: rateEl.value })); } catch (_) {} };
     if (saved.rate) rateEl.value = saved.rate;
 
-    const showRate = () => { g("tt-ratev").textContent = Number(rateEl.value).toFixed(1); };
+    const showRate = () => { g("tt-ratev").textContent = rate().toFixed(1); };
     const ui = () => {
       play.textContent = state === "idle" ? "Đọc" : "Đọc lại";
       pause.textContent = state === "pause" ? "Tiếp tục" : "Tạm dừng";
@@ -398,75 +408,174 @@
       status.innerHTML = state === "idle" ? "" : `<span class="tl-chip ok">${state === "pause" ? "Đang tạm dừng" : "Đang đọc"} · câu ${Math.min(idx + 1, chunks.length)}/${chunks.length}</span>`;
     };
 
+    /* ----- danh sách giọng: giọng trên máy + giọng máy chủ ----- */
     function fillVoices() {
-      voices = synth.getVoices();
-      if (!voices.length) return;
-      const keep = sel.value || saved.voice;
-      const opt = (v) => `<option value="${esc(v.voiceURI)}">${esc(v.name)} (${esc(v.lang)})${v.localService ? "" : " · cần mạng"}</option>`;
-      const vi = voices.filter((v) => /^vi/i.test(v.lang)), other = voices.filter((v) => !/^vi/i.test(v.lang));
-      sel.innerHTML = (vi.length ? `<optgroup label="Tiếng Việt">${vi.map(opt).join("")}</optgroup>` : "") + (other.length ? `<optgroup label="Ngôn ngữ khác">${other.map(opt).join("")}</optgroup>` : "");
-      const want = voices.find((v) => v.voiceURI === keep) || vi[0] || voices[0];
-      sel.value = want.voiceURI;
+      devVoices = hasDev ? synth.getVoices() : [];
+      const keep = (userChose ? sel.value : saved.voice) || "";
+      const dev = (v) => `<option value="dev:${esc(v.voiceURI)}">${esc(v.name)} (${esc(v.lang)})${v.localService ? "" : " · cần mạng"}</option>`;
+      const vi = devVoices.filter((v) => /^vi/i.test(v.lang)), other = devVoices.filter((v) => !/^vi/i.test(v.lang));
+      sel.innerHTML =
+        (vi.length ? `<optgroup label="Giọng tiếng Việt trên máy">${vi.map(dev).join("")}</optgroup>` : "") +
+        (srvVoices.length ? `<optgroup label="Giọng máy chủ (dùng được trên mọi thiết bị, cần mạng)">${srvVoices.map((v) => `<option value="srv:${esc(v.id)}">${esc(v.name)}</option>`).join("")}</optgroup>` : "") +
+        (other.length ? `<optgroup label="Ngôn ngữ khác trên máy">${other.map(dev).join("")}</optgroup>` : "");
+      if (!sel.options.length) { sel.innerHTML = '<option value="">Chưa có giọng đọc nào</option>'; return; }
+      const all = [...sel.options].map((o) => o.value);
+      const firstVi = vi[0] ? "dev:" + vi[0].voiceURI : "", firstSrv = srvVoices[0] ? "srv:" + srvVoices[0].id : "";
+      sel.value = all.includes(keep) ? keep : firstVi || firstSrv || all[0];
       hint.hidden = !!vi.length;
-      if (!vi.length) hint.textContent = "Máy chưa có giọng tiếng Việt. Trên Android: Cài đặt → Ngôn ngữ và nhập liệu → Chuyển văn bản thành giọng nói (Google) → tải gói tiếng Việt. Trên iPhone: Cài đặt → Trợ năng → Nội dung đã nói → Giọng nói.";
+      if (!vi.length) hint.textContent = srvVoices.length
+        ? "Máy bạn chưa có giọng đọc tiếng Việt, nên dùng giọng máy chủ (cần kết nối mạng)."
+        : "Máy bạn chưa có giọng đọc tiếng Việt và máy chủ chưa có giọng dự phòng. Trên Android hãy cài gói tiếng Việt trong Cài đặt → Chuyển văn bản thành giọng nói.";
     }
     fillVoices();
-    synth.onvoiceschanged = fillVoices;
-    [400, 1500].forEach((ms) => setTimeout(() => { if (!voices.length) fillVoices(); }, ms)); // một số trình duyệt nạp giọng chậm
+    if (hasDev) synth.onvoiceschanged = fillVoices;
+    [400, 1500].forEach((ms) => setTimeout(() => { if (!devVoices.length) fillVoices(); }, ms)); // một số trình duyệt nạp giọng chậm
     showRate();
+    api("/tts/voices").then((d) => { srvVoices = d.voices || []; fillVoices(); }).catch(() => {});
 
-    function fail(e) { run++; state = "idle"; ui(); toast("Không đọc được: " + (e || "lỗi không rõ") + ". Thử chọn giọng khác.", "bad"); }
+    /* ----- phát ----- */
+    function fail(msg) { run++; state = "idle"; resumeFn = null; ui(); toast("Không đọc được: " + (msg || "lỗi không rõ"), "bad"); }
 
-    function speakAt(i, my) {
+    function clearAudio() {
+      urls.forEach((p) => p.then((u) => URL.revokeObjectURL(u)).catch(() => {}));
+      urls = new Map();
+      if (player) { player.onended = player.onerror = null; try { player.pause(); } catch (_) {} }
+    }
+
+    // --- giọng trên máy
+    function speakDev(i, my) {
       if (my !== run) return;
       if (i >= chunks.length) { state = "idle"; idx = 0; ui(); return; }
       idx = i;
       const u = new SpeechSynthesisUtterance(chunks[i]);
-      const v = voices.find((x) => x.voiceURI === sel.value);
+      const v = devVoices.find((x) => "dev:" + x.voiceURI === curVoice);
       if (v) { u.voice = v; u.lang = v.lang; } else u.lang = "vi-VN";
-      u.rate = Number(rateEl.value) || 1;
-      u.onend = () => speakAt(i + 1, my);
-      u.onerror = (e) => { if (my === run && e.error !== "canceled" && e.error !== "interrupted") fail(e.error); };
+      u.rate = rate();
+      let started = false;
+      // máy không có dịch vụ đọc sẽ im lặng, không báo lỗi: sau 4 giây chưa bắt đầu thì chuyển sang giọng máy chủ
+      const wd = setTimeout(() => { if (my === run && !started) fallback("Giọng trên máy không phản hồi"); }, 4000);
+      u.onstart = () => { started = true; clearTimeout(wd); };
+      u.onend = () => { clearTimeout(wd); speakDev(i + 1, my); };
+      u.onerror = (e) => {
+        clearTimeout(wd);
+        if (my !== run || e.error === "canceled" || e.error === "interrupted") return;
+        fallback(e.error);
+      };
       ui();
       synth.speak(u);
     }
 
-    /** Bắt đầu (hoặc đọc tiếp từ câu `from`); hủy phần đang đọc trước đó. */
-    function begin(from) {
+    function fallback(why) {
+      if (srvVoices.length && hasAudio) {
+        sel.value = "srv:" + srvVoices[0].id;
+        toast("Giọng trên máy không dùng được, đã chuyển sang giọng máy chủ.");
+        begin(idx, true);
+      } else fail(why);
+    }
+
+    // --- giọng máy chủ
+    function audioFor(i) {
+      if (i >= chunks.length) return null;
+      if (!urls.has(i)) {
+        const voice = curVoice.slice(4);
+        const p = fetch("/api/tts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: chunks[i], voice }) })
+          .then(async (r) => {
+            if (r.status === 401) { location.href = "/login.html"; throw new Error("Phiên đăng nhập đã hết"); }
+            if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Máy chủ giọng đọc lỗi (" + r.status + ")");
+            return URL.createObjectURL(await r.blob());
+          });
+        p.catch(() => urls.delete(i)); // lỗi thì cho phép thử lại
+        urls.set(i, p);
+      }
+      return urls.get(i);
+    }
+
+    async function speakSrv(i, my) {
+      if (my !== run) return;
+      if (i >= chunks.length) { state = "idle"; idx = 0; ui(); return; }
+      idx = i;
+      ui();
+      try {
+        const url = await audioFor(i);
+        if (my !== run) return;
+        const next = audioFor(i + 1);
+        if (next) next.catch(() => {}); // tải trước câu kế tiếp cho liền mạch
+        const go = async () => {
+          player.onended = () => speakSrv(i + 1, my);
+          player.onerror = () => { if (my === run) fail("không phát được âm thanh"); };
+          player.src = url;
+          player.defaultPlaybackRate = rate();
+          player.playbackRate = rate();
+          player.preservesPitch = player.mozPreservesPitch = player.webkitPreservesPitch = true;
+          await player.play();
+        };
+        if (state === "pause") { resumeFn = go; return; }
+        await go();
+      } catch (e) {
+        if (my === run) fail(e.message);
+      }
+    }
+
+    /** Bắt đầu (hoặc đọc tiếp từ câu `from`); huỷ phần đang đọc trước đó. */
+    function begin(from, keepChunks) {
       const my = ++run;
-      synth.cancel();
+      curVoice = sel.value;
+      engine = curVoice.startsWith("srv:") ? "srv" : "dev";
+      if (hasDev) synth.cancel();
+      clearAudio();
+      resumeFn = null;
+      if (engine === "srv" && !hasAudio) return fail("trình duyệt không phát được âm thanh");
+      if (engine === "dev" && !hasDev) return fail("máy không có giọng đọc");
       state = "speak";
       ui();
-      setTimeout(() => speakAt(from, my), 60); // chờ lệnh hủy xong, tránh lỗi trên Chrome
+      if (engine === "srv") speakSrv(from, my);
+      else setTimeout(() => speakDev(from, my), 60); // chờ lệnh huỷ xong, tránh lỗi trên Chrome
     }
 
     function speak(text) {
       const t = String(text || "").trim();
       if (!t) return toast("Chưa có văn bản để đọc.", "bad");
+      // iOS: phát một âm im lặng ngay trong lúc bấm nút để được phép phát tiếng sau đó
+      if (player && sel.value.startsWith("srv:")) { player.src = SILENT_WAV; player.play().catch(() => {}); }
       chunks = splitText(t);
       begin(0);
     }
 
-    function halt() { run++; synth.cancel(); state = "idle"; idx = 0; ui(); }
+    function halt() { run++; if (hasDev) synth.cancel(); clearAudio(); state = "idle"; idx = 0; resumeFn = null; ui(); }
 
     play.onclick = () => speak(g("tt-in").value);
     test.onclick = () => speak("Xin chào, đây là giọng đọc thử.");
     stop.onclick = halt;
     pause.onclick = () => {
-      if (state === "speak") { run++; synth.cancel(); state = "pause"; ui(); }   // dừng hẳn rồi đọc lại từ câu đang dở, chạy được cả trên Android
-      else if (state === "pause") begin(idx);
+      if (state === "speak") {
+        if (engine === "srv") { if (player && !player.paused) player.pause(); state = "pause"; }
+        else { run++; synth.cancel(); state = "pause"; }   // giọng trên máy: dừng rồi đọc lại từ câu đang dở, chạy được cả trên Android
+        ui();
+      } else if (state === "pause") {
+        if (engine === "srv") {
+          state = "speak"; ui();
+          if (resumeFn) { const f = resumeFn; resumeFn = null; f().catch((e) => fail(e.message)); }
+          else if (player && player.src && !player.ended) player.play().catch((e) => fail(e.message));
+          else begin(idx);
+        } else begin(idx);
+      }
     };
-    // đổi giọng hoặc tốc độ khi đang đọc: áp dụng ngay từ câu hiện tại
-    const retune = () => { save(); if (state === "speak") begin(idx); };
-    sel.onchange = retune;
-    rateEl.oninput = () => { showRate(); };
+    // đổi giọng hoặc tốc độ khi đang đọc: giọng máy chủ đổi tốc độ ngay, còn lại đọc lại từ câu hiện tại
+    const retune = () => {
+      save();
+      if (state !== "speak") return;
+      if (engine === "srv" && sel.value === curVoice) { if (player) { player.defaultPlaybackRate = rate(); player.playbackRate = rate(); } }
+      else begin(idx);
+    };
+    sel.onchange = () => { userChose = true; retune(); };
+    rateEl.oninput = () => { showRate(); if (engine === "srv" && state === "speak" && player) player.playbackRate = rate(); };
     rateEl.onchange = retune;
     g("tt-speeds").addEventListener("click", (e) => {
       const b = e.target.closest("button[data-r]");
       if (!b) return;
       rateEl.value = b.dataset.r; showRate(); retune();
     });
-    window.addEventListener("pagehide", () => synth.cancel());
+    window.addEventListener("pagehide", () => { if (hasDev) synth.cancel(); clearAudio(); });
 
     tts = { speak };
     ui();
