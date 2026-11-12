@@ -61,7 +61,8 @@ function createApp() {
     res.sendFile(path.join(PUBLIC, "dashboard.html"));
   });
 
-  app.use(express.static(PUBLIC, { index: false }));
+  // no-cache = luon hoi lai server (co ETag nen van nhe), tranh trinh duyet giu giao dien cu sau khi deploy
+  app.use(express.static(PUBLIC, { index: false, setHeaders: (res) => res.setHeader("Cache-Control", "no-cache") }));
 
   app.use((req, res) => res.status(404).send("Khong tim thay trang"));
 
