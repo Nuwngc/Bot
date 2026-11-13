@@ -61,6 +61,13 @@ for (const col of ["locked"]) {
   }
 }
 
+// Tro ly AI Gemini cua tung bot (khoa luu MA HOA nhu cookie)
+for (const [col, def] of [["gemini_key_enc", "TEXT"], ["gemini_model", "TEXT"], ["gemini_prompt", "TEXT"]]) {
+  if (!db.prepare("PRAGMA table_info(zalo_accounts)").all().some((c) => c.name === col)) {
+    db.exec(`ALTER TABLE zalo_accounts ADD COLUMN ${col} ${def}`);
+  }
+}
+
 // Chuyen du lieu tu ban cu (1 bot Zalo / tai khoan, bang zalo_bots)
 if (getSetting("migrated_zalo_accounts") !== "1") {
   const hasOld = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='zalo_bots'").get();
@@ -95,6 +102,7 @@ const zq = {
   delByUser: db.prepare("DELETE FROM zalo_accounts WHERE user_id = ?"),
   setExpires: db.prepare("UPDATE zalo_accounts SET expires = ? WHERE id = ?"),
   setFlags: db.prepare("UPDATE zalo_accounts SET locked = ? WHERE id = ?"),
+  setGemini: db.prepare("UPDATE zalo_accounts SET gemini_key_enc = ?, gemini_model = ?, gemini_prompt = ?, updated_at = datetime('now') WHERE id = ?"),
   allAutostart: db.prepare(
     "SELECT * FROM zalo_accounts WHERE autostart = 1 AND cookies_enc IS NOT NULL AND imei_enc IS NOT NULL"
   ),
@@ -254,6 +262,10 @@ function spawnBot(id, r, cookies, imei) {
         // them (chinh ID tai khoan bot) o lan chay dau -> chi can gia tri khac rong
         author_id: r.author_id || "auto",
         status: true,
+        // Tro ly AI: file config tam quyen 600 va bi xoa khi bot tat
+        gemini_key: decrypt(r.gemini_key_enc) || "",
+        gemini_model: r.gemini_model || "",
+        gemini_prompt: r.gemini_prompt || "",
       },
     ],
   };
