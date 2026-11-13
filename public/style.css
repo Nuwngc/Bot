@@ -894,3 +894,30 @@ details.guide b { color: var(--paper); font-weight: 600; }
 .lc-card .field .hint { margin: .4rem 0 0; }
 .user.off .tag:not(.off) { opacity: .6; }
 @media (max-width: 420px) { .lc-grid { grid-template-columns: 1fr 1fr; } .lc-grid .field:last-child { grid-column: 1 / -1; } }
+
+/* ---------- Tab Thống kê link (admin) ---------- */
+.stat b.neg, .ls-foot .neg, .ls-nums .neg { color: var(--alert); }
+.stat b.pos, .ls-foot .pos { color: var(--ok); }
+.ls-list { display: flex; flex-direction: column; gap: .7rem; margin-top: .7rem; }
+.ls-card { padding: .95rem 1rem; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); box-shadow: inset 0 1px 0 var(--hi); }
+.ls-card.off .ls-head b { color: var(--dim); }
+.ls-head { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; margin-bottom: .7rem; }
+.ls-head b { font-weight: 600; font-size: 1rem; overflow-wrap: anywhere; }
+.ls-nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
+.ls-nums > div { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
+.ls-nums small { font-size: .7rem; letter-spacing: .04em; text-transform: uppercase; color: var(--dim); }
+.ls-nums b { font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.ls-nums span { font-size: .74rem; color: var(--dim); }
+.ls-bars { display: flex; flex-direction: column; gap: .35rem; margin: .8rem 0 .6rem; }
+.ls-bar { display: flex; align-items: center; gap: .55rem; font-size: .74rem; color: var(--dim); }
+.ls-bar > span { width: 2.2rem; flex: none; }
+.ls-bar em { font-style: normal; min-width: 4.2rem; text-align: right; font-variant-numeric: tabular-nums; color: var(--paper); }
+.ls-track { flex: 1; height: .5rem; border-radius: 99px; background: var(--raised); overflow: hidden; }
+.ls-track i { display: block; height: 100%; border-radius: 99px; }
+.ls-track i.coin { background: var(--grad); }
+.ls-track i.cash { background: var(--ok); }
+.ls-foot { font-size: .84rem; line-height: 1.5; }
+.ls-rate { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: .8rem; padding-top: .75rem; border-top: 1px solid var(--line); }
+.ls-rate label { flex: 1 1 100%; font-size: .78rem; color: var(--dim); }
+.ls-rate input { flex: 1; min-width: 0; }
+.ls-rate button { flex: none; padding: .5rem 1rem; }

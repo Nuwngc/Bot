@@ -342,7 +342,7 @@ $("tabs").addEventListener("click", (e) => {
 
 // Tab Quan tri chi hien sau khi app.js biet la admin -> mo tre mot chut
 const startTab = location.hash.slice(1) || "fb";
-const adminOnly = startTab === "admin" || startTab === "stats";
+const adminOnly = ["admin", "stats", "linkstats"].includes(startTab);
 showTab(adminOnly ? "fb" : startTab);
 if (adminOnly) setTimeout(() => showTab(startTab), 800);
 

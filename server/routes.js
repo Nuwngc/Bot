@@ -432,6 +432,7 @@ wallet.register(router, auth);
 require("./tempmail").register(router, auth);
 require("./revenue").register(router, auth);
 require("./linkcoin").register(router, auth);
+require("./linkstats").register(router, auth);
 require("./tts").register(router, auth);
 require("./pagetext").register(router, auth);
 
