@@ -17,6 +17,8 @@ from zlapi.models import Message, ThreadType
 
 import config
 from core.bot_sys import is_admin, read_settings, write_settings
+# Giu lai ten nay vi nhieu module cu van import: from modules.AI_GEMINI.pro_gemini import get_user_name_by_id
+from core.bot_sys import get_user_name_by_id  # noqa: F401
 
 des = {
     "version": "2.0.0",
