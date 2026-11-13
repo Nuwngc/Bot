@@ -148,6 +148,20 @@
       <div class="field"><label for="pg-url">Link trang web</label><input id="pg-url" type="text" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="https://..."></div>
       <div class="seg row" id="pg-mode"><button class="primary" data-m="main" type="button">Nội dung chính</button><button data-m="all" type="button">Cả trang</button></div>
       <div class="row"><button class="primary" id="pg-go" type="button">Lấy văn bản</button><button id="pg-paste" type="button">Dán link</button></div>
+      <details class="of-alt" id="pg-alt">
+        <summary>Cách 2: lấy chữ ngay trên trình duyệt của bạn</summary>
+        <div class="of-alt-body">
+          <p class="tl-note">Dùng khi cách trên báo lỗi (trang chặn máy chủ, cần đăng nhập, nạp chữ bằng JavaScript). Đoạn mã nhỏ này chạy ngay trên trang bạn đang mở, mở khoá việc bôi đen và sao chép, rồi hiện toàn bộ chữ của trang để bạn chép.</p>
+          <ol class="of-steps">
+            <li>Bấm nút <b>Sao chép mã mở khoá</b> bên dưới.</li>
+            <li>Thêm một dấu trang bất kỳ (menu ⋮ rồi biểu tượng ngôi sao). Vào <b>Dấu trang</b>, bấm giữ dấu trang đó, chọn <b>Chỉnh sửa</b>, đặt tên là <b>Mở khoá</b> và dán mã vào ô địa chỉ (URL).</li>
+            <li>Mở trang bị chặn. Gõ chữ <b>Mở khoá</b> lên thanh địa chỉ rồi chọn dấu trang đó trong gợi ý (không cần gõ chữ javascript).</li>
+            <li>Trang hiện khung chứa chữ, bấm <b>Sao chép tất cả</b>. Bấm Đóng thì trang vẫn được mở khoá để bạn bôi đen từng đoạn như bình thường.</li>
+          </ol>
+          <div class="row"><button class="primary" id="pg-bm" type="button">Sao chép mã mở khoá</button></div>
+          <p class="tl-note">Cách khác: trên Chrome, gõ <b>view-source:</b> trước link rồi mở, chữ của trang sẽ hiện ra và bôi đen được. Nếu trang chỉ hiển thị chữ dạng ảnh thì dùng Google Lens để chụp và chép chữ.</p>
+        </div>
+      </details>
       <div id="pg-out" hidden>
         <p class="tl-note" id="pg-title"></p>
         <div class="tl-chips" id="pg-stats"></div>
@@ -208,6 +222,11 @@
   .of-res{font-family:inherit;white-space:normal;word-break:normal}
   .of-res a{color:var(--lamp2);word-break:break-all}
   .of-dl{display:inline-flex;align-items:center;padding:.4rem .75rem;font-size:.82rem;border-radius:10px;border:1px solid var(--line);background:var(--field);color:var(--paper);text-decoration:none}
+  .of-alt{margin:1rem 0 0;border:1px solid var(--line);border-radius:14px;background:var(--raised)}
+  .of-alt summary{padding:.75rem .9rem;cursor:pointer;font-size:.88rem;color:var(--lamp2)}
+  .of-alt-body{padding:0 .9rem .9rem}
+  .of-steps{margin:.4rem 0 .8rem;padding-left:1.2rem;font-size:.86rem;line-height:1.55;color:var(--paper)}
+  .of-steps li{margin:.35rem 0}
   @media(max-width:420px){.of-grid{grid-template-columns:1fr}}`;
 
   function mount(section) {
@@ -363,6 +382,63 @@
     };
   }
 
+  /* ----- mã mở khoá sao chép (bookmarklet): chạy trên trang người dùng đang mở, không đi qua máy chủ.
+     Quy tắc: không dùng ghi chú // và không có ký tự % hoặc # trong thân hàm, vì sẽ thành link javascript: ----- */
+  function unlockBookmarklet() {
+    var d = document, w = window;
+    try {
+      var st = d.createElement("style");
+      st.textContent = "*,*::before,*::after{-webkit-user-select:text!important;user-select:text!important;-webkit-touch-callout:default!important}";
+      (d.head || d.documentElement).appendChild(st);
+      ["copy", "cut", "contextmenu", "selectstart", "dragstart"].forEach(function (t) {
+        d.addEventListener(t, function (e) { e.stopImmediatePropagation(); }, true);
+        w.addEventListener(t, function (e) { e.stopImmediatePropagation(); }, true);
+      });
+      [d, d.body, d.documentElement].forEach(function (n) {
+        if (n) { n.oncopy = n.oncut = n.oncontextmenu = n.onselectstart = n.ondragstart = null; }
+      });
+    } catch (e) {}
+    var old = d.getElementById("__of_txt");
+    if (old) old.remove();
+    var sel = String(w.getSelection ? w.getSelection() : "").trim();
+    var txt = sel || ((d.body && d.body.innerText) || "").replace(/\n{3,}/g, "\n\n").trim();
+    var box = d.createElement("div");
+    box.id = "__of_txt";
+    box.style.cssText = "position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483647;background:rgb(17,19,34);color:rgb(235,235,245);display:flex;flex-direction:column;padding:10px;gap:8px;font:15px sans-serif;box-sizing:border-box";
+    var info = d.createElement("div");
+    info.textContent = "Đã mở khoá sao chép cho trang này. " + txt.length + " ký tự" + (sel ? " (phần bạn đã chọn)" : "") + ".";
+    var ta = d.createElement("textarea");
+    ta.value = txt;
+    ta.style.cssText = "flex:1;min-height:0;box-sizing:border-box;background:rgb(30,32,52);color:inherit;border:1px solid rgb(80,84,120);border-radius:8px;padding:8px;font:15px/1.5 sans-serif";
+    var row = d.createElement("div");
+    row.style.cssText = "display:flex;gap:8px";
+    function mk(label, fn) {
+      var b = d.createElement("button");
+      b.textContent = label;
+      b.style.cssText = "flex:1;padding:12px;border-radius:10px;border:0;background:rgb(120,90,240);color:white;font:600 15px sans-serif";
+      b.onclick = fn;
+      row.appendChild(b);
+      return b;
+    }
+    var cp = mk("Sao chép tất cả", function () {
+      ta.focus();
+      ta.select();
+      var ok = false;
+      try { ok = d.execCommand("copy"); } catch (e) {}
+      if (!ok && navigator.clipboard) {
+        navigator.clipboard.writeText(ta.value).then(function () { cp.textContent = "Đã sao chép"; });
+        return;
+      }
+      cp.textContent = ok ? "Đã sao chép" : "Hãy bôi đen rồi sao chép";
+    });
+    mk("Đóng", function () { box.remove(); });
+    box.appendChild(info);
+    box.appendChild(ta);
+    box.appendChild(row);
+    (d.body || d.documentElement).appendChild(box);
+  }
+  const BOOKMARKLET = "javascript:(" + unlockBookmarklet.toString().replace(/\s+/g, " ") + ")();";
+
   /* ================= LẤY VĂN BẢN TỪ LINK ================= */
   function initPageText() {
     let mode = "main";
@@ -399,8 +475,9 @@
         g("pg-note").hidden = !d.note;
         g("pg-note").textContent = d.note || "";
         ta.value = d.text;
+        if (/ít chữ/.test(d.note || "")) g("pg-alt").open = true;
         out.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      } catch (e) { toast(e.message, "bad"); }
+      } catch (e) { toast(e.message, "bad"); g("pg-alt").open = true; }
       go.disabled = false;
       go.textContent = "Lấy văn bản";
     }
@@ -417,6 +494,17 @@
       if (tts) tts.speak(ta.value); else toast("Thiết bị này không hỗ trợ đọc văn bản.", "bad");
     };
     g("pg-clear").onclick = () => { ta.value = ""; g("pg-url").value = ""; out.hidden = true; };
+    g("pg-bm").onclick = async () => {
+      let ok = false;
+      try { await navigator.clipboard.writeText(BOOKMARKLET); ok = true; } catch (_) {}
+      if (!ok) {
+        const t = document.createElement("textarea");
+        t.value = BOOKMARKLET; document.body.append(t); t.select();
+        try { ok = document.execCommand("copy"); } catch (_) {}
+        t.remove();
+      }
+      toast(ok ? "Đã sao chép mã mở khoá. Làm tiếp bước 2." : "Không sao chép được mã, hãy thử trình duyệt khác.", ok ? "good" : "bad");
+    };
   }
 
   /* ================= ĐỌC VĂN BẢN (giọng đọc có sẵn của thiết bị) ================= */

@@ -102,6 +102,11 @@ function requestOnce(u, allowPrivate) {
         Accept: "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5",
         "Accept-Language": "vi,en;q=0.8",
         "Accept-Encoding": "gzip, deflate, br",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
       },
       lookup: allowPrivate ? undefined : safeLookup,
       timeout: TIMEOUT_MS,
@@ -252,7 +257,7 @@ function explain(e) {
   if (e.code === "BAD" || e.code === "EBLOCKED") return e.message;
   if (e.code === "HTTP") {
     const s = e.status;
-    if (s === 401 || s === 403) return "Trang này chặn truy cập tự động hoặc cần đăng nhập (HTTP " + s + "). Máy chủ không lấy được nội dung.";
+    if (s === 401 || s === 403) return "Trang này chặn truy cập tự động hoặc cần đăng nhập (HTTP " + s + "). Máy chủ không lấy được nội dung. Hãy thử Cách 2 ở bên dưới.";
     if (s === 404 || s === 410) return "Không tìm thấy trang này (HTTP " + s + ").";
     if (s === 429) return "Trang này đang giới hạn lượt truy cập (HTTP 429), thử lại sau.";
     return "Trang trả về lỗi (HTTP " + s + ").";
