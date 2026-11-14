@@ -16,6 +16,18 @@ Nội dung trang (chọn Hôm nay / 7 ngày / 30 ngày / Tất cả, không tín
    - từ 80% lượt trở lên vượt sát mức thời gian tối thiểu (từ 5 lượt)
    - dùng chung IP với từ 2 tài khoản khác (cùng wifi hoặc 4G cũng có thể trùng, chỉ để tham khảo)
 
-Tiền thu về: server không thấy được tiền nhà cung cấp trả, nên ở mỗi thẻ nhà cung cấp có ô
-"Tiền thu về mỗi lượt (đ)" (xem trong trang thu nhập của link4m, traffic24h...). Tiền thu về = số lượt × số này.
-Chưa nhập thì cột tiền hiện "—". Cột mới link_providers.pay_per_view tự được thêm vào database cũ khi server khởi động.
+Tiền thu về (ưu tiên từ trên xuống):
+1. Tự động từ API xem thu nhập của nhà cung cấp: ở mỗi thẻ có mục "Tự lấy tiền thu về". Dán link API
+   (key trong link tự đổi thành {token}), bấm "Lưu & lấy thử". Server dò số tiền trong phản hồi JSON
+   (hoặc bạn chọn trường), gọi lại mỗi 30 phút và lưu mốc đo vào bảng link_earnings.
+   Tiền nhận trong kỳ = phần tăng thêm giữa các mốc đo. Kiểu số "Tổng đã kiếm" hoặc "Số dư" (rút tiền thì số dư giảm).
+   Nếu API trả USD thì nhập tỉ giá vào ô "1 đơn vị API = ? đ". Đổi cấu hình sẽ xoá mốc đo cũ.
+   Số liệu chỉ đo được từ lúc bật, nên coin so sánh chỉ tính trong khoảng đã đo.
+2. Ước tính: số lượt × "tiền thu về mỗi lượt" nhập tay (dùng khi nhà cung cấp không có API).
+Chưa có cả hai thì cột tiền hiện "—".
+
+Lưu ý: link4m và traffic24h chỉ công khai API rút gọn link, chưa thấy tài liệu API xem thu nhập. Hãy hỏi nhà cung cấp
+hoặc xem mục API trong trang quản lý của họ. Server gửi key trong cả query, header X-API-Key và Authorization: Bearer.
+Không gọi được địa chỉ nội bộ (localhost, IP riêng).
+
+Cột mới của link_providers (pay_per_view, stats_*) và bảng link_earnings tự được thêm vào database cũ khi server khởi động.

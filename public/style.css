@@ -921,3 +921,20 @@ details.guide b { color: var(--paper); font-weight: 600; }
 .ls-rate label { flex: 1 1 100%; font-size: .78rem; color: var(--dim); }
 .ls-rate input { flex: 1; min-width: 0; }
 .ls-rate button { flex: none; padding: .5rem 1rem; }
+.ls-note { margin-top: .3rem; font-size: .76rem; color: var(--dim); line-height: 1.5; }
+.ls-src { margin-top: .8rem; padding-top: .7rem; border-top: 1px solid var(--line); }
+.ls-src summary { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; cursor: pointer; font-size: .88rem; font-weight: 600; list-style: none; }
+.ls-src summary::-webkit-details-marker { display: none; }
+.ls-src summary::before { content: "›"; display: inline-block; font-size: 1.1rem; color: var(--dim); transition: transform .2s; }
+.ls-src[open] summary::before { transform: rotate(90deg); }
+.ls-src-body { margin-top: .7rem; }
+.ls-src-body .field { margin-bottom: .75rem; }
+.ls-src-body .hint { margin: 0 0 .75rem; }
+.ls-src-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+.ls-src-grid .field { min-width: 0; }
+.ls-src-result { margin-top: .7rem; font-size: .84rem; line-height: 1.55; overflow-wrap: anywhere; }
+.ls-src-result .neg { color: var(--alert); }
+.ls-src-result .pos { color: var(--ok); }
+.ls-src-result .chips { margin: .5rem 0 0; }
+.ls-src-result .chips button { font-size: .76rem; padding: .3rem .7rem; }
+@media (max-width: 420px) { .ls-src-grid { grid-template-columns: 1fr; } }
