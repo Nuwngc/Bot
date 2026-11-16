@@ -2,8 +2,9 @@
  * VI COIN: nap tien -> thanh toan bang vi -> bang xep hang nap theo thang.
  *
  *  - 1 coin = 1d. So du = tong cac giao dich trong bang wallet_tx (khong luu cot rieng).
- *  - Nap tien: nguoi dung nhap so tien tuy y, chuyen khoan kem ma NAPxxxx, admin xac nhan
- *    thi coin vao vi (day khong phai cong thanh toan tu dong).
+ *  - Nap tien: nguoi dung nhap so tien tuy y, chuyen khoan kem ma NAPxxxx. Neu admin bat tu dong
+ *    (server/autopay.js, webhook SePay / Casso) thi coin vao vi ngay khi ngan hang bao co tien;
+ *    khong thi admin xac nhan bang tay.
  *  - Gia han bot: tru coin trong vi, cong han cho dung bot do.
  *  - Xep hang: tong coin NAP trong thang (gio Viet Nam). Thuong/dieu chinh khong tinh.
  *  - Dau thang moi, he thong TU DONG cong thuong cho top 1-2-3 cua thang truoc (chay lai
@@ -66,6 +67,8 @@ const wq = {
   depByCode: db.prepare("SELECT id FROM deposits WHERE code = ?"),
   depPending: db.prepare("SELECT * FROM deposits WHERE user_id = ? AND status = 'pending' ORDER BY id DESC"),
   depPaid: db.prepare("UPDATE deposits SET status = 'paid', paid_at = datetime('now'), note = ? WHERE id = ?"),
+  depByCodeFull: db.prepare("SELECT * FROM deposits WHERE code = ?"),
+  depPaidAmount: db.prepare("UPDATE deposits SET status = 'paid', paid_at = datetime('now'), amount = ?, note = ? WHERE id = ?"),
   depCancel: db.prepare("UPDATE deposits SET status = 'cancelled' WHERE id = ?"),
   depAll: db.prepare(
     `SELECT d.*, u.username FROM deposits d JOIN users u ON u.id = d.user_id
@@ -147,6 +150,33 @@ function approveDeposit(id, note) {
     const bal = credit(d.user_id, "deposit", d.amount, d.code, `Nạp tiền ${d.code}`);
     return { deposit: d, balance: bal };
   });
+}
+
+/**
+ * Tu dong xac nhan khi ngan hang bao co tien (goi TRONG tx()).
+ * Coin = so tien THUC NHAN (co the khac so tien trong lenh). Lenh da huy van duoc cong vi tien da vao tai khoan.
+ * Tra ve { error } neu khong cong duoc, hoac { deposit, balance, expected, wasCancelled }.
+ */
+function confirmByCode(code, amount, note) {
+  const d = wq.depByCodeFull.get(code);
+  if (!d) return { error: `Không có lệnh nạp mã ${code}` };
+  if (d.status === "paid") return { error: `Lệnh nạp ${code} đã được xác nhận trước đó`, deposit: d };
+  const coin = Math.round(Number(amount));
+  if (!(coin > 0) || coin > 1e9) return { error: "Số tiền không hợp lệ", deposit: d };
+  const extra = coin !== d.amount ? ` · nhận ${fmt(coin)}, lệnh ${fmt(d.amount)}` : "";
+  wq.depPaidAmount.run(coin, `${note || "Tự động"}${extra}`, d.id);
+  const bal = credit(d.user_id, "deposit", coin, d.code, `Nạp tiền ${d.code}`);
+  return { deposit: d, balance: bal, expected: d.amount, wasCancelled: d.status === "cancelled" };
+}
+
+/** Admin gan mot khoan tien da vao tai khoan cho nguoi dung (tao lenh nap da duyet + cong coin). Goi TRONG tx(). */
+function assignManual(userId, amount, note) {
+  const coin = Math.round(Number(amount));
+  if (!(coin > 0) || coin > 1e9) throw new Error("Số tiền không hợp lệ");
+  const code = randomCode("NAP", (c) => wq.depByCode.get(c));
+  const id = Number(wq.depInsert.run(userId, code, coin).lastInsertRowid);
+  wq.depPaid.run(note || "Gán thủ công", id);
+  return { code, balance: credit(userId, "deposit", coin, code, `Nạp tiền ${code}`) };
 }
 
 /* ================= Thanh toan bang vi ================= */
@@ -248,6 +278,7 @@ function register(router, auth) {
       monthDeposited: wq.depositedMonth.get(id, monthOf()).n,
       min: MIN_DEPOSIT, max: MAX_DEPOSIT,
       bank: { id: getSetting("bank_id"), account: getSetting("bank_account"), owner: getSetting("bank_owner"), note: getSetting("pay_note") },
+      autopay: getSetting("autopay_enabled") === "1",
       pending: wq.depPending.all(id).map(depView),
       history: wq.history.all(id),
     });
@@ -302,4 +333,4 @@ function register(router, auth) {
   });
 }
 
-module.exports = { credit, tx, saveRewards, register, balance, payOrder, createDeposit, approveDeposit, leaderboard, runRewards, awardMonth, rewards };
+module.exports = { credit, tx, saveRewards, register, balance, payOrder, createDeposit, approveDeposit, confirmByCode, assignManual, leaderboard, runRewards, awardMonth, rewards };

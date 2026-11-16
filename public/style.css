@@ -938,3 +938,17 @@ details.guide b { color: var(--paper); font-weight: 600; }
 .ls-src-result .chips { margin: .5rem 0 0; }
 .ls-src-result .chips button { font-size: .76rem; padding: .3rem .7rem; }
 @media (max-width: 420px) { .ls-src-grid { grid-template-columns: 1fr; } }
+
+/* ---------- Tự động cộng tiền (quản trị) ---------- */
+#autopayBox .field .row { display: flex; gap: .5rem; align-items: center; }
+#autopayBox .field .row input { flex: 1; min-width: 0; font-size: .82rem; }
+#autopayBox .field .row button { flex: none; }
+#autopayBox .ls-src { margin: .9rem 0; }
+#autopayBox .ls-src-body .hint { margin: 0 0 .7rem; }
+.ap-ev { padding: .8rem .95rem; margin-bottom: .55rem; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); }
+.ap-top { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.ap-top b { font-size: 1.02rem; font-variant-numeric: tabular-nums; }
+.ap-content { margin-top: .4rem; font-size: .85rem; line-height: 1.5; overflow-wrap: anywhere; }
+.ap-note { margin-top: .25rem; font-size: .78rem; color: var(--dim); line-height: 1.5; }
+.ap-assign { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .65rem; }
+.ap-assign input { flex: 1 1 10rem; min-width: 0; }

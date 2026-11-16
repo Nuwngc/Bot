@@ -46,7 +46,7 @@
       ? `<img src="${d.qr}" alt="Mã QR chuyển khoản" style="width:100%;max-width:15rem;border-radius:8px;margin:0.75rem 0">`
       : `<p style="color:var(--alert);font-size:0.85rem">Quản trị viên chưa khai báo tài khoản ngân hàng. Liên hệ trực tiếp để nạp.</p>`;
     return `<div class="state order-card">
-      <div class="dim" style="font-size:0.85rem">Lệnh nạp chờ xác nhận</div>
+      <div class="dim" style="font-size:0.85rem">${wal.autopay ? "Đang chờ tiền về" : "Lệnh nạp chờ xác nhận"}</div>
       <div class="state-word" style="font-size:1.15rem">${fmt(d.amount)} coin</div>
       ${qr}
       <div style="font-size:0.9rem;line-height:1.8">
@@ -54,7 +54,9 @@
         Nội dung chuyển khoản: <strong>${esc(d.code)}</strong>
       </div>
       ${b.note ? `<p class="hint" style="margin-top:0.5rem">${esc(b.note)}</p>` : ""}
-      <p class="hint">Chuyển đúng số tiền và nội dung. Coin vào ví sau khi quản trị viên xác nhận.</p>
+      <p class="hint">${wal.autopay
+        ? "Chuyển đúng số tiền và nội dung. Coin tự động vào ví sau khi ngân hàng báo có tiền (thường dưới 1 phút), trang này tự cập nhật."
+        : "Chuyển đúng số tiền và nội dung. Coin vào ví sau khi quản trị viên xác nhận."}</p>
       <button class="danger" data-cancel="${d.id}">Huỷ lệnh nạp</button>
     </div>`;
   }
@@ -103,6 +105,18 @@
     for (const x of $("wKinds").children) x.classList.toggle("on", x === b);
     moreHistory(true);
   });
+
+  /* Tự động cộng tiền: khi có lệnh nạp đang chờ, cứ 5 giây hỏi số dư một lần, tăng lên là báo ngay */
+  setInterval(async () => {
+    if (!wal || !wal.autopay || !wal.pending.length || document.hidden || current !== "wallet") return;
+    try {
+      const { balance } = await api("/wallet/balance");
+      if (balance > wal.balance) {
+        say(`Đã nhận ${fmt(balance - wal.balance)} coin vào ví.`);
+        loadWallet();
+      }
+    } catch (_) {}
+  }, 5000);
 
   $("wDeposit").addEventListener("click", async () => {
     const amount = num($("wAmount").value);

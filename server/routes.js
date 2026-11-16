@@ -393,7 +393,7 @@ router.get("/admin/settings", auth.requireAdmin, (req, res) => {
   const s = allSettings();
   const globalKey = decrypt(s.global_ai_key_enc);
   res.json({
-    settings: { ...s, global_ai_key_enc: undefined },
+    settings: { ...s, global_ai_key_enc: undefined, pay_webhook_secret_enc: undefined },
     hasGlobalAiKey: !!globalKey,
     globalAiKeyMasked: globalKey ? mask(globalKey) : "",
   });
@@ -412,7 +412,7 @@ router.post("/admin/settings", auth.requireAdmin, (req, res) => {
   const globalKey = decrypt(s.global_ai_key_enc);
   res.json({
     ok: true,
-    settings: { ...s, global_ai_key_enc: undefined },
+    settings: { ...s, global_ai_key_enc: undefined, pay_webhook_secret_enc: undefined },
     hasGlobalAiKey: !!globalKey,
     globalAiKeyMasked: globalKey ? mask(globalKey) : "",
   });
@@ -433,6 +433,7 @@ require("./tempmail").register(router, auth);
 require("./revenue").register(router, auth);
 require("./linkcoin").register(router, auth);
 require("./linkstats").register(router, auth);
+require("./autopay").register(router, auth);
 require("./tts").register(router, auth);
 require("./pagetext").register(router, auth);
 
