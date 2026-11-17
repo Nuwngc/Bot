@@ -1,3 +1,4 @@
+require("./logbuf"); // bo dem log cho app admin: nap truoc de bat duoc log luc khoi dong
 const path = require("path");
 const express = require("express");
 const session = require("express-session");

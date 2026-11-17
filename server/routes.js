@@ -434,6 +434,7 @@ require("./revenue").register(router, auth);
 require("./linkcoin").register(router, auth);
 require("./linkstats").register(router, auth);
 require("./autopay").register(router, auth);
+require("./adminApp").register(router, auth);
 require("./tts").register(router, auth);
 require("./pagetext").register(router, auth);
 

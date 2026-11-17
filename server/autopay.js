@@ -82,11 +82,12 @@ function givenSecret(req) {
 /* ---------- Doc noi dung webhook ---------- */
 
 /** Ma nap = NAP + 7 ky tu trong bang chu cai cua wallet.js (khong co I, O, 0, 1). Bo dau cach / ky tu la ngan hang chen vao. */
-function findCode(text) {
+function findCodes(text) {
   const s = String(text || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-  const m = s.match(/NAP[A-HJ-NP-Z2-9]{7}/);
-  return m ? m[0] : null;
+  // (?=...) de bat ca cac ma chong len nhau, vi du nguoi dung go thua "NAP NAPK7M2XQ9"
+  return [...new Set([...s.matchAll(/(?=(NAP[A-HJ-NP-Z2-9]{7}))/g)].map((m) => m[1]))];
 }
+const findCode = (text) => findCodes(text)[0] || null;
 
 /** Chuan hoa ve [{ provider, extId, amount, content, account, ref }] (chi giao dich tien vao) */
 function parseTransactions(body) {
@@ -127,9 +128,14 @@ function processOne(t) {
     const set = (status, userId, note) => { bq.setStatus.run(status, userId || null, note || null, id); return { id, status, note, userId, amount }; };
 
     if (!enabled()) return set("unmatched", null, "Tự động cộng đang tắt, hãy gán thủ công");
-    const code = findCode(t.content);
-    if (!code) return set("unmatched", null, "Không thấy mã nạp (NAPxxxxxxx) trong nội dung");
-    const r = wallet.confirmByCode(code, amount, `Tự động · ${t.provider} #${t.extId}`);
+    const codes = findCodes(t.content);
+    if (!codes.length) return set("unmatched", null, "Không thấy mã nạp (NAPxxxxxxx) trong nội dung");
+    let r = null, code = codes[0];
+    for (const c of codes) {           // thu lan luot, lay ma dau tien co lenh nap that
+      const x = wallet.confirmByCode(c, amount, `Tự động · ${t.provider} #${t.extId}`);
+      if (!r) r = x;
+      if (x.deposit || !x.error) { r = x; code = c; break; }
+    }
     if (r.error) return set("unmatched", r.deposit?.user_id, r.error);
     const extra = r.wasCancelled ? " (lệnh đã huỷ trước đó nhưng tiền đã về)" : r.expected !== amount ? ` (lệnh ${r.expected})` : "";
     return set("credited", r.deposit.user_id, `Mã ${code}${extra}`);
@@ -217,4 +223,4 @@ function register(router, auth2) {
   });
 }
 
-module.exports = { webhook, register, findCode, parseTransactions, processOne };
+module.exports = { webhook, register, findCode, findCodes, parseTransactions, processOne };

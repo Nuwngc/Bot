@@ -1,0 +1,50 @@
+plugins {
+    id 'com.android.application'
+}
+
+def vcode = (project.findProperty('versionCode') ?: '1').toString().toInteger()
+
+android {
+    namespace 'dev.nuwngc.botctl'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'dev.nuwngc.botctl'
+        minSdk 28
+        targetSdk 34
+        versionCode vcode
+        versionName "1.0.${vcode}"
+    }
+
+    // Khoa ky co dinh de ban sau cai de len ban truoc duoc (khong phai go app).
+    // Day la khoa "tu dung" cho app cai tay, khong dung de phat hanh len kho ung dung.
+    signingConfigs {
+        release {
+            storeFile file("${rootDir}/botctl.keystore")
+            storeType 'pkcs12'
+            storePassword 'botctl-public'
+            keyAlias 'botctl'
+            keyPassword 'botctl-public'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.11.0'
+}
