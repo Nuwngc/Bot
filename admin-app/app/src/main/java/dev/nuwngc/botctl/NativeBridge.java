@@ -107,6 +107,22 @@ final class NativeBridge {
         WatchJob.schedule(act, false);
     }
 
+    /* ---------- mo trang dang nhap Google bang trinh duyet cua may ---------- */
+
+    /** Google khong cho dang nhap trong WebView nhung, nen mo trinh duyet that. Chi cho phep dung trang dang nhap cua Google. */
+    @JavascriptInterface
+    public boolean openUrl(String url) {
+        try {
+            if (url == null || !url.startsWith("https://accounts.google.com/")) return false;
+            Intent i = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            act.startActivity(i);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     /* ---------- mang ---------- */
 
     @JavascriptInterface

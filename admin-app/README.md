@@ -16,7 +16,7 @@ Build lại bằng tay: tab Actions > Build botctl APK > Run workflow. Mỗi l�
 |---|---|
 | overview | tình trạng máy chủ (uptime, bộ nhớ), số người dùng và bot, tiền chờ duyệt, tiền vào chưa khớp, doanh thu 14 ngày, giao dịch ngân hàng gần đây. Tự làm mới 15 giây |
 | users | danh sách và lọc, chỉnh coin, đặt lại mật khẩu, khoá/mở, xoá, tạo tài khoản |
-| money | duyệt lệnh nạp; bật/tắt tự động cộng coin, cấu hình Gmail nhận thông báo ngân hàng (server tự đọc email biến động số dư), kiểm tra ngay, thử đọc email gần nhất, gán hoặc bỏ qua tiền vào chưa khớp; thống kê vượt link |
+| money | duyệt lệnh nạp; bật/tắt tự động cộng coin, đăng nhập Google để server tự đọc email biến động số dư của ngân hàng (app mở trình duyệt của máy để đăng nhập), kiểm tra ngay, thử đọc email gần nhất, ngắt kết nối, gán hoặc bỏ qua tiền vào chưa khớp; thống kê vượt link |
 | logs | log máy chủ trực tiếp (cập nhật 3 giây), lọc warn/error, chép, tạm dừng. Giá trị nhạy cảm như api=, token=, password= bị che |
 | api | gửi bất kỳ yêu cầu GET/POST/DELETE tới API của máy chủ, xem JSON tô màu, thời gian, dung lượng, lịch sử |
 | config | đổi máy chủ/tài khoản, khoá app, thông báo nền, chặn chụp màn hình, đăng xuất |
@@ -29,6 +29,7 @@ Nút ⌘ trên cùng mở bảng lệnh (gõ "logs", "ping", "duyệt"...). Nút
 - Khoá app: dùng màn hình khoá của máy (PIN, hình mở khoá, vân tay) mỗi khi mở lại sau 30 giây.
 - Thông báo nền: `WatchJob.java` (JobScheduler) mỗi ~15 phút hỏi `/api/admin/app/alerts`, báo tiền tự động cộng, giao dịch chưa khớp, lệnh nạp chờ duyệt. Chạy cả khi tắt app. 15 phút là giới hạn thấp nhất của Android.
 - WebView chỉ tải tệp trong app (`assets/`), chặn mọi địa chỉ khác, có CSP nghiêm ngặt.
+- Đăng nhập Google: `NativeBridge.openUrl` mở trình duyệt của máy, chỉ cho phép địa chỉ `https://accounts.google.com/` (Google không cho đăng nhập trong WebView).
 
 ## Phía máy chủ
 `server/adminApp.js` (overview, users, alerts, logs) và `server/logbuf.js` (bộ đệm 500 dòng log). Các tính năng khác dùng lại API admin sẵn có.

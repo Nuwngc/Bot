@@ -163,3 +163,5 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 .err { min-height: 1.2em; color: var(--r); font-size: .78rem; }
 .hint { color: var(--dim); font-size: .74rem; margin: .4rem 0; }
 .ver { text-align: center; color: var(--mut); font-size: .7rem; margin: 1.2rem 0 .4rem; }
+
+details.guide summary { cursor: pointer; color: var(--dim); font-size: .78rem; margin: .5rem 0; }
