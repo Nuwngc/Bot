@@ -286,19 +286,62 @@
     },
     async bank() {
       const d = await get("/admin/autopay");
-      $("#mBody").dataset.ok = "1";
-      $("#mBody").innerHTML = `
-        <div class="card">
-          <div class="switch"><div class="t">tự động cộng coin khi nạp<small>${d.today.n} giao dịch hôm nay · ${fmt(d.today.sum)} coin${d.unmatched ? ` · <span class="r">${d.unmatched} chưa khớp</span>` : ""}</small></div><input type="checkbox" id="apOn"${d.enabled ? " checked" : ""}></div>
-        </div>
-        <h3 class="sec">webhook</h3>
-        <div class="card pad">
-          <div class="field"><label>url</label><input readonly value="${esc(d.url)}"></div>
-          <div class="bar"><button class="btn sm" data-act="copy" data-v="${esc(d.url)}">chép url</button><button class="btn sm" data-act="copy" data-v="${esc(d.secret)}">chép mã bí mật</button></div>
-          <div class="hint">Dán vào SePay (API Key) hoặc Casso (Security Key). Mã bí mật không hiện ra màn hình.</div>
-        </div>
-        <h3 class="sec">giao dịch gần đây</h3>
-        ${d.events.length ? `<div class="rows">${d.events.map((e) => eventRow(e, true)).join("")}</div>` : '<div class="empty">chưa nhận được giao dịch nào</div>'}`;
+      const body = $("#mBody");
+      body.dataset.ok = "1";
+      if (!$("#apForm")) { // chỉ dựng form một lần, làm mới 20 giây không được xoá chữ đang gõ
+        body.innerHTML = `
+          <div class="card">
+            <div class="switch"><div class="t">tự động cộng coin khi nạp<small id="apSub"></small></div><input type="checkbox" id="apOn"></div>
+          </div>
+          <div id="apStat"></div>
+          <h3 class="sec">email nhận thông báo ngân hàng</h3>
+          <div class="card pad" id="apForm">
+            <div class="hint">Server tự đọc email biến động số dư của ngân hàng, không dùng dịch vụ bên thứ ba và không cần mật khẩu ngân hàng. Dùng một Gmail riêng + "mật khẩu ứng dụng" (myaccount.google.com/apppasswords), rồi bật thông báo biến động số dư qua email trong app ngân hàng.</div>
+            <div class="field"><label>gmail nhận thông báo</label><input id="apUser" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="ten.rieng@gmail.com"></div>
+            <div class="field"><label>mật khẩu ứng dụng</label><input id="apPass" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false"></div>
+            <div class="field"><label>email hoặc tên miền ngân hàng gửi</label><input id="apFrom" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="mbbank.com.vn"></div>
+            <div class="field"><label>máy chủ imap (trống = gmail)</label><input id="apHost" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="imap.gmail.com"></div>
+            <div class="field"><label>hộp thư (trống = INBOX)</label><input id="apBox" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="INBOX"></div>
+            <div class="switch"><div class="t">chế độ chặt<small>chỉ tin email qua được xác thực người gửi (nên bật)</small></div><input type="checkbox" id="apStrict"></div>
+            <div class="bar">
+              <button class="btn primary" data-act="apSave">$ lưu &amp; kết nối</button>
+              <button class="btn" data-act="apPoll" id="apPoll">kiểm tra ngay</button>
+              <button class="btn" data-act="apTest" id="apTest">thử đọc email</button>
+              <button class="btn danger" data-act="apClear" id="apClear">xoá cấu hình</button>
+            </div>
+            <div class="hint">Mật khẩu ứng dụng được mã hoá trên server và không bao giờ gửi lại về app. Khoản nhận nhiều hơn lệnh nạp sẽ không tự cộng, để bạn xem ở "chưa khớp".</div>
+          </div>
+          <div id="apTestOut"></div>
+          <h3 class="sec">giao dịch gần đây</h3>
+          <div id="apEvents"></div>`;
+        this.fillForm(d.mail);
+      }
+      this.paint(d);
+    },
+    fillForm(m) {
+      $("#apUser").value = m.user || "";
+      $("#apFrom").value = m.from || "";
+      $("#apHost").value = m.host === "imap.gmail.com" ? "" : m.host || "";
+      $("#apBox").value = m.box === "INBOX" ? "" : m.box || "";
+      $("#apStrict").checked = m.strict;
+      $("#apPass").value = "";
+    },
+    paint(d) {
+      const m = d.mail, s = m.status;
+      $("#apOn").checked = d.enabled;
+      $("#apSub").innerHTML = `${d.today.n} giao dịch hôm nay · ${fmt(d.today.sum)} coin${d.unmatched ? ` · <span class="r">${d.unmatched} chưa khớp</span>` : ""}`;
+      $("#apPass").placeholder = m.hasPass ? "đã lưu, bỏ trống để giữ nguyên" : "16 ký tự do Google cấp";
+      $("#apPoll").disabled = !m.ready;
+      $("#apTest").disabled = !m.ready;
+      $("#apClear").hidden = !m.user && !m.hasPass;
+      const when = s && s.at ? new Date(s.at).toLocaleTimeString("vi-VN") : "";
+      $("#apStat").innerHTML = `<div class="card pad">
+        <div class="l1"><span class="tag ${!m.ready ? "" : s && !s.ok ? "bad" : "ok"}">${!m.ready ? "chưa kết nối" : s && !s.ok ? "lỗi" : "đã kết nối"}</span><span class="sp"></span><span class="dim">${esc(when)}</span></div>
+        <div class="hint">${esc(m.ready ? (s ? s.msg : "đã lưu cấu hình, chưa kiểm tra") : "điền form bên dưới rồi bấm lưu & kết nối")}</div>
+        ${s && s.warn ? `<div class="hint r">⚠ ${esc(s.warn.text)}</div>` : ""}
+        ${d.bankReady ? "" : '<div class="hint">Chưa khai báo ngân hàng trong cấu hình chung nên người dùng chưa có mã QR để nạp.</div>'}
+      </div>`;
+      $("#apEvents").innerHTML = d.events.length ? `<div class="rows">${d.events.map((e) => eventRow(e, true)).join("")}</div>` : '<div class="empty">chưa nhận được giao dịch nào</div>';
     },
     async link() {
       const d = await get("/admin/linkstats?range=" + this.range);
@@ -569,6 +612,59 @@
     },
     async ignoreEv(el) {
       try { await post(`/admin/autopay/events/${el.dataset.id}/ignore`); toast("Đã bỏ qua"); views.money.load(); } catch (e) { fail(e); }
+    },
+    async apSave(el) {
+      el.disabled = true;
+      try {
+        const d = await post("/admin/autopay/mail", {
+          user: $("#apUser").value.trim(), pass: $("#apPass").value, from: $("#apFrom").value.trim(),
+          host: $("#apHost").value.trim(), box: $("#apBox").value.trim(), strict: $("#apStrict").checked,
+        });
+        views.money.fillForm(d.mail);
+        views.money.paint(d);
+        const st = d.mail.status;
+        if (st && st.ok) toast("Đã kết nối hộp thư"); else toast((st && st.msg) || "Chưa kết nối được hộp thư", true);
+      } catch (e) { fail(e); }
+      el.disabled = false;
+    },
+    async apPoll(el) {
+      el.disabled = true;
+      try {
+        const d = await post("/admin/autopay/mail/poll");
+        views.money.paint(d);
+        const st = d.mail.status;
+        toast((st && st.msg) || "Đã kiểm tra", !(st && st.ok));
+      } catch (e) { fail(e); }
+      el.disabled = false;
+    },
+    async apTest(el) {
+      el.disabled = true;
+      const out = $("#apTestOut");
+      try {
+        const r = await post("/admin/autopay/mail/test");
+        const KIND = { credit: ["tiền vào", "ok"], other: ["bỏ qua", ""], unreadable: ["không đọc được", "warn"] };
+        out.innerHTML = `<h3 class="sec">thử đọc · ${fmt(r.total)} email từ ngân hàng</h3>` + (r.items.length
+          ? `<div class="rows">${r.items.map((i) => {
+            const [label, cls] = KIND[i.kind] || [i.kind, ""];
+            const trust = !i.fromOk ? "địa chỉ gửi không khớp, sẽ bị bỏ qua" : r.strict && !i.authOk ? "không qua xác thực người gửi, sẽ bị bỏ qua (tắt chế độ chặt nếu là email thật)" : "người gửi hợp lệ";
+            return `<div class="row">
+              <div class="l1"><b>${i.amount ? "+" + fmt(i.amount) : "?"}</b><span class="tag ${cls}">${label}</span><span class="sp"></span><span class="dim">${esc(i.date || "")}</span></div>
+              <div class="l2">${esc(i.subject || "(không có tiêu đề)")}<br>↳ ${esc(trust)} · ${i.codes.length ? "mã nạp: " + esc(i.codes.join(", ")) : "không thấy mã NAPxxxxxxx"}${i.content ? `<br>↳ nội dung: ${esc(i.content)}` : ""}${i.why ? `<br>↳ ${esc(i.why)}` : ""}<br><span class="dim">${esc(i.snippet)}</span></div>
+            </div>`;
+          }).join("")}</div>`
+          : '<div class="empty">hộp thư chưa có email nào từ địa chỉ ngân hàng này. Kiểm tra ô email/tên miền ngân hàng gửi, hoặc chuyển thử khoản nhỏ rồi thử lại</div>');
+      } catch (e) { fail(e); }
+      el.disabled = false;
+    },
+    async apClear() {
+      if (!(await ask("Server sẽ quên hộp thư và mật khẩu ứng dụng, đồng thời tắt tự động cộng coin. Tiền vào sau đó phải duyệt tay.", "xoá cấu hình"))) return;
+      try {
+        const d = await post("/admin/autopay/mail/clear");
+        views.money.fillForm(d.mail);
+        views.money.paint(d);
+        $("#apTestOut").innerHTML = "";
+        toast("Đã xoá cấu hình email");
+      } catch (e) { fail(e); }
     },
     logPause() { views.logs.paused = !views.logs.paused; $("#lgPause").textContent = views.logs.paused ? "▶ tiếp tục" : "❚❚ dừng"; },
     logCopy() { copy(views.logs.lines.map((l) => `${clock(l.t)} ${l.lvl} ${l.msg}`).join("\n"), "Đã chép log"); },
