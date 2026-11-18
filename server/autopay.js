@@ -1,29 +1,25 @@
 /**
- * TU DONG CONG COIN KHI NAP (server TU DOC email bien dong so du, khong qua dich vu thu 3)
+ * TU DONG CONG COIN KHI NAP (server TU DOC lich su giao dich ngan hang qua API, theo bo code mau trong file rar)
  *
- *  Ngan hang gui email "bien dong so du" vao mot Gmail rieng cua admin. Server dang nhap Gmail bang "Dang nhap bang Google"
- *  (OAuth, CHI quyen doc email, xem server/gmail.js), tim email moi cua ngan hang, lay SO TIEN VAO + ma NAPxxxxxxx trong noi
- *  dung chuyen khoan va cong coin. Server KHONG giu mat khau / the / token ngan hang va khong co quyen chuyen tien.
+ *  Server goi API lich su giao dich MB Bank (server/bankapi.js) bang Token + Code + so tai khoan, tim giao dich tien VAO co
+ *  chua ma NAPxxxxxxx trong noi dung chuyen khoan va cong coin cho nguoi nap. Khong can Gmail, khong can mat khau ngan hang.
  *
  *  Bao mat:
- *   - Chi tin email tu dung dia chi / ten mien ngan hang admin khai bao, va (che do chat, mac dinh bat) email phai co
- *     xac thuc DKIM/SPF dat theo ghi nhan cua Gmail. Email gia mao khong the them coin.
- *   - Moi email chi xu ly 1 lan: bang bank_events co UNIQUE(provider, ext_id) (ext_id = Message-ID), ghi su kien va cong coin
- *     trong CUNG mot giao dich co so du lieu. Server nho moc thoi gian email da doc, tat/bat lai hoac ngu day van khong cong trung.
+ *   - Token va Code ma hoa bang APP_SECRET, khong bao gio tra ve trinh duyet / app.
+ *   - Moi giao dich chi xu ly 1 lan: bang bank_events co UNIQUE(provider, ext_id), ghi su kien va cong coin trong CUNG mot giao
+ *     dich co so du lieu. Lan doc dau tien sau khi luu cau hinh chi GHI NHO cac giao dich cu (bo qua), khong cong coin.
  *   - Chi nhan tien VAO. Giao dich khong khop ma nap duoc giu o trang thai "chua khop" de admin gan tay hoac bo qua.
- *   - Tien nhan LON HON lenh nap khong tu cong (de admin xem), tranh cong nham khi doc sai so tien.
- *   - Token Google ma hoa bang APP_SECRET, khong bao gio tra ve trinh duyet / app.
+ *   - Tien nhan >= lenh nap thi cong dung so tien thuc nhan (giong code mau: creditAmount >= so tien); nhan it hon van cong so da nhan.
  */
 
 const { db, q, getSetting, setSetting } = require("./db");
 const wallet = require("./wallet");
-const gmail = require("./gmail");
-const bankmail = require("./bankmail");
+const bankapi = require("./bankapi");
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS bank_events (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    provider   TEXT NOT NULL,                 -- sepay | casso
+    provider   TEXT NOT NULL,                 -- mbapi
     ext_id     TEXT NOT NULL,                 -- ma giao dich phia dich vu, dung de chong cong trung
     amount     INTEGER NOT NULL,
     content    TEXT,
@@ -44,6 +40,7 @@ const bq = {
      ON CONFLICT (provider, ext_id) DO NOTHING`
   ),
   byId: db.prepare("SELECT * FROM bank_events WHERE id = ?"),
+  byExt: db.prepare("SELECT status FROM bank_events WHERE provider = ? AND ext_id = ?"),
   setStatus: db.prepare("UPDATE bank_events SET status = ?, user_id = ?, note = ? WHERE id = ?"),
   list: db.prepare(
     `SELECT e.id, e.provider, e.amount, e.content, e.status, e.note, e.created_at, u.username
@@ -62,23 +59,23 @@ const pendingDeposits = db.prepare("SELECT COUNT(*) AS n FROM deposits WHERE sta
 // Webhook SePay / Casso da bo: xoa ma bi mat cu con luu trong CSDL
 if (getSetting("pay_webhook_secret_enc")) setSetting("pay_webhook_secret_enc", "");
 
+// Dang nhap Google / doc Gmail da bo: xoa token cu con luu trong CSDL
+for (const k of ["autopay_g_client_id", "autopay_g_secret_enc", "autopay_g_refresh_enc", "autopay_g_email", "autopay_g_state", "autopay_g_since", "autopay_mail_from", "autopay_mail_strict"]) {
+  if (getSetting(k)) setSetting(k, "");
+}
+
 /* ---------- Bat/tat + cau hinh ---------- */
 
 const enabled = () => getSetting("autopay_enabled") === "1";
 
-function mailConfig() {
-  const g = gmail.creds();
-  const c = {
-    clientId: g.clientId,
-    hasSecret: !!g.secret,
-    connected: !!g.refresh,
-    email: g.email,
-    from: getSetting("autopay_mail_from") || "",
-    strict: getSetting("autopay_mail_strict") !== "0",
-  };
-  c.ready = c.connected && !!c.from;
-  return c;
+function apiConfig() {
+  const c = bankapi.creds();
+  const o = { url: c.url, defaultUrl: bankapi.DEFAULT_URL, stk: c.stk, hasToken: !!c.token, hasCode: !!c.code };
+  o.ready = o.hasToken && o.hasCode && !!o.stk;
+  return o;
 }
+
+if (enabled() && !apiConfig().ready) setSetting("autopay_enabled", "0"); // dang bat theo cach cu (Gmail) ma chua nhap API
 
 function readStatus() {
   try { return JSON.parse(getSetting("autopay_imap_status") || "null") || null; } catch (_) { return null; }
@@ -91,32 +88,15 @@ function setStatus(ok, msg, warn) {
   return next;
 }
 
-/** Luu Client ID / Secret / nguoi gui. Doi Client ID thi phai dang nhap Google lai. */
-function saveMailConfig(b) {
-  b = b || {};
-  const clientId = String(b.clientId || "").trim();
-  const secret = String(b.clientSecret || "").trim();
-  const from = String(b.from || "").trim().toLowerCase();
-  if (!/^[A-Za-z0-9._-]{10,120}\.apps\.googleusercontent\.com$/.test(clientId)) throw new Error("Client ID không hợp lệ (dạng xxxx.apps.googleusercontent.com)");
-  if (secret && !/^[A-Za-z0-9_-]{10,200}$/.test(secret)) throw new Error("Client Secret không hợp lệ");
-  if (!secret && !gmail.creds().secret) throw new Error("Nhập Client Secret");
-  if (!/^[a-z0-9._@+-]{3,100}$/.test(from)) throw new Error("Email hoặc tên miền ngân hàng gửi không hợp lệ (ví dụ: mbbank.com.vn)");
-  gmail.saveClient(clientId, secret);
-  setSetting("autopay_mail_from", from);
-  setSetting("autopay_mail_strict", b.strict === false ? "0" : "1");
-  setStatus(true, "Đã lưu cấu hình", null);
+function saveApiConfig(b) {
+  bankapi.save(b);
+  lastPollAt = 0;
+  setStatus(true, "Đã lưu cấu hình. Lần đọc đầu tiên chỉ ghi nhớ các giao dịch cũ, không cộng coin.", null);
 }
 
-async function disconnectGoogle() {
-  await gmail.disconnect();
-  setSetting("autopay_enabled", "0");
+function clearApiConfig() {
+  bankapi.wipe();
   setSetting("autopay_imap_status", "");
-}
-
-async function clearMailConfig() {
-  try { await gmail.disconnect(); } catch (_) {}
-  gmail.wipeAll();
-  for (const k of ["autopay_mail_from", "autopay_imap_status"]) setSetting(k, "");
   setSetting("autopay_enabled", "0");
 }
 
@@ -147,7 +127,7 @@ function processOne(t) {
     if (!enabled()) return set("unmatched", null, "Tự động cộng đang tắt, hãy gán thủ công");
     const codes = findCodes(t.search ?? t.content);
     if (!codes.length) return set("unmatched", null, "Không thấy mã nạp (NAPxxxxxxx) trong nội dung");
-    const note = t.provider === "mail" ? "Tự động · email ngân hàng" : `Tự động · ${t.provider} #${t.extId}`;
+    const note = "Tự động · API ngân hàng";
     let r = null, code = codes[0];
     for (const c of codes) {           // thu lan luot, lay ma dau tien co lenh nap that
       const x = wallet.confirmByCode(c, amount, note, { maxOrder: !!t.capToOrder });
@@ -160,215 +140,130 @@ function processOne(t) {
   });
 }
 
-/* ---------- Doc Gmail ---------- */
-
-/** Xu ly 1 email tho. Tra ve ket qua phan loai de dem: credited | unmatched | skipped | untrusted | unreadable | dup */
-function handleMail(raw, cfg, fallbackId) {
-  const msg = bankmail.parseMime(raw);
-  if (!bankmail.addressMatches(msg.from, cfg.from)) return "skipped";
-  if (cfg.strict && !bankmail.authPassed(msg.headers, cfg.from)) return "untrusted";
-  const p = bankmail.parseBankMail(msg);
-  if (p.kind === "other") return "skipped";
-  if (p.kind === "unreadable") return "unreadable";
-  const r = processOne({
-    provider: "mail",
-    extId: msg.messageId || fallbackId,
-    amount: p.amount,
-    content: p.content,
-    search: `${msg.subject}\n${msg.text}`,
-    capToOrder: true,
-  });
-  return r.dup ? "dup" : r.status || "skipped";
-}
+/* ---------- Doc lich su giao dich ---------- */
 
 let polling = null;
 let lastPollAt = 0;
-const seen = new Set(); // id thu Gmail da xu ly trong lan chay nay, de khong tai lai moi 25 giay
-const OVERLAP = 3 * 60 * 1000; // doc lui 3 phut phong Gmail danh chi muc tre, trung thi bank_events chan
+
+/** Lan doc dau tien sau khi luu cau hinh: chi ghi nho giao dich cu (trang thai "bo qua"), khong cong coin */
+function baseline(list) {
+  let n = 0;
+  wallet.tx(() => {
+    for (const t of list) {
+      if (!(t.amount > 0)) continue;
+      const ins = bq.insert.run("mbapi", t.extId, Math.round(t.amount), t.content.slice(0, 300), "", t.date.slice(0, 60));
+      if (!ins.changes) continue;
+      bq.setStatus.run("ignored", null, "Giao dịch cũ, có trước khi kết nối API", Number(ins.lastInsertRowid));
+      n++;
+    }
+  });
+  bankapi.markBaseline();
+  return n;
+}
 
 async function pollInner() {
-  const cfg = mailConfig();
-  if (!cfg.connected) return setStatus(false, "Chưa đăng nhập Google");
-  if (!cfg.from) return setStatus(false, "Chưa khai báo email ngân hàng gửi");
+  const cfg = apiConfig();
+  if (!cfg.ready) return setStatus(false, "Chưa nhập đủ Token, Code và số tài khoản");
   try {
-    let since = Number(getSetting("autopay_g_since")) || 0;
-    if (!since) { // chua co moc (vd moi cap nhat): chi doc email den tu bay gio
-      setSetting("autopay_g_since", String(Date.now()));
-      return setStatus(true, "Đã kết nối Gmail. Từ giờ server tự đọc các email ngân hàng gửi đến.");
+    const list = await bankapi.fetchHistory();
+    if (!bankapi.hasBaseline()) {
+      const n = baseline(list);
+      return setStatus(true, `Đã kết nối API. Ghi nhớ ${n} giao dịch cũ, từ giờ server tự cộng coin cho tiền vào mới.`, null);
     }
-    const after = Math.max(0, Math.floor((since - OVERLAP) / 1000));
-    const { ids } = await gmail.list(`from:${cfg.from} in:anywhere after:${after}`, 50);
-    const fresh = ids.filter((id) => !seen.has(id));
-    const msgs = [];
-    for (const id of fresh) msgs.push(await gmail.getRaw(id));
-    msgs.sort((a, b) => a.internalDate - b.internalDate);
-
-    const n = { credited: 0, unmatched: 0, skipped: 0, untrusted: 0, unreadable: 0, dup: 0 };
-    for (const m of msgs) {
-      const kind = m.raw.length ? handleMail(m.raw, cfg, `gmail:${m.id}`) : "skipped";
-      n[kind] = (n[kind] || 0) + 1;
-      seen.add(m.id);
-      if (seen.size > 2000) seen.clear();
-      if (m.internalDate > since) { since = m.internalDate; setSetting("autopay_g_since", String(since)); } // nho tien do ngay sau moi email
+    const n = { credited: 0, unmatched: 0, ignored: 0, dup: 0 };
+    for (const t of [...list].reverse()) { // cu truoc, moi sau
+      if (!(t.amount > 0)) continue;
+      const r = processOne({ provider: "mbapi", extId: t.extId, amount: t.amount, content: t.content, capToOrder: false });
+      if (r.dup) n.dup++; else if (r.status) n[r.status] = (n[r.status] || 0) + 1;
     }
     if (n.credited) console.log(`[autopay] da cong coin cho ${n.credited} giao dich`);
-
-    let warn;
-    if (n.untrusted || n.unreadable) {
-      const w = [];
-      if (n.untrusted) w.push(`${n.untrusted} email bị bỏ qua vì không xác thực được người gửi (nếu đúng là email ngân hàng, tắt "chế độ chặt" hoặc kiểm tra lại địa chỉ người gửi)`);
-      if (n.unreadable) w.push(`${n.unreadable} email trông như tiền vào nhưng server không đọc được số tiền (bấm "Thử đọc email" để xem)`);
-      warn = { at: new Date().toISOString(), text: w.join(". ") };
-    }
-    const fresh2 = msgs.length - n.dup;
-    return setStatus(true, fresh2 > 0 ? `Đọc ${fresh2} email mới: ${n.credited} đã cộng, ${n.unmatched} chưa khớp.` : "Không có email mới.", warn);
+    const fresh = n.credited + n.unmatched + n.ignored;
+    return setStatus(true, fresh > 0 ? `Có ${fresh} giao dịch mới: ${n.credited} đã cộng, ${n.unmatched} chưa khớp.` : "Không có giao dịch mới.", null);
   } catch (e) {
     return setStatus(false, e.message || "Lỗi không rõ");
   }
 }
 
-/** Doc hop thu ngay. Chay trung nhau thi dung chung 1 lan. */
-function pollMail() {
+/** Doc lich su ngay. Chay trung nhau thi dung chung 1 lan. */
+function pollApi() {
   if (polling) return polling;
   polling = pollInner().finally(() => { polling = null; lastPollAt = Date.now(); });
   return polling;
 }
 
-/** Chi de xem thu: doc 3 email gan nhat cua ngan hang, KHONG cong coin, KHONG doi moc doc */
-async function testMail() {
-  const cfg = mailConfig();
-  if (!cfg.ready) throw new Error("Hãy đăng nhập Google và khai báo email ngân hàng gửi trước");
-  const { ids, estimate } = await gmail.list(`from:${cfg.from} in:anywhere`, 3);
-  const items = [];
-  for (const id of ids) {
-    const { raw } = await gmail.getRaw(id);
-    if (!raw.length) continue;
-    const msg = bankmail.parseMime(raw);
-    const p = bankmail.parseBankMail(msg);
-    items.push({
-      subject: msg.subject.slice(0, 120),
-      from: msg.from,
-      date: msg.date,
-      fromOk: bankmail.addressMatches(msg.from, cfg.from),
-      authOk: bankmail.authPassed(msg.headers, cfg.from),
-      kind: p.kind,
-      amount: p.amount || 0,
-      why: p.why || "",
-      content: p.content || "",
-      codes: findCodes(`${msg.subject}\n${msg.text}`),
-      snippet: msg.text.replace(/\s+/g, " ").slice(0, 400),
-    });
-  }
-  return { total: estimate, strict: cfg.strict, items };
+/** Chi de xem thu: lay giao dich gan nhat, KHONG cong coin, KHONG ghi gi vao CSDL */
+async function testApi() {
+  const cfg = apiConfig();
+  if (!cfg.ready) throw new Error("Hãy nhập Token, Code và số tài khoản trước");
+  const list = await bankapi.fetchHistory();
+  const items = list.slice(0, 8).map((t) => ({
+    date: t.date,
+    amount: t.amount,
+    debit: t.debit,
+    content: t.content.slice(0, 200),
+    codes: findCodes(t.content),
+    known: bq.byExt.get("mbapi", t.extId)?.status || null,
+  }));
+  return { total: list.length, items };
 }
 
 /** Vong lap nen: co lenh nap dang cho thi doc moi 25 giay, khong co thi 5 phut mot lan */
-function startMailLoop() {
+function startLoop() {
   if (process.env.AUTOPAY_NO_POLL === "1") return;
   setInterval(() => {
     try {
-      if (!mailConfig().ready || polling) return;
+      if (!apiConfig().ready || polling) return;
       const gap = pendingDeposits.get().n > 0 ? 25 * 1000 : 5 * 60 * 1000;
       if (Date.now() - lastPollAt < gap) return;
-      pollMail().catch((e) => console.error("[autopay]", e.message));
+      pollApi().catch((e) => console.error("[autopay]", e.message));
     } catch (e) { console.error("[autopay]", e.message); }
   }, 10 * 1000).unref?.();
 }
-startMailLoop();
-
-/* ---------- Dang nhap Google: trang ket qua (khong can phien dang nhap, bao ve bang "state") ---------- */
-
-const htmlEsc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-
-function resultPage(ok, text) {
-  return `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${ok ? "Đã kết nối Gmail" : "Không kết nối được"}</title>
-<style>body{font:16px/1.5 system-ui,sans-serif;background:#10131a;color:#e6e9ef;display:grid;place-items:center;min-height:100vh;margin:0;padding:1rem}
-.c{max-width:26rem;background:#171b24;border:1px solid #2a3040;border-radius:14px;padding:1.4rem}
-h1{font-size:1.15rem;margin:0 0 .6rem;color:${ok ? "#7fd99a" : "#ff8a8a"}}p{margin:.4rem 0;color:#b8bfcc}a{color:#8ab4ff}</style></head>
-<body><div class="c"><h1>${ok ? "✔ Đã kết nối Gmail" : "✕ Không kết nối được"}</h1><p>${htmlEsc(text)}</p>
-<p>${ok ? "Bạn có thể đóng trang này và quay lại ứng dụng." : "Quay lại trang quản trị và thử lại."}</p><p><a href="/">Về trang quản trị</a></p></div></body></html>`;
-}
-
-/** GET /api/admin/autopay/google/callback (gan trong app.js, truoc bo dinh tuyen can dang nhap) */
-async function googleCallback(req, res) {
-  res.set("Cache-Control", "no-store");
-  try {
-    const r = await gmail.finishAuth({ code: String(req.query.code || ""), state: String(req.query.state || ""), error: String(req.query.error || "") });
-    setStatus(true, `Đã đăng nhập Google (${r.email}). Từ giờ server tự đọc các email ngân hàng gửi đến.`, null);
-    lastPollAt = 0;
-    res.send(resultPage(true, `Đã kết nối ${r.email}. Server chỉ có quyền xem email, không gửi hay xoá được gì.`));
-  } catch (e) {
-    const msg = e instanceof gmail.GoogleError ? e.message : "Lỗi không rõ khi kết nối Google";
-    if (!(e instanceof gmail.GoogleError)) console.error("[autopay] google callback:", e);
-    setStatus(false, msg);
-    res.status(400).send(resultPage(false, msg));
-  }
-}
+startLoop();
 
 /* ---------- Admin ---------- */
 
-function publicBase(req) {
-  const env = (process.env.PUBLIC_URL || "").replace(/\/+$/, "");
-  return env || `${req.protocol}://${req.get("host")}`;
-}
-const redirectUriOf = (req) => `${publicBase(req)}/api/admin/autopay/google/callback`;
-
 function register(router, auth2) {
   const fail = (res, e) => res.status(400).json({ error: e.message });
-  const state = (req) => {
+  const state = () => {
     const t = bq.today.get();
-    const c = mailConfig();
+    const c = apiConfig();
     return {
       enabled: enabled(),
       bankReady: !!(getSetting("bank_id") && getSetting("bank_account")),
-      mail: { clientId: c.clientId, hasSecret: c.hasSecret, connected: c.connected, email: c.email, from: c.from, strict: c.strict, ready: c.ready, status: readStatus(), redirectUri: redirectUriOf(req) },
+      api: { url: c.url, defaultUrl: c.defaultUrl, stk: c.stk, hasToken: c.hasToken, hasCode: c.hasCode, ready: c.ready, status: readStatus() },
       today: { n: t.n, sum: t.s },
       unmatched: bq.unmatched.get().n,
       events: bq.list.all(),
     };
   };
 
-  router.get("/admin/autopay", auth2.requireAdmin, (req, res) => res.json(state(req)));
+  router.get("/admin/autopay", auth2.requireAdmin, (req, res) => res.json(state()));
 
   router.post("/admin/autopay", auth2.requireAdmin, (req, res) => {
-    if (req.body?.enabled && !mailConfig().ready) return res.status(400).json({ error: "Hãy đăng nhập Google và khai báo email ngân hàng gửi trước khi bật" });
+    if (req.body?.enabled && !apiConfig().ready) return res.status(400).json({ error: "Hãy nhập Token, Code và số tài khoản trước khi bật" });
     setSetting("autopay_enabled", req.body?.enabled ? "1" : "0");
-    res.json(state(req));
+    res.json(state());
   });
 
-  // Luu Client ID / Secret / nguoi gui (khong dang nhap lai)
-  router.post("/admin/autopay/google", auth2.requireAdmin, (req, res) => {
-    try { saveMailConfig(req.body); } catch (e) { return fail(res, e); }
-    res.json(state(req));
-  });
-
-  // Luu cau hinh roi tra link "Dang nhap bang Google". Web mo trong tab, app mo bang trinh duyet cua may.
-  router.post("/admin/autopay/google/start", auth2.requireAdmin, (req, res) => {
-    try {
-      if (req.body?.clientId) saveMailConfig(req.body);
-      const redirectUri = redirectUriOf(req);
-      res.json({ url: gmail.startAuth(redirectUri), redirectUri });
-    } catch (e) { fail(res, e); }
+  // Luu Token / Code / so tai khoan / dia chi API (Token, Code de trong = giu nguyen)
+  router.post("/admin/autopay/api", auth2.requireAdmin, (req, res) => {
+    try { saveApiConfig(req.body); } catch (e) { return fail(res, e); }
+    res.json(state());
   });
 
   router.post("/admin/autopay/poll", auth2.requireAdmin, async (req, res) => {
-    await pollMail();
-    res.json(state(req));
+    await pollApi();
+    res.json(state());
   });
 
   router.post("/admin/autopay/test", auth2.requireAdmin, async (req, res) => {
-    try { res.json(await testMail()); } catch (e) { fail(res, e); }
+    try { res.json(await testApi()); } catch (e) { fail(res, e); }
   });
 
-  router.post("/admin/autopay/disconnect", auth2.requireAdmin, async (req, res) => {
-    await disconnectGoogle();
-    res.json(state(req));
-  });
-
-  router.post("/admin/autopay/clear", auth2.requireAdmin, async (req, res) => {
-    await clearMailConfig();
-    res.json(state(req));
+  router.post("/admin/autopay/clear", auth2.requireAdmin, (req, res) => {
+    clearApiConfig();
+    res.json(state());
   });
 
   // Gan mot khoan tien chua khop (chuyen sai noi dung) cho tai khoan nguoi dung
@@ -395,6 +290,4 @@ function register(router, auth2) {
   });
 }
 
-module.exports = {
-  register, googleCallback, findCode, findCodes, processOne, handleMail, pollMail, testMail, mailConfig, saveMailConfig,
-};
+module.exports = { register, findCode, findCodes, processOne, pollApi, testApi, apiConfig, saveApiConfig };

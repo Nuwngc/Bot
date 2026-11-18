@@ -8,7 +8,6 @@ const zaloApi = require("./zaloRoutes");
 const fbApi = require("./fbRoutes");
 const { requireLogin } = require("./auth");
 const linkcoin = require("./linkcoin");
-const autopay = require("./autopay");
 
 function createApp() {
   const app = express();
@@ -48,10 +47,6 @@ function createApp() {
   app.get("/healthz", (req, res) => {
     res.json({ ok: true, uptime: Math.floor(process.uptime()) });
   });
-
-  // Google chuyen trinh duyet ve day sau khi admin dang nhap Gmail. Khong can phien dang nhap (app admin mo bang trinh duyet khac),
-  // bao ve bang tham so "state" ngau nhien dung 1 lan, xem server/gmail.js. Phai dat TRUOC bo dinh tuyen /api (co requireLogin).
-  app.get("/api/admin/autopay/google/callback", autopay.googleCallback);
 
   app.use("/api/fb", fbApi);
   app.use("/api/zalo", zaloApi);

@@ -3,7 +3,7 @@
  *
  *  - 1 coin = 1d. So du = tong cac giao dich trong bang wallet_tx (khong luu cot rieng).
  *  - Nap tien: nguoi dung nhap so tien tuy y, chuyen khoan kem ma NAPxxxx. Neu admin bat tu dong
- *    (server/autopay.js, server tu doc email bien dong so du cua ngan hang) thi coin vao vi ngay khi co tien;
+ *    (server/autopay.js, server tu doc lich su giao dich ngan hang qua API) thi coin vao vi ngay khi co tien;
  *    khong thi admin xac nhan bang tay.
  *  - Gia han bot: tru coin trong vi, cong han cho dung bot do.
  *  - Xep hang: tong coin NAP trong thang (gio Viet Nam). Thuong/dieu chinh khong tinh.

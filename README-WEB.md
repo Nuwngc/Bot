@@ -114,8 +114,8 @@ Chưa khai báo thì khách vẫn tạo được đơn, chỉ không có QR.
 **Hết hạn:** bot tự tắt. Cứ 10 phút hệ thống quét một lần, và khi server khởi động
 lại thì bỏ qua không bật bot của người đã hết hạn.
 
-**Tự động xác nhận:** server tự đọc email báo biến động số dư của ngân hàng (không dùng
-dịch vụ bên thứ ba). Xem `README-AUTOPAY.md`. Không bật thì vẫn duyệt tay như cũ.
+**Tự động xác nhận:** server tự gọi API lịch sử giao dịch MB Bank (Token + Code + số tài khoản)
+để thấy tiền vào. Xem `README-AUTOPAY.md`. Không bật thì vẫn duyệt tay như cũ.
 
 ## Ma sói: các vai mở rộng
 

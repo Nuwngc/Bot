@@ -294,67 +294,60 @@
             <div class="switch"><div class="t">tự động cộng coin khi nạp<small id="apSub"></small></div><input type="checkbox" id="apOn"></div>
           </div>
           <div id="apStat"></div>
-          <h3 class="sec">đăng nhập google (đọc email ngân hàng)</h3>
+          <h3 class="sec">api ngân hàng (mb bank)</h3>
           <div class="card pad" id="apForm">
-            <div class="hint">Server tự đọc email biến động số dư của ngân hàng qua "Đăng nhập bằng Google" (chỉ quyền xem email, không gửi/xoá được gì), không dùng dịch vụ bên thứ ba và không cần mật khẩu ngân hàng. Dùng một Gmail riêng nhận thông báo ngân hàng.</div>
+            <div class="hint">Server tự gọi API lịch sử giao dịch MB Bank bằng Token, Code và số tài khoản nhận tiền. Có tiền vào kèm mã nạp (NAP + 7 ký tự) thì cộng coin ngay. Token và Code được mã hoá trên server, không gửi về app.</div>
             <details class="guide"><summary>cách cài đặt (một lần)</summary>
-              <div class="hint"><b>1.</b> Trong app ngân hàng bật thông báo biến động số dư qua email, điền Gmail riêng.</div>
-              <div class="hint"><b>2.</b> Vào console.cloud.google.com bằng Gmail đó, tạo Project, vào APIs &amp; Services &gt; Library bật "Gmail API".</div>
-              <div class="hint"><b>3.</b> OAuth consent screen: loại External, điền tên app + email, thêm scope <b>gmail.readonly</b>, thêm Gmail riêng vào Test users, rồi bấm <b>Publish app</b> (In production). Để Testing thì quyền chỉ sống 7 ngày. Google cảnh báo "chưa xác minh" thì bấm Nâng cao rồi tiếp tục (app của chính bạn).</div>
-              <div class="hint"><b>4.</b> Credentials &gt; Create OAuth client ID, loại <b>Web application</b>, dán Redirect URI bên dưới vào "Authorized redirect URIs". Chép Client ID + Client Secret vào form.</div>
-              <div class="hint"><b>5.</b> Điền email/tên miền ngân hàng gửi (xem mục "Từ" của email thật, vd mbbank.com.vn), bấm đăng nhập google. App mở trình duyệt của máy để bạn chọn Gmail và cho phép, xong quay lại app.</div>
-              <div class="hint"><b>6.</b> Chuyển thử khoản nhỏ, bấm "thử đọc email" xem server hiểu đúng chưa, rồi bật công tắc.</div>
+              <div class="hint"><b>1.</b> Lấy Token và Code của dịch vụ API lịch sử giao dịch MB Bank bạn đang dùng (mặc định api.dichvudark.vn, loại API lsgdv2).</div>
+              <div class="hint"><b>2.</b> Điền số tài khoản MB nhận tiền (đúng số đã khai báo trong cấu hình chung), Token, Code rồi bấm lưu cấu hình.</div>
+              <div class="hint"><b>3.</b> Bấm \"xem giao dịch\" kiểm tra server đọc được lịch sử chưa (chưa cộng coin). Lần đọc đầu tiên sau khi lưu chỉ ghi nhớ giao dịch cũ, không cộng coin cho chúng.</div>
+              <div class="hint"><b>4.</b> Chuyển thử khoản nhỏ kèm mã nạp, thấy giao dịch hiện ra thì bật công tắc.</div>
             </details>
-            <div class="field"><label>redirect uri (dán vào google cloud)</label><input id="apRedir" readonly></div>
-            <div class="bar"><button class="btn sm" data-act="apCopyRedir">chép redirect uri</button></div>
-            <div class="field"><label>client id</label><input id="apCid" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="xxxx.apps.googleusercontent.com"></div>
-            <div class="field"><label>client secret</label><input id="apSec" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false"></div>
-            <div class="field"><label>email hoặc tên miền ngân hàng gửi</label><input id="apFrom" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="mbbank.com.vn"></div>
-            <div class="switch"><div class="t">chế độ chặt<small>chỉ tin email qua được xác thực người gửi (nên bật)</small></div><input type="checkbox" id="apStrict"></div>
+            <div class="field"><label>địa chỉ api</label><input id="apUrl" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="https://api.dichvudark.vn/api/ApiMbBank"></div>
+            <div class="field"><label>số tài khoản nhận tiền</label><input id="apStk" inputmode="numeric" autocapitalize="off" autocomplete="off" spellcheck="false"></div>
+            <div class="field"><label>token</label><input id="apToken" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false"></div>
+            <div class="field"><label>code</label><input id="apCode" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false"></div>
             <div class="bar">
-              <button class="btn primary" data-act="apLogin" id="apLogin">$ đăng nhập google</button>
-              <button class="btn" data-act="apSave">lưu cấu hình</button>
+              <button class="btn primary" data-act="apSave">$ lưu cấu hình</button>
             </div>
             <div class="bar">
               <button class="btn" data-act="apPoll" id="apPoll">kiểm tra ngay</button>
-              <button class="btn" data-act="apTest" id="apTest">thử đọc email</button>
-              <button class="btn danger" data-act="apDisc" id="apDisc">ngắt kết nối</button>
+              <button class="btn" data-act="apTest" id="apTest">xem giao dịch</button>
               <button class="btn danger" data-act="apClear" id="apClear">xoá cấu hình</button>
             </div>
-            <div class="hint">Token Google được mã hoá trên server và không bao giờ gửi về app. Khoản nhận nhiều hơn lệnh nạp sẽ không tự cộng, để bạn xem ở "chưa khớp".</div>
+            <div class="hint">Nhận bằng hoặc hơn lệnh nạp thì cộng đúng số thực nhận. Giao dịch không có mã nạp hợp lệ nằm ở \"chưa khớp\" để bạn gán tay.</div>
           </div>
           <div id="apTestOut"></div>
           <h3 class="sec">giao dịch gần đây</h3>
           <div id="apEvents"></div>`;
-        this.fillForm(d.mail);
+        this.fillForm(d.api);
       }
       this.paint(d);
     },
     formBody() {
-      return { clientId: $("#apCid").value.trim(), clientSecret: $("#apSec").value.trim(), from: $("#apFrom").value.trim(), strict: $("#apStrict").checked };
+      return { url: $("#apUrl").value.trim(), stk: $("#apStk").value.trim(), token: $("#apToken").value.trim(), code: $("#apCode").value.trim() };
     },
     fillForm(m) {
-      $("#apCid").value = m.clientId || "";
-      $("#apFrom").value = m.from || "";
-      $("#apStrict").checked = m.strict;
-      $("#apSec").value = "";
+      $("#apUrl").value = m.url === m.defaultUrl ? "" : m.url || "";
+      $("#apUrl").placeholder = m.defaultUrl || "";
+      $("#apStk").value = m.stk || "";
+      $("#apToken").value = "";
+      $("#apCode").value = "";
     },
     paint(d) {
-      const m = d.mail, s = m.status;
+      const m = d.api, s = m.status;
       $("#apOn").checked = d.enabled;
       $("#apSub").innerHTML = `${d.today.n} giao dịch hôm nay · ${fmt(d.today.sum)} coin${d.unmatched ? ` · <span class="r">${d.unmatched} chưa khớp</span>` : ""}`;
-      $("#apRedir").value = m.redirectUri || "";
-      $("#apSec").placeholder = m.hasSecret ? "đã lưu, bỏ trống để giữ nguyên" : "GOCSPX-...";
-      $("#apLogin").textContent = m.connected ? "$ đăng nhập google lại" : "$ đăng nhập google";
+      $("#apToken").placeholder = m.hasToken ? "đã lưu, bỏ trống để giữ nguyên" : "dán token";
+      $("#apCode").placeholder = m.hasCode ? "đã lưu, bỏ trống để giữ nguyên" : "dán code";
       $("#apPoll").disabled = !m.ready;
       $("#apTest").disabled = !m.ready;
-      $("#apDisc").hidden = !m.connected;
-      $("#apClear").hidden = !m.clientId && !m.hasSecret && !m.connected;
+      $("#apClear").hidden = !m.hasToken && !m.hasCode && !m.stk;
       const when = s && s.at ? new Date(s.at).toLocaleTimeString("vi-VN") : "";
-      const tag = !m.connected ? ["chưa đăng nhập", ""] : !m.from ? ["thiếu email ngân hàng", "warn"] : s && !s.ok ? ["lỗi", "bad"] : ["đã kết nối", "ok"];
+      const tag = !m.ready ? ["chưa cấu hình", ""] : s && !s.ok ? ["lỗi", "bad"] : s ? ["đã kết nối", "ok"] : ["chưa kiểm tra", "warn"];
       $("#apStat").innerHTML = `<div class="card pad">
-        <div class="l1"><span class="tag ${tag[1]}">${tag[0]}</span>${m.email ? `<span class="dim">${esc(m.email)}</span>` : ""}<span class="sp"></span><span class="dim">${esc(when)}</span></div>
-        <div class="hint">${esc(m.connected ? (s ? s.msg : "chưa kiểm tra") : "điền form bên dưới rồi bấm đăng nhập google")}</div>
+        <div class="l1"><span class="tag ${tag[1]}">${tag[0]}</span>${m.stk ? `<span class="dim">${esc(m.stk)}</span>` : ""}<span class="sp"></span><span class="dim">${esc(when)}</span></div>
+        <div class="hint">${esc(m.ready ? (s ? s.msg : "chưa kiểm tra") : "điền form bên dưới rồi bấm lưu cấu hình")}</div>
         ${s && s.warn ? `<div class="hint r">⚠ ${esc(s.warn.text)}</div>` : ""}
         ${d.bankReady ? "" : '<div class="hint">Chưa khai báo ngân hàng trong cấu hình chung nên người dùng chưa có mã QR để nạp.</div>'}
       </div>`;
@@ -395,7 +388,7 @@
     views.money.load();
   });
 
-  // Quay lại app sau khi đăng nhập Google trong trình duyệt: làm mới ngay, không chờ vòng 20 giây
+  // Quay lại app (từ nền): làm mới ngay, không chờ vòng 20 giây
   const backToMoney = () => { if (!document.hidden && tab === "money" && views.money.seg === "bank") views.money.load(); };
   document.addEventListener("visibilitychange", backToMoney);
   window.addEventListener("focus", backToMoney);
@@ -635,24 +628,11 @@
     async ignoreEv(el) {
       try { await post(`/admin/autopay/events/${el.dataset.id}/ignore`); toast("Đã bỏ qua"); views.money.load(); } catch (e) { fail(e); }
     },
-    apCopyRedir() { copy($("#apRedir").value, "Đã chép redirect uri"); },
-    async apLogin(el) {
-      el.disabled = true;
-      try {
-        const r = await post("/admin/autopay/google/start", views.money.formBody());
-        // Google không cho đăng nhập trong WebView nhúng: mở bằng trình duyệt của máy, xong quay lại app
-        if (native) {
-          if (!native.openUrl(r.url)) throw new Error("Không mở được trình duyệt");
-          toast("Đã mở Google trong trình duyệt. Đăng nhập xong hãy quay lại app");
-        } else location.href = r.url;
-      } catch (e) { fail(e); }
-      el.disabled = false;
-    },
     async apSave(el) {
       el.disabled = true;
       try {
-        const d = await post("/admin/autopay/google", views.money.formBody());
-        views.money.fillForm(d.mail);
+        const d = await post("/admin/autopay/api", views.money.formBody());
+        views.money.fillForm(d.api);
         views.money.paint(d);
         toast("Đã lưu cấu hình");
       } catch (e) { fail(e); }
@@ -663,7 +643,7 @@
       try {
         const d = await post("/admin/autopay/poll");
         views.money.paint(d);
-        const st = d.mail.status;
+        const st = d.api.status;
         toast((st && st.msg) || "Đã kiểm tra", !(st && st.ok));
       } catch (e) { fail(e); }
       el.disabled = false;
@@ -673,29 +653,24 @@
       const out = $("#apTestOut");
       try {
         const r = await post("/admin/autopay/test");
-        const KIND = { credit: ["tiền vào", "ok"], other: ["bỏ qua", ""], unreadable: ["không đọc được", "warn"] };
-        out.innerHTML = `<h3 class="sec">thử đọc · email gần nhất từ ngân hàng</h3>` + (r.items.length
+        const KNOWN = { credited: "đã cộng", unmatched: "đã ghi, chưa khớp", ignored: "giao dịch cũ, bỏ qua" };
+        out.innerHTML = `<h3 class="sec">xem giao dịch · ${r.items.length}/${r.total} gần nhất</h3>` + (r.items.length
           ? `<div class="rows">${r.items.map((i) => {
-            const [label, cls] = KIND[i.kind] || [i.kind, ""];
-            const trust = !i.fromOk ? "địa chỉ gửi không khớp, sẽ bị bỏ qua" : r.strict && !i.authOk ? "không qua xác thực người gửi, sẽ bị bỏ qua (tắt chế độ chặt nếu là email thật)" : "người gửi hợp lệ";
+            const inc = i.amount > 0;
             return `<div class="row">
-              <div class="l1"><b>${i.amount ? "+" + fmt(i.amount) : "?"}</b><span class="tag ${cls}">${label}</span><span class="sp"></span><span class="dim">${esc(i.date || "")}</span></div>
-              <div class="l2">${esc(i.subject || "(không có tiêu đề)")}<br>↳ ${esc(trust)} · ${i.codes.length ? "mã nạp: " + esc(i.codes.join(", ")) : "không thấy mã NAPxxxxxxx"}${i.content ? `<br>↳ nội dung: ${esc(i.content)}` : ""}${i.why ? `<br>↳ ${esc(i.why)}` : ""}<br><span class="dim">${esc(i.snippet)}</span></div>
+              <div class="l1"><b>${inc ? "+" + fmt(i.amount) : "-" + fmt(i.debit)}</b><span class="tag ${inc ? "ok" : ""}">${inc ? "tiền vào" : "tiền ra"}</span><span class="sp"></span><span class="dim">${esc(i.date || "")}</span></div>
+              <div class="l2">${esc(i.content || "(không có nội dung)")}<br>↳ ${esc(!inc ? "tiền ra, sẽ bỏ qua" : i.known ? "server " + (KNOWN[i.known] || i.known) : "chưa xử lý")}${inc ? " · " + (i.codes.length ? "mã nạp: " + esc(i.codes.join(", ")) : "không thấy mã NAPxxxxxxx") : ""}</div>
             </div>`;
           }).join("")}</div>`
-          : '<div class="empty">Gmail chưa có email nào từ địa chỉ ngân hàng này. Kiểm tra ô email/tên miền ngân hàng gửi, hoặc chuyển thử khoản nhỏ rồi thử lại</div>');
+          : '<div class="empty">API trả về lịch sử trống. Chuyển thử khoản nhỏ rồi thử lại, hoặc kiểm tra số tài khoản</div>');
       } catch (e) { fail(e); }
       el.disabled = false;
     },
-    async apDisc() {
-      if (!(await ask("Server sẽ thu hồi quyền đọc Gmail và tắt tự động cộng coin. Client ID/Secret vẫn được giữ để đăng nhập lại.", "ngắt kết nối"))) return;
-      try { const d = await post("/admin/autopay/disconnect"); views.money.paint(d); $("#apTestOut").innerHTML = ""; toast("Đã ngắt kết nối Google"); } catch (e) { fail(e); }
-    },
     async apClear() {
-      if (!(await ask("Server sẽ thu hồi quyền Gmail, quên Client ID, Client Secret và email ngân hàng, đồng thời tắt tự động cộng coin. Tiền vào sau đó phải duyệt tay.", "xoá cấu hình"))) return;
+      if (!(await ask("Server sẽ quên Token, Code, số tài khoản và tắt tự động cộng coin. Tiền vào sau đó phải duyệt tay.", "xoá cấu hình"))) return;
       try {
         const d = await post("/admin/autopay/clear");
-        views.money.fillForm(d.mail);
+        views.money.fillForm(d.api);
         views.money.paint(d);
         $("#apTestOut").innerHTML = "";
         toast("Đã xoá cấu hình");
