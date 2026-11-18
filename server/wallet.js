@@ -3,7 +3,7 @@
  *
  *  - 1 coin = 1d. So du = tong cac giao dich trong bang wallet_tx (khong luu cot rieng).
  *  - Nap tien: nguoi dung nhap so tien tuy y, chuyen khoan kem ma NAPxxxx. Neu admin bat tu dong
- *    (server/autopay.js, webhook SePay / Casso) thi coin vao vi ngay khi ngan hang bao co tien;
+ *    (server/autopay.js, server tu doc email bien dong so du cua ngan hang) thi coin vao vi ngay khi co tien;
  *    khong thi admin xac nhan bang tay.
  *  - Gia han bot: tru coin trong vi, cong han cho dung bot do.
  *  - Xep hang: tong coin NAP trong thang (gio Viet Nam). Thuong/dieu chinh khong tinh.
@@ -157,12 +157,16 @@ function approveDeposit(id, note) {
  * Coin = so tien THUC NHAN (co the khac so tien trong lenh). Lenh da huy van duoc cong vi tien da vao tai khoan.
  * Tra ve { error } neu khong cong duoc, hoac { deposit, balance, expected, wasCancelled }.
  */
-function confirmByCode(code, amount, note) {
+function confirmByCode(code, amount, note, opts) {
   const d = wq.depByCodeFull.get(code);
   if (!d) return { error: `Không có lệnh nạp mã ${code}` };
   if (d.status === "paid") return { error: `Lệnh nạp ${code} đã được xác nhận trước đó`, deposit: d };
   const coin = Math.round(Number(amount));
   if (!(coin > 0) || coin > 1e9) return { error: "Số tiền không hợp lệ", deposit: d };
+  // Nguon doc so tien tu email: nhan nhieu hon lenh thi de admin xem, tranh cong nham khi doc sai
+  if (opts?.maxOrder && coin > d.amount) {
+    return { error: `Tiền nhận ${fmt(coin)} lớn hơn lệnh nạp ${fmt(d.amount)}, cần bạn xác nhận tay (duyệt lệnh hoặc gán cho tài khoản)`, deposit: d };
+  }
   const extra = coin !== d.amount ? ` · nhận ${fmt(coin)}, lệnh ${fmt(d.amount)}` : "";
   wq.depPaidAmount.run(coin, `${note || "Tự động"}${extra}`, d.id);
   const bal = credit(d.user_id, "deposit", coin, d.code, `Nạp tiền ${d.code}`);

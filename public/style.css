@@ -952,3 +952,7 @@ details.guide b { color: var(--paper); font-weight: 600; }
 .ap-note { margin-top: .25rem; font-size: .78rem; color: var(--dim); line-height: 1.5; }
 .ap-assign { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .65rem; }
 .ap-assign input { flex: 1 1 10rem; min-width: 0; }
+#autopayBox .ap-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin: .9rem 0; }
+#autopayBox .ap-warn { margin-top: .5rem; padding: .6rem .8rem; border-radius: 12px; border: 1px solid var(--alert); color: var(--alert); font-size: .82rem; line-height: 1.5; }
+#autopayBox .ap-raw { margin-top: .4rem; }
+#autopayBox .ap-raw summary { cursor: pointer; font-size: .78rem; color: var(--dim); }

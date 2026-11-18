@@ -8,7 +8,6 @@ const zaloApi = require("./zaloRoutes");
 const fbApi = require("./fbRoutes");
 const { requireLogin } = require("./auth");
 const linkcoin = require("./linkcoin");
-const autopay = require("./autopay");
 
 function createApp() {
   const app = express();
@@ -48,9 +47,6 @@ function createApp() {
   app.get("/healthz", (req, res) => {
     res.json({ ok: true, uptime: Math.floor(process.uptime()) });
   });
-
-  // Webhook bao co tien tu ngan hang (SePay / Casso): xac thuc bang ma bi mat, khong dung phien dang nhap
-  app.post("/api/webhooks/bank", autopay.webhook);
 
   app.use("/api/fb", fbApi);
   app.use("/api/zalo", zaloApi);

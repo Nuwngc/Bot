@@ -114,9 +114,8 @@ Chưa khai báo thì khách vẫn tạo được đơn, chỉ không có QR.
 **Hết hạn:** bot tự tắt. Cứ 10 phút hệ thống quét một lần, và khi server khởi động
 lại thì bỏ qua không bật bot của người đã hết hạn.
 
-**Tự động xác nhận:** hiện phải duyệt tay. Muốn tự động thì dùng dịch vụ đọc biến động
-số dư (Casso, SePay) gọi webhook về server — phần khung đã ghi chú sẵn ở cuối
-`server/billing.js`.
+**Tự động xác nhận:** server tự đọc email báo biến động số dư của ngân hàng (không dùng
+dịch vụ bên thứ ba). Xem `README-AUTOPAY.md`. Không bật thì vẫn duyệt tay như cũ.
 
 ## Ma sói: các vai mở rộng
 

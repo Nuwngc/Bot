@@ -55,7 +55,7 @@
       </div>
       ${b.note ? `<p class="hint" style="margin-top:0.5rem">${esc(b.note)}</p>` : ""}
       <p class="hint">${wal.autopay
-        ? "Chuyển đúng số tiền và nội dung. Coin tự động vào ví sau khi ngân hàng báo có tiền (thường dưới 1 phút), trang này tự cập nhật."
+        ? "Chuyển đúng số tiền và nội dung. Coin tự động vào ví sau khi ngân hàng gửi email báo có tiền (thường từ vài chục giây đến vài phút, tuỳ ngân hàng), trang này tự cập nhật."
         : "Chuyển đúng số tiền và nội dung. Coin vào ví sau khi quản trị viên xác nhận."}</p>
       <button class="danger" data-cancel="${d.id}">Huỷ lệnh nạp</button>
     </div>`;
