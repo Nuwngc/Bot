@@ -294,19 +294,19 @@
             <div class="switch"><div class="t">tự động cộng coin khi nạp<small id="apSub"></small></div><input type="checkbox" id="apOn"></div>
           </div>
           <div id="apStat"></div>
-          <h3 class="sec">api ngân hàng (mb bank)</h3>
+          <h3 class="sec">api ngân hàng</h3>
           <div class="card pad" id="apForm">
-            <div class="hint">Server tự gọi API lịch sử giao dịch MB Bank bằng Token, Code và số tài khoản nhận tiền. Có tiền vào kèm mã nạp (NAP + 7 ký tự) thì cộng coin ngay. Token và Code được mã hoá trên server, không gửi về app.</div>
+            <div class="hint">Server tự gọi API lịch sử giao dịch ngân hàng. Có tiền vào kèm mã nạp (NAP + 7 ký tự) thì cộng coin ngay. Khoá API được mã hoá trên server, không gửi về app. Techcombank không có API công khai cho tài khoản cá nhân nên dùng qua Casso.</div>
             <details class="guide"><summary>cách cài đặt (một lần)</summary>
-              <div class="hint"><b>1.</b> Lấy Token và Code của dịch vụ API lịch sử giao dịch MB Bank bạn đang dùng (mặc định api.dichvudark.vn, loại API lsgdv2).</div>
-              <div class="hint"><b>2.</b> Điền số tài khoản MB nhận tiền (đúng số đã khai báo trong cấu hình chung), Token, Code rồi bấm lưu cấu hình.</div>
-              <div class="hint"><b>3.</b> Bấm \"xem giao dịch\" kiểm tra server đọc được lịch sử chưa (chưa cộng coin). Lần đọc đầu tiên sau khi lưu chỉ ghi nhớ giao dịch cũ, không cộng coin cho chúng.</div>
-              <div class="hint"><b>4.</b> Chuyển thử khoản nhỏ kèm mã nạp, thấy giao dịch hiện ra thì bật công tắc.</div>
+              <div class="hint"><b>Techcombank (casso):</b> đăng ký casso.vn, liên kết tài khoản Techcombank vào Casso (có thể thu phí theo gói), tạo <b>API Key</b> rồi dán vào ô api key. Số tài khoản có thể để trống.</div>
+              <div class="hint"><b>MB Bank (dichvudark):</b> điền Token, Code và số tài khoản MB nhận tiền (đúng số đã khai báo trong cấu hình chung).</div>
+              <div class="hint">Lưu cấu hình rồi bấm \"xem giao dịch\" kiểm tra server đọc được lịch sử chưa (chưa cộng coin). Lần đọc đầu sau khi lưu chỉ ghi nhớ giao dịch cũ. Rồi chuyển thử khoản nhỏ kèm mã nạp và bật công tắc.</div>
             </details>
+            <div class="field"><label>nguồn dữ liệu</label><select id="apProv"><option value="casso">techcombank / ngân hàng khác (casso)</option><option value="dichvudark">mb bank (dichvudark)</option></select></div>
             <div class="field"><label>địa chỉ api</label><input id="apUrl" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="https://api.dichvudark.vn/api/ApiMbBank"></div>
-            <div class="field"><label>số tài khoản nhận tiền</label><input id="apStk" inputmode="numeric" autocapitalize="off" autocomplete="off" spellcheck="false"></div>
-            <div class="field"><label>token</label><input id="apToken" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false"></div>
-            <div class="field"><label>code</label><input id="apCode" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false"></div>
+            <div class="field"><label id="apStkL">số tài khoản nhận tiền</label><input id="apStk" inputmode="numeric" autocapitalize="off" autocomplete="off" spellcheck="false"></div>
+            <div class="field"><label id="apTokenL">token</label><input id="apToken" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false"></div>
+            <div class="field" id="apCodeBox"><label>code</label><input id="apCode" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false"></div>
             <div class="bar">
               <button class="btn primary" data-act="apSave">$ lưu cấu hình</button>
             </div>
@@ -325,11 +325,19 @@
       this.paint(d);
     },
     formBody() {
-      return { url: $("#apUrl").value.trim(), stk: $("#apStk").value.trim(), token: $("#apToken").value.trim(), code: $("#apCode").value.trim() };
+      return { provider: $("#apProv").value, url: $("#apUrl").value.trim(), stk: $("#apStk").value.trim(), token: $("#apToken").value.trim(), code: $("#apCode").value.trim() };
+    },
+    applyProv() {
+      const cas = $("#apProv").value === "casso";
+      $("#apCodeBox").hidden = cas;
+      $("#apTokenL").textContent = cas ? "api key (casso)" : "token";
+      $("#apStkL").textContent = cas ? "số tài khoản (không bắt buộc)" : "số tài khoản nhận tiền";
+      $("#apUrl").placeholder = cas ? "https://oauth.casso.vn/v2/transactions" : "https://api.dichvudark.vn/api/ApiMbBank";
     },
     fillForm(m) {
+      $("#apProv").value = m.provider || "casso";
+      this.applyProv();
       $("#apUrl").value = m.url === m.defaultUrl ? "" : m.url || "";
-      $("#apUrl").placeholder = m.defaultUrl || "";
       $("#apStk").value = m.stk || "";
       $("#apToken").value = "";
       $("#apCode").value = "";
@@ -338,8 +346,9 @@
       const m = d.api, s = m.status;
       $("#apOn").checked = d.enabled;
       $("#apSub").innerHTML = `${d.today.n} giao dịch hôm nay · ${fmt(d.today.sum)} coin${d.unmatched ? ` · <span class="r">${d.unmatched} chưa khớp</span>` : ""}`;
-      $("#apToken").placeholder = m.hasToken ? "đã lưu, bỏ trống để giữ nguyên" : "dán token";
-      $("#apCode").placeholder = m.hasCode ? "đã lưu, bỏ trống để giữ nguyên" : "dán code";
+      const same = m.provider === $("#apProv").value;
+      $("#apToken").placeholder = m.hasToken && same ? "đã lưu, bỏ trống để giữ nguyên" : $("#apProv").value === "casso" ? "dán api key" : "dán token";
+      $("#apCode").placeholder = m.hasCode && same ? "đã lưu, bỏ trống để giữ nguyên" : "dán code";
       $("#apPoll").disabled = !m.ready;
       $("#apTest").disabled = !m.ready;
       $("#apClear").hidden = !m.hasToken && !m.hasCode && !m.stk;
@@ -382,6 +391,7 @@
     if (r) { views.money.range = r.dataset.range; views.money.load(); }
   });
   $("#v-money").addEventListener("change", async (e) => {
+    if (e.target.id === "apProv") { views.money.applyProv(); return; }
     if (e.target.id !== "apOn") return;
     try { await post("/admin/autopay", { enabled: e.target.checked }); toast(e.target.checked ? "Đã bật tự động cộng coin" : "Đã tắt tự động cộng coin"); }
     catch (err) { fail(err); }

@@ -1,4 +1,4 @@
-/* Quản trị: tự động cộng coin khi nạp bằng cách server tự gọi API lịch sử giao dịch ngân hàng (MB Bank) bằng Token + Code + số tài khoản.
+/* Quản trị: tự động cộng coin khi nạp bằng cách server tự gọi API lịch sử giao dịch ngân hàng (MB Bank) (Techcombank qua Casso, hoặc MB Bank qua dichvudark).
    Dùng các hàm có sẵn: $, api, say, esc, fmtDate, confirmBox. */
 (() => {
   const fmt = (n) => Number(n || 0).toLocaleString("vi-VN");
@@ -11,28 +11,29 @@
   box.hidden = true;
   box.innerHTML = `
     <h2>Tự động cộng tiền khi nạp</h2>
-    <p>Server tự gọi API lịch sử giao dịch ngân hàng (MB Bank) bằng Token, Code và số tài khoản nhận tiền. Khi có tiền vào với nội dung chứa mã nạp (NAP + 7 ký tự), coin được cộng ngay vào ví người nạp. Token và Code được mã hoá trên server, không gửi về trình duyệt.</p>
+    <p>Server tự gọi API lịch sử giao dịch ngân hàng. Khi có tiền vào với nội dung chứa mã nạp (NAP + 7 ký tự), coin được cộng ngay vào ví người nạp. Khoá API được mã hoá trên server, không gửi về trình duyệt. Techcombank không có API công khai cho tài khoản cá nhân nên dùng qua Casso (liên kết tài khoản Techcombank vào Casso, lấy API Key).</p>
     <label class="check"><input type="checkbox" id="apOn"> Bật tự động cộng coin</label>
     <p class="hint" id="apStat"></p>
 
     <details class="ls-src" id="apGuide">
       <summary>Cách cài đặt (làm một lần)</summary>
       <div class="ls-src-body">
-        <p class="hint"><b>1.</b> Lấy Token và Code của dịch vụ API lịch sử giao dịch MB Bank bạn đang dùng (mặc định api.dichvudark.vn, loại API lsgdv2).</p>
-        <p class="hint"><b>2.</b> Điền số tài khoản MB nhận tiền (đúng số tài khoản đã khai báo ở phần Ngân hàng phía trên), Token và Code vào form rồi bấm \"Lưu cấu hình\".</p>
-        <p class="hint"><b>3.</b> Bấm \"Xem giao dịch gần nhất\" để kiểm tra server đọc được lịch sử chưa (chưa cộng coin). Lần đọc đầu tiên sau khi lưu chỉ ghi nhớ các giao dịch cũ, không cộng coin cho chúng.</p>
-        <p class="hint"><b>4.</b> Chuyển thử một khoản nhỏ kèm mã nạp, xem giao dịch hiện ra, rồi bật công tắc phía trên.</p>
+        <p class="hint"><b>Techcombank (Casso):</b> đăng ký casso.vn, liên kết tài khoản Techcombank của bạn trên Casso (Casso có thể thu phí theo gói kết nối), vào phần tích hợp tạo <b>API Key</b>, dán vào ô API Key bên dưới. Số tài khoản có thể để trống (nếu điền, chỉ đọc giao dịch của tài khoản đó).</p>
+        <p class="hint"><b>MB Bank (dichvudark):</b> điền Token, Code và số tài khoản MB nhận tiền (đúng số đã khai báo ở phần Ngân hàng phía trên).</p>
+        <p class="hint">Sau khi bấm \"Lưu cấu hình\", bấm \"Xem giao dịch gần nhất\" để kiểm tra server đọc được lịch sử (chưa cộng coin). Lần đọc đầu tiên sau khi lưu chỉ ghi nhớ các giao dịch cũ, không cộng coin cho chúng. Rồi chuyển thử một khoản nhỏ kèm mã nạp và bật công tắc phía trên.</p>
         <p class="hint">Server hỏi API mỗi 25 giây khi có lệnh nạp đang chờ, không có thì 5 phút một lần. Mỗi giao dịch chỉ cộng một lần. Tiền nhận bằng hoặc hơn lệnh nạp thì cộng đúng số tiền thực nhận, nhận ít hơn cũng cộng số đã nhận. Giao dịch không có mã nạp hợp lệ nằm ở \"chưa khớp\" để bạn gán tay. Đừng đưa Token và Code cho người khác.</p>
       </div>
     </details>
 
+    <div class="field"><label for="apProv">Nguồn dữ liệu</label>
+      <select id="apProv"><option value="casso">Techcombank và ngân hàng khác (qua Casso)</option><option value="dichvudark">MB Bank (qua dichvudark)</option></select></div>
     <div class="field"><label for="apUrl">Địa chỉ API</label>
       <input type="text" id="apUrl" placeholder="https://api.dichvudark.vn/api/ApiMbBank" autocapitalize="off" autocomplete="off" spellcheck="false"></div>
-    <div class="field"><label for="apStk">Số tài khoản nhận tiền</label>
+    <div class="field"><label for="apStk" id="apStkL">Số tài khoản nhận tiền</label>
       <input type="text" id="apStk" inputmode="numeric" placeholder="Số tài khoản MB" autocapitalize="off" autocomplete="off" spellcheck="false"></div>
-    <div class="field"><label for="apToken">Token</label>
+    <div class="field"><label for="apToken" id="apTokenL">Token</label>
       <input type="password" id="apToken" autocomplete="new-password" placeholder="Dán Token"></div>
-    <div class="field"><label for="apCode">Code</label>
+    <div class="field" id="apCodeBox"><label for="apCode">Code</label>
       <input type="password" id="apCode" autocomplete="new-password" placeholder="Dán Code"></div>
 
     <div class="ap-actions">
@@ -67,8 +68,17 @@
     </div>`;
   }
 
+  function applyProv() {
+    const cas = $("apProv").value === "casso";
+    $("apCodeBox").hidden = cas;
+    $("apTokenL").textContent = cas ? "API Key (Casso)" : "Token";
+    $("apStkL").textContent = cas ? "Số tài khoản (không bắt buộc)" : "Số tài khoản nhận tiền";
+    $("apUrl").placeholder = cas ? "https://oauth.casso.vn/v2/transactions" : "https://api.dichvudark.vn/api/ApiMbBank";
+  }
+  $("apProv").addEventListener("change", () => { applyProv(); load(); });
+
   function apiStatus(m) {
-    if (!m.ready) return "Chưa nhập đủ Token, Code và số tài khoản.";
+    if (!m.ready) return "Chưa nhập đủ thông tin kết nối API.";
     const s = m.status;
     if (!s) return "Đã lưu cấu hình, chưa kiểm tra.";
     return `${s.ok ? "" : "Lỗi: "}${s.msg} (${fmtDate(s.at)})`;
@@ -77,13 +87,16 @@
   function render(d) {
     $("apOn").checked = d.enabled;
     const m = d.api;
+    if (document.activeElement?.id !== "apProv") $("apProv").value = m.provider;
+    applyProv();
     // Khong ghi de o dang go do khi render lai sau thao tac khac
     const keep = document.activeElement?.id;
     if (keep !== "apUrl") $("apUrl").value = m.url === m.defaultUrl ? "" : m.url || "";
     if (keep !== "apStk") $("apStk").value = m.stk || "";
     $("apUrl").placeholder = m.defaultUrl || "";
-    $("apToken").placeholder = m.hasToken ? "Đã lưu. Bỏ trống để giữ nguyên" : "Dán Token";
-    $("apCode").placeholder = m.hasCode ? "Đã lưu. Bỏ trống để giữ nguyên" : "Dán Code";
+    const cas = $("apProv").value === "casso";
+    $("apToken").placeholder = m.hasToken && m.provider === $("apProv").value ? "Đã lưu. Bỏ trống để giữ nguyên" : cas ? "Dán API Key" : "Dán Token";
+    $("apCode").placeholder = m.hasCode && m.provider === $("apProv").value ? "Đã lưu. Bỏ trống để giữ nguyên" : "Dán Code";
     $("apClear").hidden = !m.hasToken && !m.hasCode && !m.stk;
     $("apPoll").disabled = !m.ready;
     $("apTest").disabled = !m.ready;
@@ -119,6 +132,7 @@
   });
 
   const formBody = () => ({
+    provider: $("apProv").value,
     url: $("apUrl").value.trim(),
     stk: $("apStk").value.trim(),
     token: $("apToken").value.trim(),
@@ -169,7 +183,7 @@
   }));
 
   $("apClear").addEventListener("click", async () => {
-    if (!(await confirmBox("Server sẽ quên Token, Code, số tài khoản và tắt tự động cộng coin. Tiền vào sau đó phải duyệt tay.", { title: "Xoá cấu hình?", ok: "Xoá", cancel: "Giữ lại", danger: true }))) return;
+    if (!(await confirmBox("Server sẽ quên khoá API, số tài khoản và tắt tự động cộng coin. Tiền vào sau đó phải duyệt tay.", { title: "Xoá cấu hình?", ok: "Xoá", cancel: "Giữ lại", danger: true }))) return;
     try { render(await api("/admin/autopay/clear", { method: "POST", body: "{}" })); $("apTestOut").innerHTML = ""; say("Đã xoá cấu hình."); }
     catch (e) { say(e.message, "bad"); }
   });

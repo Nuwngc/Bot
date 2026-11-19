@@ -1,7 +1,9 @@
-# Tự động cộng coin khi nạp (server tự đọc lịch sử giao dịch MB Bank qua API)
+# Tự động cộng coin khi nạp (server tự đọc lịch sử giao dịch ngân hàng qua API)
 
-Trước đây admin phải bấm "Xác nhận" từng lệnh nạp. Giờ server tự hỏi API lịch sử giao dịch của MB Bank, thấy tiền vào có mã nạp thì cộng coin ngay.
-Cách làm theo bộ code mẫu trong file rar (`api_check.php`: gọi API `lsgdv2` với Token, Code, Stk, rồi so số tiền và nội dung chứa mã giao dịch).
+Trước đây admin phải bấm "Xác nhận" từng lệnh nạp. Giờ server tự hỏi API lịch sử giao dịch, thấy tiền vào có mã nạp thì cộng coin ngay. Có 2 nguồn dữ liệu, chọn trong form:
+- **Casso** (dùng cho Techcombank và nhiều ngân hàng khác): `GET https://oauth.casso.vn/v2/transactions`, header `Authorization: Apikey <key>`.
+  Techcombank không có API công khai cho tài khoản cá nhân, nên phải liên kết tài khoản Techcombank vào Casso (casso.vn) rồi tạo API Key. Casso có thể thu phí theo gói kết nối.
+- **dichvudark** (MB Bank, theo code mẫu trong file rar `api_check.php`): gọi API `lsgdv2` với Token, Code, Stk.
 
 File: server/bankapi.js (gọi API, lưu Token/Code đã mã hoá), server/autopay.js (khớp mã nạp, cộng coin, API quản trị),
 public/autopay.js (giao diện web admin), admin-app (giao diện app botctl), server/wallet.js (confirmByCode).
@@ -13,14 +15,18 @@ public/autopay.js (giao diện web admin), admin-app (giao diện app botctl), s
    Coin = số tiền thực nhận (nhận bằng hoặc hơn lệnh nạp thì cộng đúng số nhận, nhận ít hơn cũng cộng số đã nhận).
 
 ## Cài đặt (làm một lần, trong trang quản trị web hoặc tab money > bank của app)
-1. Lấy Token và Code của dịch vụ API lịch sử giao dịch MB Bank (mặc định `https://api.dichvudark.vn/api/ApiMbBank`, loại API `lsgdv2`).
-2. Điền số tài khoản MB nhận tiền (đúng số đã khai báo ở phần Ngân hàng), Token, Code, bấm Lưu cấu hình.
-   Ô "Địa chỉ API" để trống thì dùng địa chỉ mặc định. Token/Code để trống khi lưu lại thì giữ nguyên giá trị cũ.
-3. Bấm "Xem giao dịch gần nhất" để kiểm tra server đọc được lịch sử (chưa cộng coin).
-4. Chuyển thử khoản nhỏ kèm mã nạp, rồi bật công tắc "Bật tự động cộng coin".
+**Techcombank (Casso):**
+1. Đăng ký casso.vn, liên kết tài khoản Techcombank, tạo API Key.
+2. Ở form chọn "Techcombank và ngân hàng khác (qua Casso)", dán API Key, bấm Lưu cấu hình. Số tài khoản có thể để trống (nếu điền, chỉ đọc giao dịch của tài khoản đó).
+
+**MB Bank (dichvudark):** chọn "MB Bank", điền số tài khoản MB, Token, Code, bấm Lưu cấu hình.
+
+Cả hai: bấm "Xem giao dịch gần nhất" kiểm tra (chưa cộng coin), chuyển thử khoản nhỏ kèm mã nạp, rồi bật công tắc "Bật tự động cộng coin".
+Ô "Địa chỉ API" để trống thì dùng địa chỉ mặc định của nguồn đã chọn. Khoá để trống khi lưu lại thì giữ nguyên giá trị cũ. Đổi nguồn dữ liệu thì phải nhập lại khoá.
+Với Casso, server đọc 50 giao dịch mới nhất trong 3 ngày gần đây mỗi lần hỏi.
 
 ## An toàn
-- Token và Code mã hoá bằng APP_SECRET trong CSDL, không bao giờ trả về trình duyệt hay app. Địa chỉ API bắt buộc là https và có kiểm tra chứng chỉ SSL
+- Khoá API (Token, Code hoặc API Key) mã hoá bằng APP_SECRET trong CSDL, không bao giờ trả về trình duyệt hay app. Địa chỉ API bắt buộc là https và có kiểm tra chứng chỉ SSL
   (code mẫu tắt kiểm tra này, ở đây đã bật).
 - Lần đọc đầu tiên sau khi lưu cấu hình (hoặc đổi Token/Code/số tài khoản/địa chỉ) chỉ GHI NHỚ các giao dịch cũ ở trạng thái "bỏ qua", không cộng coin.
   Nhờ vậy lịch sử cũ không bị cộng nhầm.

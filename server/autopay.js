@@ -1,7 +1,7 @@
 /**
  * TU DONG CONG COIN KHI NAP (server TU DOC lich su giao dich ngan hang qua API, theo bo code mau trong file rar)
  *
- *  Server goi API lich su giao dich MB Bank (server/bankapi.js) bang Token + Code + so tai khoan, tim giao dich tien VAO co
+ *  Server goi API lich su giao dich (server/bankapi.js: MB Bank qua dichvudark, hoac Techcombank va ngan hang khac qua Casso), tim giao dich tien VAO co
  *  chua ma NAPxxxxxxx trong noi dung chuyen khoan va cong coin cho nguoi nap. Khong can Gmail, khong can mat khau ngan hang.
  *
  *  Bao mat:
@@ -19,7 +19,7 @@ const bankapi = require("./bankapi");
 db.exec(`
   CREATE TABLE IF NOT EXISTS bank_events (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    provider   TEXT NOT NULL,                 -- mbapi
+    provider   TEXT NOT NULL,                 -- mbapi | casso
     ext_id     TEXT NOT NULL,                 -- ma giao dich phia dich vu, dung de chong cong trung
     amount     INTEGER NOT NULL,
     content    TEXT,
@@ -70,8 +70,8 @@ const enabled = () => getSetting("autopay_enabled") === "1";
 
 function apiConfig() {
   const c = bankapi.creds();
-  const o = { url: c.url, defaultUrl: bankapi.DEFAULT_URL, stk: c.stk, hasToken: !!c.token, hasCode: !!c.code };
-  o.ready = o.hasToken && o.hasCode && !!o.stk;
+  const o = { provider: c.provider, url: c.url, defaultUrl: c.defaultUrl, stk: c.stk, hasToken: !!c.token, hasCode: !!c.code };
+  o.ready = bankapi.isReady(c);
   return o;
 }
 
@@ -151,7 +151,7 @@ function baseline(list) {
   wallet.tx(() => {
     for (const t of list) {
       if (!(t.amount > 0)) continue;
-      const ins = bq.insert.run("mbapi", t.extId, Math.round(t.amount), t.content.slice(0, 300), "", t.date.slice(0, 60));
+      const ins = bq.insert.run(bankapi.eventProvider(), t.extId, Math.round(t.amount), t.content.slice(0, 300), "", t.date.slice(0, 60));
       if (!ins.changes) continue;
       bq.setStatus.run("ignored", null, "Giao dịch cũ, có trước khi kết nối API", Number(ins.lastInsertRowid));
       n++;
@@ -163,7 +163,7 @@ function baseline(list) {
 
 async function pollInner() {
   const cfg = apiConfig();
-  if (!cfg.ready) return setStatus(false, "Chưa nhập đủ Token, Code và số tài khoản");
+  if (!cfg.ready) return setStatus(false, "Chưa nhập đủ thông tin kết nối API");
   try {
     const list = await bankapi.fetchHistory();
     if (!bankapi.hasBaseline()) {
@@ -173,7 +173,7 @@ async function pollInner() {
     const n = { credited: 0, unmatched: 0, ignored: 0, dup: 0 };
     for (const t of [...list].reverse()) { // cu truoc, moi sau
       if (!(t.amount > 0)) continue;
-      const r = processOne({ provider: "mbapi", extId: t.extId, amount: t.amount, content: t.content, capToOrder: false });
+      const r = processOne({ provider: bankapi.eventProvider(), extId: t.extId, amount: t.amount, content: t.content, capToOrder: false });
       if (r.dup) n.dup++; else if (r.status) n[r.status] = (n[r.status] || 0) + 1;
     }
     if (n.credited) console.log(`[autopay] da cong coin cho ${n.credited} giao dich`);
@@ -194,7 +194,7 @@ function pollApi() {
 /** Chi de xem thu: lay giao dich gan nhat, KHONG cong coin, KHONG ghi gi vao CSDL */
 async function testApi() {
   const cfg = apiConfig();
-  if (!cfg.ready) throw new Error("Hãy nhập Token, Code và số tài khoản trước");
+  if (!cfg.ready) throw new Error("Hãy nhập đủ thông tin kết nối API trước");
   const list = await bankapi.fetchHistory();
   const items = list.slice(0, 8).map((t) => ({
     date: t.date,
@@ -202,7 +202,7 @@ async function testApi() {
     debit: t.debit,
     content: t.content.slice(0, 200),
     codes: findCodes(t.content),
-    known: bq.byExt.get("mbapi", t.extId)?.status || null,
+    known: bq.byExt.get(bankapi.eventProvider(), t.extId)?.status || null,
   }));
   return { total: list.length, items };
 }
@@ -231,7 +231,7 @@ function register(router, auth2) {
     return {
       enabled: enabled(),
       bankReady: !!(getSetting("bank_id") && getSetting("bank_account")),
-      api: { url: c.url, defaultUrl: c.defaultUrl, stk: c.stk, hasToken: c.hasToken, hasCode: c.hasCode, ready: c.ready, status: readStatus() },
+      api: { provider: c.provider, url: c.url, defaultUrl: c.defaultUrl, stk: c.stk, hasToken: c.hasToken, hasCode: c.hasCode, ready: c.ready, status: readStatus() },
       today: { n: t.n, sum: t.s },
       unmatched: bq.unmatched.get().n,
       events: bq.list.all(),
@@ -241,7 +241,7 @@ function register(router, auth2) {
   router.get("/admin/autopay", auth2.requireAdmin, (req, res) => res.json(state()));
 
   router.post("/admin/autopay", auth2.requireAdmin, (req, res) => {
-    if (req.body?.enabled && !apiConfig().ready) return res.status(400).json({ error: "Hãy nhập Token, Code và số tài khoản trước khi bật" });
+    if (req.body?.enabled && !apiConfig().ready) return res.status(400).json({ error: "Hãy nhập đủ thông tin kết nối API trước khi bật" });
     setSetting("autopay_enabled", req.body?.enabled ? "1" : "0");
     res.json(state());
   });
