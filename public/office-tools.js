@@ -170,7 +170,7 @@
         <div class="row"><button class="primary" id="pg-copy" type="button">Sao chép tất cả</button><button id="pg-say" type="button">Đọc to</button><button id="pg-clear" type="button">Xoá</button></div>
       </div>` },
 
-    { id: "tts", title: "Đọc văn bản", desc: "Đọc to văn bản, chọn giọng đọc và tốc độ đọc", icon: ic('<path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/>'), html: `
+    { id: "tts", title: "Đọc văn bản", desc: "Đọc to văn bản, chọn giọng đọc và tốc độ đọc, tải file âm thanh MP3", icon: ic('<path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/>'), html: `
       <p class="tl-note">Đọc to văn bản bằng tiếng Việt. Ưu tiên giọng có sẵn trên máy; máy nào không có giọng tiếng Việt sẽ tự dùng giọng máy chủ (cần mạng, văn bản được gửi lên máy chủ để tạo âm thanh).</p>
       <div class="field"><label for="tt-in">Văn bản cần đọc</label><textarea id="tt-in" rows="6" spellcheck="false" placeholder="Dán hoặc gõ văn bản ở đây"></textarea></div>
       <div class="field"><label for="tt-voice">Giọng đọc</label><select id="tt-voice"><option value="">Đang tải danh sách giọng…</option></select></div>
@@ -179,7 +179,10 @@
       <p class="tl-note">Tốc độ từ 3x trở lên có thể bị một số giọng trên máy giới hạn ở mức thấp hơn. Giọng máy chủ chạy được đến 4x.</p>
       <div class="row"><button class="primary" id="tt-play" type="button">Đọc</button><button id="tt-pause" type="button" disabled>Tạm dừng</button><button id="tt-stop" type="button" disabled>Dừng</button><button id="tt-test" type="button">Nghe thử giọng</button></div>
       <div class="tl-chips" id="tt-status"></div>
-      <p class="tl-note" id="tt-hint" hidden></p>` },
+      <p class="tl-note" id="tt-hint" hidden></p>
+      <div class="row"><button id="tt-save" type="button">Tải file âm thanh (.mp3)</button></div>
+      <div class="tl-chips" id="tt-saves"></div>
+      <p class="tl-note">Tải file dùng giọng máy chủ (giọng đọc có sẵn trên máy không xuất ra file được), cần mạng và tối đa 10.000 ký tự. File được đọc ở tốc độ bình thường, muốn nhanh hơn thì chỉnh tốc độ khi nghe bằng trình phát nhạc của bạn.</p>` },
 
     { id: "num2vi", title: "Số thành chữ", desc: "Đọc số tiền bằng chữ tiếng Việt cho hoá đơn, hợp đồng", icon: ic('<path d="M5 8h14M5 12h9M5 16h6"/><path d="M16 15l2 2 3-4"/>'), html: `
       <div class="field"><label for="nv-in">Số tiền hoặc số cần đọc</label><input id="nv-in" type="text" inputmode="numeric" autocomplete="off" placeholder="Ví dụ: 1250000"></div>
@@ -735,6 +738,69 @@
       rateEl.value = b.dataset.r; showRate(); retune();
     });
     window.addEventListener("pagehide", () => { if (hasDev) synth.cancel(); clearAudio(); });
+
+    /* ----- tải file âm thanh: ghép các câu giọng máy chủ thành một file MP3 ----- */
+    const saveBtn = g("tt-save"), saveSt = g("tt-saves");
+    const MAX_SAVE_CHARS = 10000;
+    let saveRun = 0, saveUrl = "";
+    const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
+    // bỏ thẻ ID3 đầu/cuối của từng đoạn để ghép liền mạch, không bị tiếng lạ giữa các câu
+    function bareMp3(u8) {
+      let a = 0, b = u8.length;
+      if (b > 10 && u8[0] === 0x49 && u8[1] === 0x44 && u8[2] === 0x33) a = 10 + (((u8[6] & 127) << 21) | ((u8[7] & 127) << 14) | ((u8[8] & 127) << 7) | (u8[9] & 127));
+      if (b - a >= 128 && u8[b - 128] === 0x54 && u8[b - 127] === 0x41 && u8[b - 126] === 0x47) b -= 128;
+      return u8.subarray(Math.min(a, b), b);
+    }
+    async function fetchMp3(text, voice) {
+      let lastErr = "";
+      for (let t = 0; t < 5; t++) {
+        let r;
+        try {
+          r = await fetch("/api/tts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, voice }) });
+        } catch (_) { lastErr = "mất kết nối mạng"; await sleep(1500); continue; }
+        if (r.status === 401) { location.href = "/login.html"; throw new Error("Phiên đăng nhập đã hết"); }
+        if (r.status === 429) { lastErr = "đọc quá nhanh"; await sleep(6000); continue; }
+        if (!r.ok) { lastErr = (await r.json().catch(() => ({}))).error || "lỗi " + r.status; if (r.status < 500) break; await sleep(1500); continue; }
+        return new Uint8Array(await r.arrayBuffer());
+      }
+      throw new Error(lastErr || "máy chủ giọng đọc lỗi");
+    }
+    function endSave(my, html) { if (my !== saveRun) return; saveRun = 0; saveBtn.textContent = "Tải file âm thanh (.mp3)"; if (html !== undefined) saveSt.innerHTML = html; }
+    async function saveAudio() {
+      if (saveRun) { saveRun = 0; saveBtn.textContent = "Tải file âm thanh (.mp3)"; saveSt.innerHTML = '<span class="tl-chip">Đã huỷ</span>'; return; }
+      const text = String(g("tt-in").value || "").trim();
+      if (!text) return toast("Chưa có văn bản để tạo file.", "bad");
+      if (text.length > MAX_SAVE_CHARS) return toast(`Văn bản dài ${text.length.toLocaleString("vi-VN")} ký tự, tối đa ${MAX_SAVE_CHARS.toLocaleString("vi-VN")}. Hãy chia nhỏ ra.`, "bad");
+      let voice = sel.value.startsWith("srv:") ? sel.value.slice(4) : "";
+      if (!voice) {
+        if (!srvVoices.length) return toast("Máy chủ chưa có giọng đọc để tạo file.", "bad");
+        voice = srvVoices[0].id;
+        toast("Giọng trên máy không xuất ra file được, dùng giọng máy chủ: " + srvVoices[0].name + ".");
+      }
+      const parts = splitText(text);
+      const my = ++saveRun, out = new Array(parts.length);
+      let done = 0, next = 0, failed = "";
+      saveBtn.textContent = "Huỷ tạo file";
+      const show = () => { if (my === saveRun) saveSt.innerHTML = `<span class="tl-chip ok">Đang tạo file âm thanh · ${done}/${parts.length} câu</span>`; };
+      show();
+      const worker = async () => {
+        while (!failed && my === saveRun) {
+          const i = next++;
+          if (i >= parts.length) return;
+          try { out[i] = bareMp3(await fetchMp3(parts[i], voice)); done++; show(); }
+          catch (e) { failed = e.message || "lỗi không rõ"; }
+        }
+      };
+      await Promise.all([worker(), worker()]);
+      if (my !== saveRun) return; // đã huỷ
+      if (failed) return endSave(my, `<span class="tl-chip bad">Không tạo được file: ${esc(failed)}</span>`);
+      const name = "doc-van-ban-" + new Date().toISOString().slice(0, 16).replace(/[-:]/g, "").replace("T", "-") + ".mp3";
+      const blob = new Blob(out, { type: "audio/mpeg" });
+      if (saveUrl) URL.revokeObjectURL(saveUrl);
+      saveUrl = saveBlob(blob, name);
+      endSave(my, `Đã tạo <b>${esc(name)}</b>: ${parts.length} câu, ${sizeText(blob.size)}.<br><a class="of-dl" href="${saveUrl}" download="${esc(name)}">Tải lại file âm thanh</a>`);
+    }
+    saveBtn.onclick = saveAudio;
 
     tts = { speak };
     ui();
