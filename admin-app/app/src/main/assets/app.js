@@ -259,7 +259,7 @@
       stopTimers();
       if (seg) this.seg = seg;
       this.el.innerHTML = `
-        <div class="seg" id="mSeg">${[["pending", "chờ duyệt"], ["bank", "ngân hàng"], ["link", "vượt link"]].map(([k, l]) => `<button data-seg="${k}" class="${k === this.seg ? "on" : ""}">${l}</button>`).join("")}</div>
+        <div class="seg" id="mSeg">${[["pending", "chờ duyệt"], ["bank", "ngân hàng"], ["link", "vượt link"], ["tools", "công cụ"]].map(([k, l]) => `<button data-seg="${k}" class="${k === this.seg ? "on" : ""}">${l}</button>`).join("")}</div>
         <div id="mBody"><div class="empty">đang tải…</div></div>`;
       this.load();
       every(() => this.load(true), 20000);
@@ -268,6 +268,7 @@
       try {
         if (this.seg === "pending") await this.pending();
         else if (this.seg === "bank") await this.bank();
+        else if (this.seg === "tools") await this.tools();
         else await this.link();
       } catch (e) { const b = $("#mBody"); if (b && !b.dataset.ok) b.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
     },
@@ -283,6 +284,22 @@
             ${d.status === "pending" ? `<div class="bar"><button class="btn sm primary" data-act="approve" data-id="${d.id}">✓ duyệt</button><button class="btn sm danger" data-act="cancelDep" data-id="${d.id}">✕ huỷ</button></div>` : ""}
           </div>`).join("")}</div>`
         : '<div class="empty">không có lệnh nạp nào</div>';
+    },
+    async tools() {
+      const body = $("#mBody");
+      body.dataset.ok = "1";
+      if ($("#tcForm")) return; // dựng một lần, vòng làm mới 20 giây không được xoá giá đang gõ
+      const d = await get("/admin/tools");
+      body.innerHTML = `<div class="card pad" id="tcForm">
+        <div class="hint">Ẩn công cụ khỏi người dùng hoặc đặt giá. Giá là số coin cho một phiên: người dùng mở khoá, bị trừ coin rồi dùng thoải mái trong số phút của phiên. Giá 0 là miễn phí. Admin luôn dùng miễn phí và vẫn thấy công cụ đang ẩn. Công cụ có dấu <b>máy chủ</b> được máy chủ chặn thật, còn lại chỉ chặn ở giao diện.</div>
+      </div>
+      <div class="rows">${d.tools.map((t) => `<div class="row" data-tc="${esc(t.id)}">
+        <div class="l1"><b>${esc(t.title)}</b>${t.server ? '<span class="tag">máy chủ</span>' : ""}</div>
+        <div class="switch"><div class="t">ẩn khỏi người dùng</div><input type="checkbox" data-k="hidden" ${t.hidden ? "checked" : ""}></div>
+        <div class="field"><label>giá (coin / phiên)</label><input data-k="price" type="number" inputmode="numeric" min="0" max="${d.maxPrice}" step="1" value="${t.price}"></div>
+        <div class="field"><label>thời gian phiên (phút)</label><input data-k="minutes" type="number" inputmode="numeric" min="1" max="1440" step="1" value="${t.minutes}"></div>
+      </div>`).join("")}</div>
+      <div class="bar"><button class="btn primary" data-act="tcSave">$ lưu cấu hình</button><button class="btn" data-act="tcReload">hoàn tác</button></div>`;
     },
     async bank() {
       const d = await get("/admin/autopay");
@@ -538,6 +555,7 @@
     { n: "ping", h: "kiểm tra máy chủ", run: () => ping() },
     { n: "duyệt lệnh nạp", h: "money › chờ duyệt", run: () => { go("money"); views.money.seg = "pending"; views.money.enter(); } },
     { n: "giao dịch chưa khớp", h: "money › ngân hàng", run: () => { go("money"); views.money.seg = "bank"; views.money.enter(); } },
+    { n: "ẩn / tính coin công cụ", h: "money › công cụ", run: () => { go("money"); views.money.seg = "tools"; views.money.enter(); } },
     { n: "thống kê vượt link", h: "money › vượt link", run: () => { go("money"); views.money.seg = "link"; views.money.enter(); } },
     { n: "logs lỗi", h: "logs › error", run: () => { views.logs.lvl = "error"; go("logs"); } },
     { n: "tải lại dữ liệu", h: "làm mới tab hiện tại", run: () => go(tab) },
@@ -638,6 +656,20 @@
     async ignoreEv(el) {
       try { await post(`/admin/autopay/events/${el.dataset.id}/ignore`); toast("Đã bỏ qua"); views.money.load(); } catch (e) { fail(e); }
     },
+    async tcSave(el) {
+      const tools = {};
+      $$("[data-tc]").forEach((row) => {
+        const v = (k) => $(`[data-k="${k}"]`, row);
+        tools[row.dataset.tc] = { hidden: v("hidden").checked, price: Number(v("price").value || 0), minutes: Number(v("minutes").value || 30) };
+      });
+      el.disabled = true;
+      try {
+        const d = await post("/admin/tools", { tools });
+        toast(`Đã lưu: ${d.tools.filter((t) => t.price > 0).length} công cụ tính coin, ${d.tools.filter((t) => t.hidden).length} đang ẩn`);
+      } catch (e) { fail(e); }
+      el.disabled = false;
+    },
+    tcReload() { $("#mBody").innerHTML = ""; views.money.load(); },
     async apSave(el) {
       el.disabled = true;
       try {

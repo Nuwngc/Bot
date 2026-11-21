@@ -429,6 +429,7 @@ function safeCount(json) {
 }
 
 wallet.register(router, auth);
+require("./toolcfg").register(router, auth); // phai dat truoc tempmail / tts / pagetext (chan cong cu bi an hoac co gia)
 require("./tempmail").register(router, auth);
 require("./revenue").register(router, auth);
 require("./linkcoin").register(router, auth);
