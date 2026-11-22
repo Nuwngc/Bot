@@ -41,3 +41,13 @@ Mở `https://<máy-chủ>/` không có sẵn trang này; để xem thử, chép
 ## Lưu ý về khoá ký
 `botctl.keystore` được đưa vào repo để mọi bản build đều ký giống nhau. Đây là khoá "tự dùng" để cài tay, không dùng để phát hành lên kho ứng dụng.
 Nếu muốn khoá riêng, tạo keystore mới, thay file và đổi mật khẩu trong `app/build.gradle` (tốt hơn: đưa vào GitHub Secrets).
+
+## Tab quản trị (có đủ chức năng như trang quản trị trên web)
+File assets/manage.js (nạp trước app.js, app.js gọi `window.__botctlExt` để gộp thêm tab, hành động và lệnh nhanh). Dùng chung API `/api/admin/...` với web.
+- Menu quản trị: đơn thuê bot (duyệt, huỷ), doanh thu và giao dịch (thống kê theo kỳ, biểu đồ 30 ngày / 12 tháng, lịch sử có lọc loại / tìm kiếm / ngày, chép CSV),
+  nạp coin chờ duyệt, tự động cộng tiền, bảng giá, mã giảm giá, thưởng xếp hạng, nhà cung cấp vượt link, thống kê vượt link,
+  công cụ (ẩn và tính coin), cấu hình chung (đăng ký, ngày dùng thử, ngân hàng VietQR, khoá AI dùng chung, ẩn Facebook / Zalo), email gửi mã xác thực (Brevo / SMTP, gửi thử).
+- Tab users: mở một tài khoản, nút "bot của tài khoản" để cộng trừ ngày, khoá, mở khoá, tắt từng bot.
+- Tab money > vượt link: nút "quản lý nhà cung cấp" và "thu nhập" cho từng nhà cung cấp (nhập tay số tiền mỗi lượt, hoặc đặt API xem thu nhập và lấy thử).
+- Bấm tab "quản trị" ở thanh dưới luôn về menu. Bảng lệnh nhanh (⌘) có thêm: quản trị, đơn thuê bot, doanh thu, nhà cung cấp link, bảng giá, mã giảm giá, thưởng xếp hạng, cấu hình chung, email xác thực.
+- Chép CSV: app chép nội dung vào bộ nhớ tạm (không có nút tải file), dán vào Google Sheets hoặc Excel.

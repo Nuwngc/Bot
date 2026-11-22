@@ -22,6 +22,7 @@
   <section id="v-money" class="view" hidden></section>
   <section id="v-logs" class="view" hidden></section>
   <section id="v-api" class="view" hidden></section>
+  <section id="v-manage" class="view" hidden></section>
   <section id="v-config" class="view" hidden></section>
 </main>
 
@@ -31,6 +32,7 @@
   <button data-tab="money"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M14.8 9.2c-.6-1-1.7-1.5-2.9-1.5-1.6 0-2.8.8-2.8 2.1 0 3 5.9 1.4 5.9 4.4 0 1.3-1.2 2.2-3 2.2-1.4 0-2.6-.6-3.2-1.7M12 6v1.7M12 16.4V18"/></svg><span>money</span></button>
   <button data-tab="logs"><svg viewBox="0 0 24 24"><path d="M4 5l6 5-6 5"/><path d="M12 19h8"/></svg><span>logs</span></button>
   <button data-tab="api"><svg viewBox="0 0 24 24"><path d="M8 4c-2 0-3 1-3 3v2c0 1.5-.8 3-2 3 1.2 0 2 1.5 2 3v2c0 2 1 3 3 3M16 4c2 0 3 1 3 3v2c0 1.5.8 3 2 3-1.2 0-2 1.5-2 3v2c0 2-1 3-3 3"/></svg><span>api</span></button>
+  <button data-tab="manage"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg><span>quản trị</span></button>
   <button data-tab="config"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2.2"/><circle cx="8" cy="17" r="2.2"/></svg><span>config</span></button>
 </nav>
 
@@ -64,6 +66,7 @@
 </div>
 
 <div id="toast" role="status" aria-live="polite"></div>
+<script src="manage.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

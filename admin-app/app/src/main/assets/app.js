@@ -243,6 +243,7 @@
       <div class="sub">#${u.id} · ${fmt(u.balance)} coin · tạo ${esc(String(u.created_at).slice(0, 10))}</div>
       <div class="act">
         <button class="btn" data-act="adjust" data-id="${u.id}">± chỉnh coin</button>
+        <button class="btn" data-act="userBots" data-id="${u.id}">🤖 bot của tài khoản</button>
         <button class="btn" data-act="resetPw" data-id="${u.id}">🔑 đặt lại mật khẩu</button>
         <button class="btn ${u.active ? "danger" : "primary"}" data-act="toggle" data-id="${u.id}">${u.active ? "⏻ khoá tài khoản" : "⏻ mở khoá"}</button>
         <button class="btn danger" data-act="delUser" data-id="${u.id}">✕ xoá tài khoản</button>
@@ -390,9 +391,11 @@
           ${kv("chênh lệch", known ? (t.diff >= 0 ? "+" : "−") + fmt(Math.abs(t.diff)) + "đ" : "—", known ? (t.diff < 0 ? "r" : "g") : "dim")}
         </div>
         <h3 class="sec">nhà cung cấp</h3>
+        <div class="bar"><button class="btn sm" data-go="manage:linkprov">quản lý nhà cung cấp</button></div>
         ${d.providers.length ? `<div class="rows">${d.providers.map((p) => `<div class="row">
           <div class="l1"><b>${esc(p.name)}</b>${p.src === "api" ? '<span class="tag ok">api</span>' : p.src === "rate" ? '<span class="tag warn">ước tính</span>' : ""}${p.active ? "" : '<span class="tag">off</span>'}<span class="sp"></span><b>${fmt(p.n)} lượt</b></div>
           <div class="l2">coin ${fmt(p.coin)} · tiền ${p.src ? fmt(p.cash) + "đ" : "—"}${p.src ? ` · <span class="${p.diff < 0 ? "r" : "g"}">${p.diff < 0 ? "lỗ" : "lãi"} ${fmt(Math.abs(p.diff))}đ</span>` : ""}</div>
+          ${p.deleted ? "" : `<div class="bar"><button class="btn sm" data-act="lkStats" data-id="${p.id}">$ thu nhập</button></div>`}
         </div>`).join("")}</div>` : '<div class="empty">chưa có nhà cung cấp</div>'}
         <h3 class="sec">vượt nhiều bất thường (${d.suspects.total})</h3>
         ${d.suspects.list.length ? `<div class="rows">${d.suspects.list.slice(0, 12).map((u) => `<div class="row">
@@ -748,7 +751,8 @@
     const g = e.target.closest("[data-go]");
     if (g) {
       const [t, seg] = g.dataset.go.split(":");
-      if (seg) views.money.seg = seg;
+      if (t === "manage") views.manage.sub = seg || "";
+      else if (seg) views.money.seg = seg;
       go(t);
       return;
     }
@@ -824,6 +828,19 @@
     if (tab !== "overview") { go("overview"); return true; }
     return false;
   };
+
+  /* phần mở rộng (manage.js): tab quản trị, hành động và lệnh bổ sung */
+  if (typeof window.__botctlExt === "function") {
+    try {
+      const ext = window.__botctlExt({ $, $$, esc, fmt, ago, kv, get, post, api, request, toast, fail, copy, ask, openSheet, closeSheet, views, go: (n) => go(n) });
+      if (ext) {
+        Object.assign(views, ext.views || {});
+        Object.assign(actions, ext.actions || {});
+        (ext.commands || []).forEach((c) => COMMANDS.push(c));
+        (ext.tabs || []).forEach((t) => { if (!TABS.includes(t)) TABS.push(t); });
+      }
+    } catch (e) { console.error("manage.js", e); }
+  }
 
   /* chấm đỏ số việc cần xử lý trên tab money */
   async function badge() {
