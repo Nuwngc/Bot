@@ -438,5 +438,6 @@ require("./autopay").register(router, auth);
 require("./adminApp").register(router, auth);
 require("./tts").register(router, auth);
 require("./pagetext").register(router, auth);
+require("./translate").register(router);
 
 module.exports = router;

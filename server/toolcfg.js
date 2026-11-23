@@ -6,7 +6,7 @@
  *  Admin luon dung mien phi va thay ca cong cu dang an (co nhan).
  *
  *  Muc do chan:
- *   - Cong cu co dung may chu (Doc van ban, Lay van ban tu link, Mail 5 phut, Mail 12h/24h): may chu chan that, goi thang API cung bi tu choi.
+ *   - Cong cu co dung may chu (Doc van ban, Lay van ban tu link, Mail 5 phut, Mail 12h/24h, Dich truyen, Dich nhanh): may chu chan that, goi thang API cung bi tu choi.
  *   - Cong cu chay hoan toan tren trinh duyet (con lai): chi chan o giao dien. Ma cong cu nam tren may nguoi dung nen
  *     nguoi biet ky thuat van co the vuot qua, muon chan chac chan phai dua cong cu do len may chu.
  *
@@ -33,6 +33,9 @@ const CATALOG = [
   { id: "num2vi", title: "Số thành chữ" },
   { id: "vat", title: "Tính VAT và phần trăm" },
   { id: "wcount", title: "Đếm chữ" },
+  { id: "dichtruyen", title: "Dịch truyện Trung · Nhật · Hàn", server: true },
+  { id: "dichnhanh", title: "Dịch nhanh Trung · Nhật · Hàn", server: true },
+  { id: "tentruyen", title: "Bảng tên riêng (dịch truyện)" },
 ];
 const IDS = new Set(CATALOG.map((t) => t.id));
 const DEFAULT_MINUTES = 30;
@@ -145,6 +148,10 @@ function register(router, auth) {
     return guard("tts")(req, res, next);
   });
   router.use("/pagetext", guard("pagetext"));
+  router.use("/translate", (req, res, next) => {
+    if (req.method === "GET") return next(); // thong tin chung, khong ton khoa AI
+    return guard(req.path.startsWith("/quick") ? "dichnhanh" : "dichtruyen")(req, res, next);
+  });
   router.use("/tempmail", (req, res, next) => {
     const id = /^\/(long|domains)/.test(req.path) ? "maillong" : "mail";
     const creating = req.method === "POST" && (req.path === "/new" || req.path === "/long");
