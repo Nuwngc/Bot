@@ -46,7 +46,7 @@ db.exec(`
   );
 `);
 
-const MIN_DEPOSIT = 10000;
+const MIN_DEPOSIT = 1; // truoc day 10000; bo gioi han, chi can nap tu 1 coin
 const MAX_DEPOSIT = 50000000;
 const RANKS = 10;                                                  // so hang co bang xep hang / co the co thuong
 const DEFAULT_REWARDS = [50000, 30000, 10000, 0, 0, 0, 0, 0, 0, 0]; // admin chinh trong tab Quan tri (0 = khong thuong)
