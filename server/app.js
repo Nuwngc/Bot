@@ -48,6 +48,9 @@ function createApp() {
     res.json({ ok: true, uptime: Math.floor(process.uptime()) });
   });
 
+  // Thong bao tong + thong tin lien he: phan /public va /img khong can dang nhap (hien ca o trang dang nhap)
+  app.use("/api/site", require("./site").createRouter(express));
+
   app.use("/api/fb", fbApi);
   app.use("/api/zalo", zaloApi);
   app.use("/api", api);

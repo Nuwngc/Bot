@@ -47,6 +47,7 @@
     <button data-tab="plan">Thanh toán</button>
     <button data-tab="profile">Cá nhân</button>
     <button data-tab="stats" id="tabStatsBtn" hidden>Doanh thu</button>
+    <button data-tab="admin" id="tabAdminBtn" hidden>Quản trị</button>
   </nav>
 
   <!-- ================= Facebook ================= -->
@@ -368,9 +369,7 @@
     </section>
   </div>
 
-  <!-- ================= Quản trị =================
-       Đây chỉ là khung chứa tạm. admin-menu.js tách từng <section> bên dưới (và các mục admin do file JS khác chèn vào)
-       thành trang riêng trong danh sách sổ xuống "Quản trị" của menu 3 gạch, rồi bỏ khung này. -->
+  <!-- ================= Quản trị ================= -->
   <div class="tab" id="tab-admin" hidden>
   <!-- Admin -->
     <section id="adminBox" hidden>
@@ -471,11 +470,7 @@
       <p>Đầu mỗi tháng (giờ Việt Nam), hệ thống tự cộng coin vào ví 10 người nạp nhiều nhất của tháng trước, mỗi hạng một mức thưởng riêng. Đặt 0 để hạng đó không có thưởng. Tài khoản quản trị không tham gia xếp hạng.</p>
       <div class="reward-grid" id="rwGrid"></div>
       <button class="primary" id="rwSave">Lưu phần thưởng</button>
-    </section>
-
-    <section id="adjustBox">
-      <h2>Cộng hoặc trừ coin thủ công</h2>
-      <p>Nhập tên tài khoản và số coin. Số dương là cộng, số âm là trừ. Mỗi lần chỉnh đều được ghi vào lịch sử giao dịch.</p>
+      <h3>Cộng hoặc trừ coin thủ công</h3>
       <div class="row">
         <input type="text" id="adjUser" placeholder="Tên tài khoản" autocomplete="off" autocapitalize="none">
         <input type="text" id="adjAmount" placeholder="Số coin (ví dụ 50000 hoặc -20000)" inputmode="numeric" autocomplete="off">
@@ -586,6 +581,7 @@
 <script src="/wallet.js"></script>
 <script src="/autopay.js"></script>
 <script src="/toolcfg-admin.js"></script>
+<script src="/site-admin.js"></script>
 <script src="/linkcoin.js"></script>
 <script src="/shop.js"></script>
 <script src="/pdf-lite.js"></script>
@@ -596,7 +592,7 @@
 <script src="/account.js"></script>
 <script src="/revenue.js"></script>
 <script src="/linkstats.js"></script>
-<script src="/admin-menu.js"></script>
 <script src="/ui.js"></script>
+<script src="/site.js" defer></script>
 </body>
 </html>
