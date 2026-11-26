@@ -433,6 +433,7 @@ require("./toolcfg").register(router, auth); // phai dat truoc tempmail / tts / 
 require("./tempmail").register(router, auth);
 require("./revenue").register(router, auth);
 require("./linkcoin").register(router, auth);
+require("./shop").register(router, auth);
 require("./linkstats").register(router, auth);
 require("./autopay").register(router, auth);
 require("./adminApp").register(router, auth);

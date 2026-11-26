@@ -82,6 +82,8 @@ function period(sinceMs) {
     legacyCount: lg.n,
     spend: -(k.spend?.s || 0),              // coin da dung de thue bot
     spendCount: k.spend?.n || 0,
+    shop: -(k.shop?.s || 0),                // coin da dung de mua acc
+    shopCount: k.shop?.n || 0,
     reward: k.reward?.s || 0,               // coin thuong da trao
     adjust: k.adjust?.s || 0,               // coin admin cong (+) / tru (-)
   };
@@ -143,7 +145,7 @@ const LEDGER = `
       FROM orders o WHERE ${LEGACY}
   )`;
 
-const KINDS = ["deposit", "spend", "reward", "task", "adjust", "legacy"];
+const KINDS = ["deposit", "spend", "shop", "reward", "task", "adjust", "legacy"];
 
 /** Doc bo loc tu query string -> { where, args } (ngay tinh theo gio VN) */
 function filters(qs) {
@@ -178,7 +180,7 @@ function ledger(qs, page, limit) {
   return { rows, total: tot.n, inn: tot.inn, out: tot.out, pages: Math.max(1, Math.ceil(tot.n / limit)) };
 }
 
-const KIND_VI = { deposit: "Nạp tiền", spend: "Thanh toán", reward: "Thưởng", task: "Vượt link", adjust: "Điều chỉnh", legacy: "Đơn chuyển khoản cũ" };
+const KIND_VI = { deposit: "Nạp tiền", spend: "Thanh toán", reward: "Thưởng", task: "Vượt link", shop: "Mua acc", adjust: "Điều chỉnh", legacy: "Đơn chuyển khoản cũ" };
 const csvCell = (v) => {
   let s = String(v ?? "");
   if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; // chong chen cong thuc khi mo bang Excel
@@ -208,7 +210,7 @@ function register(router, auth) {
   /** Lich su vi cua chinh nguoi dung, tai them theo trang (cuon xuong) */
   router.get("/wallet/history", (req, res) => {
     const before = Math.floor(Number(req.query.before)) || Number.MAX_SAFE_INTEGER;
-    const kind = ["deposit", "spend", "reward", "task", "adjust"].includes(req.query.kind) ? req.query.kind : null;
+    const kind = ["deposit", "spend", "shop", "reward", "task", "adjust"].includes(req.query.kind) ? req.query.kind : null;
     const rows = db
       .prepare(
         `SELECT id, kind, amount, balance, note, created_at FROM wallet_tx
