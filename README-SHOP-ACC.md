@@ -7,13 +7,33 @@ Vào tab Shop acc, kéo xuống mục **Quản lý shop**:
 1. **Game**: có sẵn Liên Quân, Free Fire, Blox Fruits. Thêm/sửa/tắt game tuỳ ý. Ô *Giá random* > 0 thì game đó mở mục mua random.
 2. **Thêm acc lên kho**:
    - *Acc thường*: có tiêu đề, giá, mô tả, ảnh riêng. Thêm từng acc một.
-   - *Acc random*: dán nhiều dòng một lúc (tối đa 200). Khách trả giá random của game và nhận 1 acc ngẫu nhiên trong kho.
+   - *Acc random*: dán nhiều dòng một lúc (tối đa 200). Khách trả giá random của game và nhận 1 acc ngẫu nhiên trong kho. Có thể gắn ảnh cho cả lô, rồi đổi ảnh riêng từng acc ở Kho acc. Có thể gắn ảnh cho cả lô, rồi đổi ảnh riêng từng acc ở Kho acc.
    - Định dạng mỗi dòng: `tài_khoản|mật_khẩu` hoặc `tài_khoản:mật_khẩu`, thêm `|thông tin thêm` nếu cần (mail khôi phục, 2FA...). Mật khẩu có dấu `|` thì dùng dấu `:` làm phân cách.
 3. Kho acc: ẩn/hiện, đổi giá, xoá. Acc đã bán được giữ lại để đối chiếu đơn.
 
+## Ảnh acc và ảnh bìa game (gửi trực tiếp, không cần link)
+- Ở form *Thêm game*, *Thêm acc* và nút **Ảnh** của từng acc trong Kho acc: bấm *Chọn ảnh / chụp ảnh*, hoặc **kéo thả**, hoặc **dán (Ctrl+V)** ảnh chụp màn hình vào ô ảnh. Trình duyệt tự thu nhỏ về tối đa 1280px và nén WebP (ảnh vài MB chỉ còn khoảng 50-250 KB) rồi gửi lên server. Vẫn dùng được link `https://` như trước.
+- **Acc random cũng đổi / gỡ ảnh được** bất cứ lúc nào (khi chưa bán) bằng nút **Ảnh**. Đổi ảnh một acc không ảnh hưởng các acc khác dùng chung ảnh cũ.
+- Khách không thấy ảnh của acc random trước khi mở. Sau khi mua, ảnh hiện trong hộp tài khoản và khi xem lại ở *Acc đã mua*. Ảnh acc thường hiện ở thẻ acc, bấm vào để xem lớn.
+- Ảnh lưu trong database (bảng `shop_images`), mã ảnh ngẫu nhiên 24 ký tự nên không đoán được địa chỉ. Server kiểm tra đúng định dạng JPG / PNG / WebP / GIF bằng nội dung file (từ chối SVG và file khác), giới hạn 3 MB mỗi ảnh. Ảnh không còn acc / game nào dùng sẽ tự bị xoá, ảnh tải lên mà không lưu sẽ được dọn sau 1 giờ.
+- Vì ảnh nằm trong database nên cũng mất khi Render free khởi động lại, giống kho acc (xem lưu ý bên dưới).
+
+## Giao diện cửa hàng
+Theo web mẫu shopaccg.com: đầu trang có số dư và dải chữ chạy, bảng **TOP NẠP TIỀN** (lấy từ bảng xếp hạng nạp của tháng), lưới **Danh sách Games** (ảnh bìa, *Đang bán* / *Đã bán*), bấm vào game để xem acc, mua random và sắp xếp theo giá. Giao diện nằm trong `public/shop.css` và `public/shop.js`.
+
+## Ảnh acc và ảnh bìa game (gửi trực tiếp, không cần link)
+- Ở form *Thêm game*, *Thêm acc* và nút **Ảnh** của từng acc trong Kho acc: bấm *Chọn ảnh / chụp ảnh*, hoặc **kéo thả**, hoặc **dán (Ctrl+V)** ảnh chụp màn hình vào ô ảnh. Trình duyệt tự thu nhỏ về tối đa 1280px và nén WebP (ảnh vài MB chỉ còn khoảng 50-250 KB) rồi gửi lên server. Vẫn dùng được link `https://` như trước.
+- **Acc random cũng đổi / gỡ ảnh được** bất cứ lúc nào (khi chưa bán) bằng nút **Ảnh**. Đổi ảnh một acc không ảnh hưởng các acc khác dùng chung ảnh cũ.
+- Khách không thấy ảnh của acc random trước khi mở. Sau khi mua, ảnh hiện trong hộp tài khoản và khi xem lại ở *Acc đã mua*. Ảnh acc thường hiện ở thẻ acc, bấm vào để xem lớn.
+- Ảnh lưu trong database (bảng `shop_images`), mã ảnh ngẫu nhiên 24 ký tự nên không đoán được địa chỉ. Server kiểm tra đúng định dạng JPG / PNG / WebP / GIF bằng nội dung file (từ chối SVG và file khác), giới hạn 3 MB mỗi ảnh. Ảnh không còn acc / game nào dùng sẽ tự bị xoá, ảnh tải lên mà không lưu sẽ được dọn sau 1 giờ.
+- Vì ảnh nằm trong database nên cũng mất khi Render free khởi động lại, giống kho acc (xem lưu ý bên dưới).
+
+## Giao diện cửa hàng
+Theo web mẫu shopaccg.com: đầu trang có số dư và dải chữ chạy, bảng **TOP NẠP TIỀN** (lấy từ bảng xếp hạng nạp của tháng), lưới **Danh sách Games** (ảnh bìa, *Đang bán* / *Đã bán*), bấm vào game để xem acc, mua random và sắp xếp theo giá. Giao diện nằm trong `public/shop.css` và `public/shop.js`.
+
 ## Bảo mật
 - Tài khoản, mật khẩu, thông tin thêm được mã hoá **AES-256-GCM** (cùng cơ chế với cookie Facebook) bằng `APP_SECRET` ngay trên server, rồi mới ghi database. Database bị lộ thì chỉ thấy chuỗi mã hoá.
-- API không bao giờ trả mật khẩu ra danh sách. Admin chỉ thấy tài khoản đã che (`ab***`). Chỉ người mua mới nhận tk/mk, xem lại được ở mục *Acc đã mua* (chỉ đơn của chính mình).
+- API không bao giờ trả mật khẩu ra danh sách, danh sách acc random của khách cũng không có ảnh. Admin chỉ thấy tài khoản đã che (`ab***`). Chỉ người mua mới nhận tk/mk, xem lại được ở mục *Acc đã mua* (chỉ đơn của chính mình).
 - Mua hàng chạy trong 1 giao dịch: hai người bấm mua cùng lúc chỉ 1 người được, không bán trùng. Trừ coin và giao acc là một thể.
 - Không thêm trùng acc (so sánh bằng mã băm, không lưu tài khoản thật dạng thường).
 

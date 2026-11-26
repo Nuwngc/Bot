@@ -10,6 +10,9 @@
  *  - Acc random: admin dat 1 gia cho moi game; khach tra gia do va nhan 1 acc NGAU NHIEN trong kho random
  *    cua game (khach khong biet truoc la acc gi).
  *  - Coin tieu o day ghi vao wallet_tx.kind = 'shop' (khong tinh vao bang xep hang nap).
+ *  - Anh acc / anh bia game: admin gui anh TRUC TIEP len server (POST /admin/shop/upload, da nen nho o trinh duyet).
+ *    Anh luu trong bang shop_images (BLOB) voi ma ngau nhien 24 ky tu hex nen khong doan duoc dia chi anh cua acc
+ *    random truoc khi mua. Van dung duoc link https:// nhu truoc. Acc nao (thuong hay random) cung doi / go anh duoc.
  */
 
 const crypto = require("crypto");
@@ -58,7 +61,20 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS shop_orders_user ON shop_orders(user_id, id);
+
+  CREATE TABLE IF NOT EXISTS shop_images (
+    id         TEXT PRIMARY KEY,                 -- 24 ky tu hex ngau nhien (khong doan duoc)
+    mime       TEXT NOT NULL,
+    data       BLOB NOT NULL,
+    size       INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
+
+// Anh bia cho game (DB cu chua co cot nay)
+if (!db.prepare("PRAGMA table_info(shop_games)").all().some((c) => c.name === "image_url")) {
+  db.exec("ALTER TABLE shop_games ADD COLUMN image_url TEXT");
+}
 
 // Lan dau: tao san vai game pho bien, admin them / sua / xoa tuy y trong tab Shop acc
 if (db.prepare("SELECT COUNT(*) AS n FROM shop_games").get().n === 0) {
@@ -80,12 +96,26 @@ const sq = {
   games: db.prepare("SELECT * FROM shop_games ORDER BY id"),
   game: db.prepare("SELECT * FROM shop_games WHERE id = ?"),
   gameByName: db.prepare("SELECT id FROM shop_games WHERE lower(name) = lower(?)"),
-  insGame: db.prepare("INSERT INTO shop_games (name, emoji, random_price, active) VALUES (?, ?, ?, ?)"),
-  updGame: db.prepare("UPDATE shop_games SET name = ?, emoji = ?, random_price = ?, active = ? WHERE id = ?"),
+  insGame: db.prepare("INSERT INTO shop_games (name, emoji, random_price, active, image_url) VALUES (?, ?, ?, ?, ?)"),
+  updGame: db.prepare("UPDATE shop_games SET name = ?, emoji = ?, random_price = ?, active = ?, image_url = ? WHERE id = ?"),
   delGame: db.prepare("DELETE FROM shop_games WHERE id = ?"),
   gameAccCount: db.prepare("SELECT COUNT(*) AS n FROM shop_accounts WHERE game_id = ?"),
   stock: db.prepare(
     `SELECT game_id, kind, COUNT(*) AS n FROM shop_accounts WHERE status = 'available' GROUP BY game_id, kind`
+  ),
+  soldByGame: db.prepare(`SELECT game_id, COUNT(*) AS n FROM shop_accounts WHERE status = 'sold' GROUP BY game_id`),
+  insImage: db.prepare("INSERT INTO shop_images (id, mime, data, size) VALUES (?, ?, ?, ?)"),
+  image: db.prepare("SELECT mime, data FROM shop_images WHERE id = ?"),
+  imageExists: db.prepare("SELECT 1 AS ok FROM shop_images WHERE id = ?"),
+  delImage: db.prepare("DELETE FROM shop_images WHERE id = ?"),
+  imageInUse: db.prepare(
+    `SELECT (SELECT COUNT(*) FROM shop_accounts WHERE image_url = ?) + (SELECT COUNT(*) FROM shop_games WHERE image_url = ?) AS n`
+  ),
+  sweepImages: db.prepare(
+    `DELETE FROM shop_images
+      WHERE created_at < datetime('now', '-1 hour')
+        AND NOT EXISTS (SELECT 1 FROM shop_accounts WHERE image_url = '/api/shop/img/' || shop_images.id)
+        AND NOT EXISTS (SELECT 1 FROM shop_games WHERE image_url = '/api/shop/img/' || shop_images.id)`
   ),
   listNormal: db.prepare(
     `SELECT a.id, a.game_id, a.title, a.description, a.image_url, a.price
@@ -116,7 +146,7 @@ const sq = {
   orderByCode: db.prepare("SELECT id FROM shop_orders WHERE code = ?"),
   ordersByUser: db.prepare("SELECT id, code, game_name, title, kind, price, created_at FROM shop_orders WHERE user_id = ? ORDER BY id DESC LIMIT 100"),
   adminAccs: db.prepare(
-    `SELECT a.id, a.game_id, g.name AS game_name, a.kind, a.title, a.price, a.status, a.user_enc, a.created_at, a.sold_at, u.username AS buyer
+    `SELECT a.id, a.game_id, g.name AS game_name, a.kind, a.title, a.price, a.status, a.image_url, a.user_enc, a.created_at, a.sold_at, u.username AS buyer
        FROM shop_accounts a JOIN shop_games g ON g.id = a.game_id LEFT JOIN users u ON u.id = a.buyer_id
       WHERE (? = '' OR a.status = ?) AND (? = 0 OR a.game_id = ?)
       ORDER BY a.id DESC LIMIT 200`
@@ -138,11 +168,75 @@ const intIn = (v, min, max, dflt) => {
 };
 const clean = (s, max) => String(s ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").trim().slice(0, max);
 
+const IMG_PREFIX = "/api/shop/img/";
+const IMG_PATH = /^\/api\/shop\/img\/([a-f0-9]{24})$/;
+const MAX_IMG_BYTES = 3 * 1024 * 1024;
+
+/** Link anh hop le: https://... (link ngoai) hoac anh vua tai len server (/api/shop/img/<ma>). "" -> khong co anh. */
 function cleanImage(u) {
   u = clean(u, 400);
   if (!u) return null;
+  const m = IMG_PATH.exec(u);
+  if (m) {
+    if (!sq.imageExists.get(m[1])) throw new Error("Ảnh vừa tải lên không còn trên server, hãy chọn lại ảnh.");
+    return u;
+  }
   if (!/^https:\/\/[^\s"'<>]+$/i.test(u)) throw new Error("Link ảnh phải bắt đầu bằng https:// và không chứa khoảng trắng");
   return u;
+}
+
+/** Nhan dang dinh dang that cua file anh bang chu ky dau file (khong tin Content-Type do client gui). */
+function sniffImage(b) {
+  if (b.length < 12) return null;
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
+  if (b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "image/png";
+  if (b.toString("latin1", 0, 4) === "RIFF" && b.toString("latin1", 8, 12) === "WEBP") return "image/webp";
+  const g = b.toString("latin1", 0, 6);
+  if (g === "GIF87a" || g === "GIF89a") return "image/gif";
+  return null;
+}
+
+function saveImage(buf) {
+  if (!buf || !buf.length) throw new Error("Chưa nhận được ảnh");
+  if (buf.length > MAX_IMG_BYTES) throw new Error("Ảnh quá lớn (tối đa 3 MB sau khi nén)");
+  const mime = sniffImage(buf);
+  if (!mime) throw new Error("Chỉ nhận ảnh JPG, PNG, WebP hoặc GIF");
+  const id = crypto.randomBytes(12).toString("hex");
+  sq.insImage.run(id, mime, buf, buf.length);
+  return IMG_PREFIX + id;
+}
+
+/** Anh khong con acc / game nao dung nua thi xoa khoi DB (goi sau khi doi / go / xoa anh). */
+function dropIfOrphan(url) {
+  const m = url && IMG_PATH.exec(url);
+  if (m && sq.imageInUse.get(url, url).n === 0) sq.delImage.run(m[1]);
+}
+
+// Anh tai len nhung khong gan vao acc / game nao (bo giua chung, dong form...) bi don sau 1 gio
+const sweep = () => { try { sq.sweepImages.run(); } catch (e) { console.error("[shop] don anh thua loi:", e.message); } };
+sweep();
+setInterval(sweep, 3600e3).unref();
+
+/** Doc nguyen body anh (khong can express.raw), dung o khi vuot gioi han va tra loi bang tieng Viet. */
+function readImageBody(req, res, next) {
+  const declared = Number(req.headers["content-length"]);
+  if (declared > MAX_IMG_BYTES) return res.status(413).json({ error: "Ảnh quá lớn (tối đa 3 MB sau khi nén)" });
+  const chunks = [];
+  let size = 0;
+  let done = false;
+  req.on("data", (c) => {
+    if (done) return;
+    size += c.length;
+    if (size > MAX_IMG_BYTES) {
+      done = true;
+      res.status(413).json({ error: "Ảnh quá lớn (tối đa 3 MB sau khi nén)" });
+      req.destroy();
+      return;
+    }
+    chunks.push(c);
+  });
+  req.on("end", () => { if (done) return; done = true; req.imageBuffer = Buffer.concat(chunks); next(); });
+  req.on("error", () => { if (!done) { done = true; res.status(400).json({ error: "Tải ảnh bị gián đoạn, thử lại nhé." }); } });
 }
 
 function orderCode() {
@@ -217,7 +311,7 @@ function settle(user, a, game, price, kind, badIds) {
   const code = orderCode();
   if (price > 0) wallet.credit(user.id, "shop", -price, code, `Mua acc ${game.name}${kind === "random" ? " (random)" : ""} · ${code}`);
   const id = Number(sq.insOrder.run(code, user.id, a.id, game.name, kind === "random" ? `Acc random ${game.name}` : a.title, kind, price).lastInsertRowid);
-  return { order: sq.orderById.get(id), creds };
+  return { order: sq.orderById.get(id), creds, image: a.image_url || null };
 }
 
 /** Acc hong du lieu bi an; ghi lai ca khi giao dich mua that bai (rollback) de khong lap lai o lan sau. */
@@ -237,7 +331,7 @@ function buyNormal(user, accId) {
     });
   } finally { hideBad(bad); }
   if (r.bad) throw new Error("Acc này đang bị lỗi dữ liệu nên đã được ẩn. Bạn chưa bị trừ coin, hãy chọn acc khác.");
-  return { order: orderView(r.order), credentials: r.creds, balance: wallet.balance(user.id) };
+  return { order: { ...orderView(r.order), image: r.image }, credentials: r.creds, balance: wallet.balance(user.id) };
 }
 
 function buyRandom(user, gameId) {
@@ -259,7 +353,7 @@ function buyRandom(user, gameId) {
     throw new Error("Hệ thống đang kiểm tra kho acc, thử lại sau ít phút.");
   });
   } finally { hideBad(bad); }
-  return { order: orderView(r.order), credentials: r.creds, balance: wallet.balance(user.id) };
+  return { order: { ...orderView(r.order), image: r.image }, credentials: r.creds, balance: wallet.balance(user.id) };
 }
 
 /* ---------- Route ---------- */
@@ -273,14 +367,28 @@ function register(router, auth) {
   router.get("/shop", (req, res) => {
     const stock = {};
     for (const r of sq.stock.all()) (stock[r.game_id] ||= {})[r.kind] = r.n;
+    const sold = Object.fromEntries(sq.soldByGame.all().map((r) => [r.game_id, r.n]));
     res.json({
       balance: wallet.balance(req.user.id),
       games: sq.games.all().filter((g) => g.active).map((g) => ({
-        id: g.id, name: g.name, emoji: g.emoji,
+        id: g.id, name: g.name, emoji: g.emoji, image: g.image_url || null,
         randomPrice: g.random_price, randomStock: stock[g.id]?.random || 0, normalStock: stock[g.id]?.normal || 0,
+        sold: sold[g.id] || 0,
       })),
       accounts: sq.listNormal.all(),
     });
+  });
+
+  // Phuc vu anh da tai len. Chi nguoi da dang nhap xem duoc; ma anh 24 ky tu ngau nhien nen khong doan duoc.
+  router.get("/shop/img/:id", (req, res) => {
+    const id = String(req.params.id);
+    const row = /^[a-f0-9]{24}$/.test(id) ? sq.image.get(id) : null;
+    if (!row) return res.status(404).json({ error: "Không tìm thấy ảnh" });
+    res.setHeader("Content-Type", row.mime);
+    res.setHeader("Content-Disposition", "inline");
+    res.setHeader("Content-Security-Policy", "default-src 'none'; sandbox");
+    res.setHeader("Cache-Control", "private, max-age=604800, immutable"); // doi anh = ma moi nen cache lau duoc
+    res.end(Buffer.from(row.data));
   });
 
   router.post("/shop/buy", (req, res) => {
@@ -306,7 +414,7 @@ function register(router, auth) {
     const a = sq.acc.get(o.account_id);
     const creds = a && reveal(a);
     if (!creds) return res.status(500).json({ error: "Không đọc được dữ liệu acc này, hãy liên hệ admin kèm mã đơn " + o.code });
-    res.json({ order: orderView(o), credentials: creds });
+    res.json({ order: { ...orderView(o), image: a.image_url || null }, credentials: creds });
   });
 
   /* ===== Quan tri ===== */
@@ -322,13 +430,13 @@ function register(router, auth) {
     }
     const totals = Object.fromEntries(sq.adminStats.all().map((r) => [r.status, r.n]));
     res.json({
-      games: sq.games.all().map((g) => ({ id: g.id, name: g.name, emoji: g.emoji, random_price: g.random_price, active: !!g.active, stock: stock[g.id] || { normal: 0, random: 0, sold: 0 } })),
+      games: sq.games.all().map((g) => ({ id: g.id, name: g.name, emoji: g.emoji, image_url: g.image_url || null, random_price: g.random_price, active: !!g.active, stock: stock[g.id] || { normal: 0, random: 0, sold: 0 } })),
       totals,
       // Danh sach chi hien tai khoan da che (ab***yz), KHONG tra mat khau
       accounts: sq.adminAccs.all(status, status, gameId, gameId).map((a) => {
         const u = decrypt(a.user_enc);
         return {
-          id: a.id, game_id: a.game_id, game_name: a.game_name, kind: a.kind, title: a.title, price: a.price, status: a.status,
+          id: a.id, game_id: a.game_id, game_name: a.game_name, kind: a.kind, title: a.title, price: a.price, status: a.status, image_url: a.image_url || null,
           masked: u == null ? "(lỗi giải mã)" : maskUser(u), created_at: a.created_at, sold_at: a.sold_at, buyer: a.buyer || null,
         };
       }),
@@ -349,10 +457,12 @@ function register(router, auth) {
         const g = sq.game.get(Number(b.id));
         if (!g) throw new Error("Không tìm thấy game");
         if (same && same.id !== g.id) throw new Error("Đã có game trùng tên");
-        sq.updGame.run(name, emoji, price, active, g.id);
+        const image = b.image_url === undefined ? g.image_url : cleanImage(b.image_url);
+        sq.updGame.run(name, emoji, price, active, image, g.id);
+        if (image !== g.image_url) dropIfOrphan(g.image_url);
       } else {
         if (same) throw new Error("Đã có game trùng tên");
-        sq.insGame.run(name, emoji, price, active);
+        sq.insGame.run(name, emoji, price, active, cleanImage(b.image_url));
       }
       res.json({ ok: true });
     } catch (e) { fail(res, e); }
@@ -361,8 +471,16 @@ function register(router, auth) {
   router.post("/admin/shop/games/:id/delete", auth.requireAdmin, (req, res) => {
     const id = Number(req.params.id);
     if (sq.gameAccCount.get(id).n > 0) return res.status(400).json({ error: "Game này còn acc (kể cả acc đã bán). Hãy tắt game thay vì xoá." });
+    const g = sq.game.get(id);
     sq.delGame.run(id);
+    if (g) dropIfOrphan(g.image_url);
     res.json({ ok: true });
+  });
+
+  /** Admin gui anh truc tiep (body = file anh). Trinh duyet da nen nho ve toi da ~1280px truoc khi gui. */
+  router.post("/admin/shop/upload", auth.requireAdmin, readImageBody, (req, res) => {
+    noStore(res);
+    try { res.json({ ok: true, url: saveImage(req.imageBuffer) }); } catch (e) { fail(res, e); }
   });
 
   /** Them 1 hoac nhieu acc cung luc (moi dong 1 acc). Tk/mk duoc ma hoa ngay tai day roi moi ghi DB. */
@@ -412,6 +530,7 @@ function register(router, auth) {
       const price = a.kind === "normal" && b.price !== undefined ? intIn(b.price, 1, 1e8, 0) : a.price;
       if (a.kind === "normal" && !price) throw new Error("Giá acc từ 1 đến 100.000.000 coin");
       sq.updAccMeta.run(title, description, image, price, a.id);
+      if (image !== a.image_url) dropIfOrphan(a.image_url);
       // Doi tk/mk (tuy chon): ma hoa lai
       if (b.username || b.password) {
         const user = clean(b.username, 200) || decrypt(a.user_enc);
@@ -427,8 +546,10 @@ function register(router, auth) {
   });
 
   router.post("/admin/shop/accounts/:id/delete", auth.requireAdmin, (req, res) => {
+    const old = sq.acc.get(Number(req.params.id));
     const r = sq.delAcc.run(Number(req.params.id));
     if (!r.changes) return res.status(400).json({ error: "Không xoá được (acc đã bán được giữ lại để đối chiếu đơn)" });
+    if (old) dropIfOrphan(old.image_url);
     res.json({ ok: true });
   });
 }
