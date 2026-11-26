@@ -126,6 +126,8 @@
 
   /* ---------- chân trang + nút nổi ---------- */
 
+  const LINK_CLASS = { gold: "c-gold", red: "c-red", blue: "c-blue", pink: "c-pink", green: "c-green" };
+
   function buildFooter(s) {
     if (document.querySelector(".site-foot")) return;
     const contacts = s.showContacts ? s.contacts || [] : [];
@@ -133,14 +135,49 @@
       const k = kindOf(c.kind);
       return `<a class="sc-card" href="${ea(safeUrl(c.url))}" target="_blank" rel="noopener noreferrer"><span class="sc-ico" style="--bg:${COLOR[k]}">${ICON[k]}</span><span class="sc-name">${ea(c.label)}</span></a>`;
     }).join("");
-    const links = (s.links || []).map((l) => `<a href="${ea(safeUrl(l.url))}" target="_blank" rel="noopener noreferrer">${ea(l.label)}</a>`).join("");
+    const links = (s.links || []).map((l) => `<a${LINK_CLASS[l.color] ? ` class="${LINK_CLASS[l.color]}"` : ""} href="${ea(safeUrl(l.url))}" target="_blank" rel="noopener noreferrer">${ea(l.label)}</a>`).join("");
     const f = el("footer", "site-foot",
       `<div class="site-foot-in">
+        ${s.showOnline ? `<div class="site-online" hidden><i class="so-dot"></i><b class="so-n">0</b> người đang online</div>` : ""}
         ${cards ? `<div class="site-contacts">${cards}</div>` : ""}
+        ${s.note ? `<p class="site-note">${linkify(s.note)}</p>` : ""}
         ${links ? `<nav class="site-links" aria-label="Liên kết chân trang">${links}</nav>` : ""}
         <p class="site-copy">Copyright © ${new Date().getFullYear()} ${ea(s.name)}${s.version ? ` · Phiên bản ${ea(s.version)}` : ""}</p>
       </div>`);
     document.body.append(f);
+    if (s.showOnline) startOnline(f.querySelector(".site-online"));
+  }
+
+  /* ---------- số người đang online (cả khách chưa đăng nhập) ---------- */
+
+  function visitorId() {
+    let id = "";
+    try { id = localStorage.getItem("siteVid") || ""; } catch (_) {}
+    if (!/^[a-f0-9]{16}$/.test(id)) {
+      const a = new Uint8Array(8);
+      (window.crypto || window.msCrypto).getRandomValues(a);
+      id = [...a].map((b) => b.toString(16).padStart(2, "0")).join("");
+      try { localStorage.setItem("siteVid", id); } catch (_) {}
+    }
+    return id;
+  }
+
+  function startOnline(chip) {
+    if (!chip) return;
+    const nEl = chip.querySelector(".so-n");
+    const id = visitorId();
+    let timer = 0;
+    async function ping() {
+      try {
+        const r = await fetch("/api/site/ping", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id }), cache: "no-store" });
+        if (!r.ok) return;
+        const d = await r.json();
+        if (Number.isFinite(d.online)) { nEl.textContent = new Intl.NumberFormat("vi-VN").format(d.online); chip.hidden = false; }
+      } catch (_) {}
+    }
+    const loop = () => { clearInterval(timer); timer = 0; if (!document.hidden) { ping(); timer = setInterval(ping, 30000); } };
+    document.addEventListener("visibilitychange", loop); // tab bị ẩn thì ngừng gửi nhịp, quay lại thì gửi ngay
+    loop();
   }
 
   function buildFab(s) {

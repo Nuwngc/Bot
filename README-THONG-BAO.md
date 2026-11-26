@@ -14,8 +14,11 @@ Quản trị: tab **Quản trị**, mục **Thông báo tổng và liên hệ** 
 - Các thẻ liên hệ ở cuối trang (Liên Hệ QTV, YouTube, Facebook, Discord, Community...), mỗi mục có biểu tượng riêng, đổi tên, đổi thứ tự được. Mục để trống link thì không hiện. Có sẵn 5 mục mẫu, chỉ cần dán link.
 - Nút tròn nổi bên phải: bấm nút chia sẻ để mở / gập danh sách liên hệ (mặc định gập để khỏi che giao diện), nút mũi tên lên đầu trang hiện khi cuộn xuống.
 - Link chân trang (Điều khoản sử dụng, Quy tắc nội dung...) và dòng Copyright © năm + tên web + phiên bản (lấy từ package.json).
+- **Số người đang online** (viên thuốc có chấm xanh nhấp nháy ngay trên các thẻ liên hệ, giống trang mẫu): tính cả khách chưa đăng nhập. Mỗi trình duyệt tự sinh một mã ngẫu nhiên, cứ 30 giây báo một nhịp khi đang xem trang (tab bị ẩn thì ngừng); có nhịp trong 70 giây gần nhất là đang online. Chỉ lưu trong bộ nhớ máy chủ, không lưu IP, không ghi CSDL. Tắt bằng tick **Hiện số người đang online**. Con số này khác chút so với chấm "đang online" trên thanh trên của bảng điều khiển (chỗ đó chỉ đếm thành viên đã đăng nhập).
+- **Dòng ghi chú** dưới các thẻ liên hệ (tối đa 300 ký tự, link https:// tự bấm được), ví dụ lời kêu gọi theo dõi trang chính thức.
+- **Màu chữ cho link chân trang**: mỗi link chọn Màu thường / Vàng / Đỏ / Xanh dương / Hồng / Xanh lá để làm nổi bật (ví dụ "Đăng ký", "Thông tin donate"). Tự đổi sang tông đậm hơn khi bật giao diện sáng.
 - Chỉ nhận link http / https. Gõ `m.me/abc` không có https:// thì tự thêm.
 
 ## Kỹ thuật
-- Server: `server/site.js` (API `/api/site/*`, bảng `site_images`), gắn trong `server/app.js` trước `/api` để khách chưa đăng nhập cũng xem được.
+- Server: `server/site.js` (API `/api/site/*` gồm `public`, `img/:id`, `ping`, `admin`, `image`; bảng `site_images`), gắn trong `server/app.js` trước `/api` để khách chưa đăng nhập cũng xem được.
 - Giao diện khách: `public/site.js` + `public/site.css`, nạp ở dashboard / login / register / forgot. Giao diện admin: `public/site-admin.js`.

@@ -3,6 +3,7 @@
  *
  *  GET  /api/site/public      (khong can dang nhap) thong bao dang bat + thong tin lien he de ve chan trang, nut noi
  *  GET  /api/site/img/:id     (khong can dang nhap) hinh trong thong bao
+ *  POST /api/site/ping        (khong can dang nhap) { id } nhip "dang online" cua khach / thanh vien, tra { online }
  *  GET  /api/site/admin       (admin) cau hinh day du de sua
  *  POST /api/site/admin       (admin) { notice?, info? } luu
  *  POST /api/site/image       (admin) body = file anh (jpeg/png/gif/webp, toi da 3MB), tra { id, url }
@@ -42,6 +43,34 @@ const SEED_CONTACTS = [
   { kind: "community", label: "Community", url: "" },
 ];
 const DEFAULT_NAME = "Bảng điều khiển bot";
+const LINK_COLORS = ["gold", "red", "blue", "pink", "green"]; // mau chu cua link chan trang ("" = mau thuong)
+
+/* ---------- dem nguoi dang online (ca khach chua dang nhap) ---------- */
+// Moi trinh duyet tu sinh 1 ma ngau nhien, ping ~30 giay/lan khi dang xem trang. Co nhip trong 70 giay gan nhat = dang online.
+// Chi luu trong bo nho, khong ghi database, khong luu IP.
+const ONLINE_WINDOW_MS = 70 * 1000;
+const ONLINE_MAX_IDS = 20000;
+const seenVisitors = new Map(); // ma -> thoi diem nhip gan nhat
+const ipBudget = new Map();     // ip -> { n, reset } chong gui ping don dap
+let onlineCache = { t: 0, n: 0 };
+
+function visitorsOnline() {
+  const now = Date.now();
+  if (now - onlineCache.t < 4000) return onlineCache.n;
+  const limit = now - ONLINE_WINDOW_MS;
+  let n = 0;
+  for (const [id, t] of seenVisitors) { if (t >= limit) n++; else seenVisitors.delete(id); }
+  for (const [ip, b] of ipBudget) if (b.reset < now) ipBudget.delete(ip);
+  onlineCache = { t: now, n };
+  return n;
+}
+
+function pingAllowed(ip) {
+  const now = Date.now();
+  let b = ipBudget.get(ip);
+  if (!b || b.reset < now) { b = { n: 0, reset: now + 60 * 1000 }; if (ipBudget.size < 20000) ipBudget.set(ip, b); }
+  return ++b.n <= 120; // toi da 120 nhip / phut / IP (du cho nhieu may chung mang)
+}
 
 /* ---------- kiem tra du lieu ---------- */
 
@@ -104,8 +133,10 @@ const readInfo = () => {
     name: String(i.name || DEFAULT_NAME),
     showContacts: i.showContacts !== false,
     floatBtns: i.floatBtns !== false,
+    showOnline: i.showOnline !== false,
+    note: String(i.note || ""),
     contacts: Array.isArray(i.contacts) ? i.contacts.filter((c) => c && KINDS.includes(c.kind)).map((c) => ({ kind: c.kind, label: String(c.label || ""), url: String(c.url || "") })) : SEED_CONTACTS,
-    links: Array.isArray(i.links) ? i.links.map((l) => ({ label: String(l?.label || ""), url: String(l?.url || "") })).filter((l) => l.label && l.url) : [],
+    links: Array.isArray(i.links) ? i.links.map((l) => ({ label: String(l?.label || ""), url: String(l?.url || ""), color: LINK_COLORS.includes(l?.color) ? l.color : "" })).filter((l) => l.label && l.url) : [],
   };
 };
 
@@ -141,10 +172,11 @@ function cleanInfo(inp) {
     const label = str(l?.label, 40, "Tên link chân trang");
     if (!url && !label) continue;
     if (!url || !label) throw new Error("Mỗi link chân trang cần đủ tên và địa chỉ");
-    links.push({ label, url });
+    links.push({ label, url, color: LINK_COLORS.includes(l?.color) ? l.color : "" });
   }
   if (links.length > 12) throw new Error("Tối đa 12 link chân trang");
-  return { name, showContacts: o.showContacts !== false, floatBtns: o.floatBtns !== false, contacts, links };
+  const note = str(o.note, 300, "Dòng ghi chú");
+  return { name, showContacts: o.showContacts !== false, floatBtns: o.floatBtns !== false, showOnline: o.showOnline !== false, note, contacts, links };
 }
 
 /** Xoa hinh khong con dung (chi xoa hinh da tai len qua 24 gio, de kip bam Luu) */
@@ -161,6 +193,7 @@ function publicView() {
     notice: show ? { v: n.v, title: n.title, text: n.text, images: n.images.map(imgUrl), btnLabel: n.btnLabel, btnUrl: n.btnUrl } : null,
     site: {
       name: i.name, version: VERSION, showContacts: i.showContacts, floatBtns: i.floatBtns,
+      showOnline: i.showOnline, note: i.note,
       contacts: i.contacts.filter((c) => c.url), links: i.links,
     },
   };
@@ -168,7 +201,7 @@ function publicView() {
 
 function adminView() {
   const n = readNotice(), i = readInfo();
-  return { notice: { ...n, images: n.images.map((id) => ({ id, url: imgUrl(id) })) }, info: i, kinds: KINDS, maxImages: MAX_IMAGES };
+  return { notice: { ...n, images: n.images.map((id) => ({ id, url: imgUrl(id) })) }, info: i, kinds: KINDS, colors: LINK_COLORS, maxImages: MAX_IMAGES };
 }
 
 /* ---------- xu ly yeu cau (tach rieng de de kiem tra) ---------- */
@@ -189,6 +222,16 @@ const handlers = {
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable"); // id moi lan tai len la duy nhat
     res.setHeader("Content-Disposition", "inline");
     res.end(Buffer.from(row.data));
+  },
+
+  ping(req, res) {
+    res.setHeader("Cache-Control", "no-store");
+    const id = String(req.body?.id ?? "");
+    if (!/^[a-f0-9]{16,32}$/.test(id)) return res.status(400).json({ error: "Ma khong hop le" });
+    if (!pingAllowed(String(req.ip || ""))) return res.status(429).json({ error: "Gui qua nhanh" });
+    if (seenVisitors.has(id) || seenVisitors.size < ONLINE_MAX_IDS) seenVisitors.set(id, Date.now());
+    onlineCache.t = 0; // tinh lai de nguoi vua vao duoc dem ngay
+    res.json({ online: Math.max(1, visitorsOnline()) });
   },
 
   adminGet(req, res) { res.json(adminView()); },
@@ -227,6 +270,7 @@ function createRouter(express) {
   const admin = [auth.requireLogin, auth.requireAdmin];
   router.get("/public", handlers.public);
   router.get("/img/:id", handlers.img);
+  router.post("/ping", handlers.ping);
   router.get("/admin", ...admin, handlers.adminGet);
   router.post("/admin", ...admin, handlers.adminSave);
   router.post("/image", ...admin, express.raw({ type: ["image/jpeg", "image/png", "image/gif", "image/webp"], limit: MAX_IMG_BYTES }), handlers.upload);
@@ -238,4 +282,4 @@ function createRouter(express) {
   return router;
 }
 
-module.exports = { createRouter, handlers, cleanNotice, cleanInfo, cleanUrl, sniffImage, publicView, readNotice, readInfo, KINDS };
+module.exports = { createRouter, handlers, cleanNotice, cleanInfo, cleanUrl, sniffImage, publicView, readNotice, readInfo, KINDS, LINK_COLORS };

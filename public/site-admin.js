@@ -8,6 +8,7 @@
     messenger: "Messenger", youtube: "YouTube", facebook: "Facebook", discord: "Discord",
     community: "Community (Messenger tím)", zalo: "Zalo", telegram: "Telegram", tiktok: "TikTok", link: "Liên kết khác",
   };
+  const COLOR_LABEL = { "": "Màu thường", gold: "Vàng", red: "Đỏ", blue: "Xanh dương", pink: "Hồng", green: "Xanh lá" };
   const ea = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   const box = document.createElement("section");
@@ -36,9 +37,11 @@
     <div class="field"><label for="saName">Tên web (dòng bản quyền)</label><input type="text" id="saName" maxlength="60"></div>
     <label class="check"><input type="checkbox" id="saShow"> Hiện các thẻ liên hệ ở cuối trang</label>
     <label class="check"><input type="checkbox" id="saFloat"> Hiện nút tròn nổi bên phải</label>
+    <label class="check"><input type="checkbox" id="saOnline"> Hiện số người đang online ở cuối trang (tính cả khách chưa đăng nhập)</label>
+    <div class="field" style="margin-top:.8rem"><label for="saNote">Dòng ghi chú dưới các thẻ liên hệ (không bắt buộc)</label><textarea id="saNote" rows="2" maxlength="300" placeholder="Ví dụ: Bấm vào các nút trên để theo dõi fanpage chính thức của web."></textarea></div>
     <div class="field" style="margin-top:.8rem"><label>Các mục liên hệ</label><div id="saContacts"></div>
       <button type="button" id="saAddC">+ Thêm mục</button></div>
-    <div class="field"><label>Link ở chân trang (Điều khoản, Quy tắc, Liên hệ…)</label><div id="saLinks"></div>
+    <div class="field"><label>Link ở chân trang (Điều khoản, Quy tắc, Liên hệ…, có thể tô màu cho nổi bật)</label><div id="saLinks"></div>
       <button type="button" id="saAddL">+ Thêm link</button></div>
     <div class="ap-actions"><button type="button" class="primary" id="saSaveI">Lưu liên hệ</button><button type="button" id="saReload">Hoàn tác</button></div>`;
   anchor.before(box);
@@ -55,12 +58,13 @@
   .sa-row{display:grid;gap:.4rem;grid-template-columns:1fr auto auto auto;padding:.6rem;border:1px solid var(--line);border-radius:14px;background:var(--raised);margin-bottom:.5rem}
   .sa-row .sa-kind,.sa-row .sa-label{grid-column:1 / -1}
   .sa-row .sa-url{grid-column:1 / 2}
-  .sa-row.l .sa-label{grid-column:1 / -1}
+  .sa-row.l .sa-label,.sa-row.l .sa-color{grid-column:1 / -1}
   .sa-row button{padding:.4rem .7rem}
   @media(min-width:34rem){
     .sa-row{grid-template-columns:9.5rem 1fr 1.6fr auto auto auto}
     .sa-row .sa-kind,.sa-row .sa-label,.sa-row .sa-url{grid-column:auto}
-    .sa-row.l{grid-template-columns:1fr 1.6fr auto auto auto}
+    .sa-row.l{grid-template-columns:1fr 1.6fr 7.5rem auto auto auto}
+    .sa-row.l .sa-label,.sa-row.l .sa-color{grid-column:auto}
   }`;
   document.head.append(style);
 
@@ -175,11 +179,12 @@
     <div class="sa-row l">
       <input type="text" class="sa-label" maxlength="40" placeholder="Tên link" value="${ea(l.label)}">
       <input type="text" class="sa-url" placeholder="https://…" autocapitalize="off" spellcheck="false" value="${ea(l.url)}">
+      <select class="sa-color" aria-label="Màu chữ">${["", ...(data.colors || [])].map((k) => `<option value="${k}" ${k === (l.color || "") ? "selected" : ""}>${COLOR_LABEL[k] || k}</option>`).join("")}</select>
       <button type="button" data-a="up" aria-label="Lên">▲</button><button type="button" data-a="dn" aria-label="Xuống">▼</button><button type="button" data-a="del" aria-label="Xoá">✕</button>
     </div>`;
 
   const readC = () => [...$("saContacts").querySelectorAll(".sa-row")].map((r) => ({ kind: r.querySelector(".sa-kind").value, label: r.querySelector(".sa-label").value.trim(), url: r.querySelector(".sa-url").value.trim() }));
-  const readL = () => [...$("saLinks").querySelectorAll(".sa-row")].map((r) => ({ label: r.querySelector(".sa-label").value.trim(), url: r.querySelector(".sa-url").value.trim() }));
+  const readL = () => [...$("saLinks").querySelectorAll(".sa-row")].map((r) => ({ label: r.querySelector(".sa-label").value.trim(), url: r.querySelector(".sa-url").value.trim(), color: r.querySelector(".sa-color").value }));
   const drawC = (a) => { $("saContacts").innerHTML = a.map(contactRow).join("") || '<p class="hint">Chưa có mục nào.</p>'; };
   const drawL = (a) => { $("saLinks").innerHTML = a.map(linkRow).join("") || '<p class="hint">Chưa có link nào.</p>'; };
 
@@ -188,6 +193,8 @@
     $("saName").value = i.name;
     $("saShow").checked = i.showContacts;
     $("saFloat").checked = i.floatBtns;
+    $("saOnline").checked = i.showOnline;
+    $("saNote").value = i.note || "";
     drawC(i.contacts);
     drawL(i.links);
   }
@@ -208,13 +215,13 @@
   $("saContacts").addEventListener("click", rowAction(readC, drawC));
   $("saLinks").addEventListener("click", rowAction(readL, drawL));
   $("saAddC").addEventListener("click", () => { const a = readC(); if (a.length >= 10) return say("Tối đa 10 mục liên hệ", "bad"); a.push({ kind: "link", label: "", url: "" }); drawC(a); });
-  $("saAddL").addEventListener("click", () => { const a = readL(); if (a.length >= 12) return say("Tối đa 12 link", "bad"); a.push({ label: "", url: "" }); drawL(a); });
+  $("saAddL").addEventListener("click", () => { const a = readL(); if (a.length >= 12) return say("Tối đa 12 link", "bad"); a.push({ label: "", url: "", color: "" }); drawL(a); });
 
   $("saSaveI").addEventListener("click", async () => {
     const b = $("saSaveI");
     b.disabled = true;
     try {
-      const info = { name: $("saName").value.trim(), showContacts: $("saShow").checked, floatBtns: $("saFloat").checked, contacts: readC(), links: readL() };
+      const info = { name: $("saName").value.trim(), showContacts: $("saShow").checked, floatBtns: $("saFloat").checked, showOnline: $("saOnline").checked, note: $("saNote").value.trim(), contacts: readC(), links: readL() };
       data = await api("/site/admin", { method: "POST", body: JSON.stringify({ info }) });
       fillInfo();
       say("Đã lưu thông tin liên hệ. Tải lại trang để thấy thay đổi.");
