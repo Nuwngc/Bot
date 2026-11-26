@@ -237,4 +237,6 @@
     box.hidden = false;
     load();
   };
+  // Nếu app.js đã xác định xong quyền admin trước khi file này nạp xong thì tự mở luôn
+  if (typeof isAdmin !== "undefined" && isAdmin) { box.hidden = false; load(); }
 })();
