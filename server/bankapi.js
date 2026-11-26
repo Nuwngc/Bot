@@ -14,12 +14,13 @@
 const crypto = require("crypto");
 const { getSetting, setSetting } = require("./db");
 const { encrypt, decrypt } = require("./crypto");
+const mailbox = require("./mailbox");
 
 const URLS = {
   dichvudark: "https://api.dichvudark.vn/api/ApiMbBank", // MB Bank (code mau trong file rar)
   casso: "https://oauth.casso.vn/v2/transactions",        // Casso: Techcombank va nhieu ngan hang khac
 };
-const PROVIDERS = Object.keys(URLS);
+const PROVIDERS = [...Object.keys(URLS), "email"]; // email: doc thu bien dong so du cua ngan hang qua IMAP (server/mailbox.js)
 const TIMEOUT = 30000;
 
 const K = {
@@ -29,7 +30,15 @@ const K = {
   code: "autopay_api_code_enc",
   stk: "autopay_api_stk",
   baseline: "autopay_api_baseline",
+  // Nguon "email": dang nhap hop thu qua IMAP de doc thu bien dong so du (mat khau ung dung ma hoa)
+  boxHost: "autopay_box_host",
+  boxPort: "autopay_box_port",
+  boxUser: "autopay_box_user",
+  boxPass: "autopay_box_pass_enc",
+  boxFrom: "autopay_box_from",
+  boxStrict: "autopay_box_strict",
 };
+const mailState = {}; // thu da doc trong bo nho, de lan hoi sau chi tai thu moi
 
 class BankApiError extends Error {}
 
@@ -39,20 +48,29 @@ const creds = () => {
   const provider = providerOf();
   return {
     provider,
-    url: getSetting(K.url) || URLS[provider],
-    defaultUrl: URLS[provider],
+    url: getSetting(K.url) || URLS[provider] || "",
+    defaultUrl: URLS[provider] || "",
     token: decrypt(getSetting(K.token)) || "", // dichvudark: Token. casso: API Key
     code: decrypt(getSetting(K.code)) || "",   // chi dichvudark
     stk: getSetting(K.stk) || "",
+    mail: {
+      host: getSetting(K.boxHost) || "",
+      port: Number(getSetting(K.boxPort)) || 993,
+      user: getSetting(K.boxUser) || "",
+      pass: decrypt(getSetting(K.boxPass)) || "",
+      from: getSetting(K.boxFrom) || "",
+      strict: getSetting(K.boxStrict) !== "0", // mac dinh BAT kiem tra DKIM/SPF
+    },
   };
 };
 
 /** Ten dung trong bang bank_events de tach giao dich cua tung dich vu */
-const eventProvider = () => (providerOf() === "casso" ? "casso" : "mbapi");
+const eventProvider = () => ({ casso: "casso", email: "email" }[providerOf()] || "mbapi");
 
 /** Du thong tin de goi API chua */
 function isReady(c) {
   c = c || creds();
+  if (c.provider === "email") return !!(c.mail.host && c.mail.user && c.mail.pass && c.mail.from);
   return c.provider === "casso" ? !!c.token : !!(c.token && c.code && c.stk);
 }
 
@@ -61,6 +79,8 @@ function save(b) {
   b = b || {};
   const cur = creds();
   const provider = PROVIDERS.includes(b.provider) ? b.provider : cur.provider;
+  if (provider === "email") return saveEmail(b, cur, provider !== cur.provider);
+  if (cur.provider === "email" && provider !== cur.provider) wipeMail(); // roi nguon email: quen mat khau hop thu
   const typedUrl = String(b.url || "").trim();
   const url = typedUrl === URLS[provider] ? "" : typedUrl; // de trong = dung dia chi mac dinh cua dich vu
   const token = String(b.token || "").trim();
@@ -86,7 +106,43 @@ function save(b) {
   if (changed) setSetting(K.baseline, ""); // lan doc tiep theo chi ghi nho giao dich cu, khong cong coin
 }
 
+const wipeMail = () => { for (const k of [K.boxHost, K.boxPort, K.boxUser, K.boxPass, K.boxFrom, K.boxStrict]) setSetting(k, ""); };
+
+/** Luu cau hinh nguon email. Mat khau ung dung de trong = giu nguyen. Doi bat ky thong tin nao thi lay moc lai. */
+function saveEmail(b, cur, switched) {
+  const mb = b.mail;
+  if (!mb || typeof mb !== "object") throw new Error("Cấu hình đọc email hãy nhập trong trang quản trị trên web");
+  const host = String(mb.host || "").trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9.-]{1,98}[a-z0-9]$/.test(host) || !host.includes(".")) throw new Error("Máy chủ IMAP không hợp lệ (ví dụ imap.gmail.com)");
+  const port = Math.round(Number(mb.port) || 993);
+  if (!(port >= 1 && port <= 65535)) throw new Error("Cổng IMAP không hợp lệ");
+  const user = String(mb.user || "").trim();
+  if (!/^[\x21-\x7e]{3,254}$/.test(user)) throw new Error("Email đăng nhập không hợp lệ");
+  let pass = String(mb.pass || "").trim();
+  if (pass && /gmail|googlemail/.test(host)) pass = pass.replace(/\s+/g, ""); // Gmail hien mat khau ung dung kem dau cach
+  if (pass && !/^[\x20-\x7e]{4,200}$/.test(pass)) throw new Error("Mật khẩu ứng dụng không hợp lệ");
+  const from = String(mb.from || "").trim().toLowerCase();
+  if (!/^(?:[a-z0-9._%+-]+@)?[a-z0-9-]+(?:\.[a-z0-9-]+)+$/.test(from)) throw new Error("Nhập địa chỉ hoặc tên miền email của ngân hàng (ví dụ techcombank.com.vn)");
+  const strict = mb.strict === false || mb.strict === "0" ? "0" : "1";
+  if (!pass && !cur.mail.pass) throw new Error("Nhập mật khẩu ứng dụng của hộp thư");
+  const m = cur.mail;
+  const changed = switched || host !== m.host || port !== m.port || user !== m.user || from !== m.from || (strict === "1") !== m.strict || !!pass;
+  setSetting(K.provider, "email");
+  setSetting(K.url, "");
+  setSetting(K.stk, "");
+  setSetting(K.token, "");
+  setSetting(K.code, "");
+  setSetting(K.boxHost, host);
+  setSetting(K.boxPort, String(port));
+  setSetting(K.boxUser, user);
+  setSetting(K.boxFrom, from);
+  setSetting(K.boxStrict, strict);
+  if (pass) setSetting(K.boxPass, encrypt(pass));
+  if (changed) { setSetting(K.baseline, ""); for (const k of Object.keys(mailState)) delete mailState[k]; }
+}
+
 function wipe() {
+  for (const k of Object.keys(mailState)) delete mailState[k];
   for (const k of Object.values(K)) setSetting(k, "");
 }
 
@@ -171,7 +227,10 @@ async function fetchCasso(c) {
 /** Goi API, tra ve mang giao dich da chuan hoa (moi nhat truoc, theo thu tu API tra ve) */
 async function fetchHistory() {
   const c = creds();
-  if (!isReady(c)) throw new BankApiError(c.provider === "casso" ? "Chưa nhập API Key Casso" : "Chưa nhập đủ Token, Code và số tài khoản");
+  if (!isReady(c)) throw new BankApiError(c.provider === "casso" ? "Chưa nhập API Key Casso" : c.provider === "email" ? "Chưa nhập đủ thông tin hộp thư (máy chủ IMAP, email, mật khẩu ứng dụng, người gửi)" : "Chưa nhập đủ Token, Code và số tài khoản");
+  if (c.provider === "email") {
+    try { return await mailbox.fetchBankMails(c.mail, mailState); } catch (e) { throw new BankApiError(e.message || "Không đọc được hộp thư"); }
+  }
   return c.provider === "casso" ? fetchCasso(c) : fetchDichvudark(c);
 }
 

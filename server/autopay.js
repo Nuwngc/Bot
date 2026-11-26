@@ -71,6 +71,7 @@ const enabled = () => getSetting("autopay_enabled") === "1";
 function apiConfig() {
   const c = bankapi.creds();
   const o = { provider: c.provider, url: c.url, defaultUrl: c.defaultUrl, stk: c.stk, hasToken: !!c.token, hasCode: !!c.code };
+  o.mail = { host: c.mail.host, port: c.mail.port, user: c.mail.user, from: c.mail.from, strict: c.mail.strict, hasPass: !!c.mail.pass };
   o.ready = bankapi.isReady(c);
   return o;
 }
@@ -171,14 +172,18 @@ async function pollInner() {
       return setStatus(true, `Đã kết nối API. Ghi nhớ ${n} giao dịch cũ, từ giờ server tự cộng coin cho tiền vào mới.`, null);
     }
     const n = { credited: 0, unmatched: 0, ignored: 0, dup: 0 };
+    const mail = bankapi.eventProvider() === "email";
     for (const t of [...list].reverse()) { // cu truoc, moi sau
       if (!(t.amount > 0)) continue;
-      const r = processOne({ provider: bankapi.eventProvider(), extId: t.extId, amount: t.amount, content: t.content, capToOrder: false });
+      // Nguon email: so tien doc tu chu trong thu, nen chi tu cong khi KHONG vuot lenh nap (vuot thi cho admin xem)
+      const r = processOne({ provider: bankapi.eventProvider(), extId: t.extId, amount: t.amount, content: t.content, search: t.search, capToOrder: mail });
       if (r.dup) n.dup++; else if (r.status) n[r.status] = (n[r.status] || 0) + 1;
     }
+    const rej = list.filter((t) => t.rejected);
     if (n.credited) console.log(`[autopay] da cong coin cho ${n.credited} giao dich`);
     const fresh = n.credited + n.unmatched + n.ignored;
-    return setStatus(true, fresh > 0 ? `Có ${fresh} giao dịch mới: ${n.credited} đã cộng, ${n.unmatched} chưa khớp.` : "Không có giao dịch mới.", null);
+    const warn = rej.length ? ` Có ${rej.length} thư bị loại: ${rej[0].rejected}` : "";
+    return setStatus(true, (fresh > 0 ? `Có ${fresh} giao dịch mới: ${n.credited} đã cộng, ${n.unmatched} chưa khớp.` : "Không có giao dịch mới.") + warn, null);
   } catch (e) {
     return setStatus(false, e.message || "Lỗi không rõ");
   }
@@ -201,7 +206,8 @@ async function testApi() {
     amount: t.amount,
     debit: t.debit,
     content: t.content.slice(0, 200),
-    codes: findCodes(t.content),
+    codes: findCodes(t.search ?? t.content),
+    note: t.rejected || t.skip || "",
     known: bq.byExt.get(bankapi.eventProvider(), t.extId)?.status || null,
   }));
   return { total: list.length, items };
@@ -231,7 +237,7 @@ function register(router, auth2) {
     return {
       enabled: enabled(),
       bankReady: !!(getSetting("bank_id") && getSetting("bank_account")),
-      api: { provider: c.provider, url: c.url, defaultUrl: c.defaultUrl, stk: c.stk, hasToken: c.hasToken, hasCode: c.hasCode, ready: c.ready, status: readStatus() },
+      api: { provider: c.provider, url: c.url, defaultUrl: c.defaultUrl, stk: c.stk, hasToken: c.hasToken, hasCode: c.hasCode, mail: c.mail, ready: c.ready, status: readStatus() },
       today: { n: t.n, sum: t.s },
       unmatched: bq.unmatched.get().n,
       events: bq.list.all(),

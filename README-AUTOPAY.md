@@ -39,3 +39,20 @@ Với Casso, server đọc 50 giao dịch mới nhất trong 3 ngày gần đây
 - Cấu hình Gmail/Google cũ đã bỏ. Khi server khởi động, token Google cũ trong CSDL bị xoá. Bạn có thể thu hồi quyền ở myaccount.google.com > Bảo mật.
   Nếu trước đó đang bật tự động mà chưa nhập API thì công tắc tự về tắt.
 - Code mẫu trong file rar có kèm Token và Code của người làm video. Đừng dùng lại chúng, hãy dùng Token/Code của chính bạn.
+
+## Cách thứ 3: đọc email biến động số dư của ngân hàng (không cần Casso hay dịch vụ bên thứ ba)
+Ngân hàng gửi email "biến động số dư" vào hộp thư của bạn. Server đăng nhập hộp thư đó qua **IMAP** (cổng 993, TLS), đọc thư mới và cộng coin. Chọn nguồn "Đọc email biến động số dư (IMAP)" trong trang quản trị web.
+Brevo và SMTP chỉ dùng để GỬI mail, không đọc được thư đến nên không dùng cho việc này.
+
+Cài đặt (một lần):
+1. Trong app ngân hàng, bật nhận thông báo biến động số dư qua email.
+2. Gmail: bật xác minh 2 bước, bật IMAP (Cài đặt, Chuyển tiếp và POP/IMAP), tạo mật khẩu ứng dụng tại myaccount.google.com/apppasswords.
+3. Trang quản trị: máy chủ `imap.gmail.com`, cổng `993`, email hộp thư, mật khẩu ứng dụng, người gửi là tên miền email ngân hàng (ví dụ `techcombank.com.vn`). Bấm Lưu, rồi "Xem giao dịch gần nhất" để kiểm tra, chuyển thử khoản nhỏ kèm mã nạp, rồi bật công tắc.
+
+An toàn:
+- Chỉ đọc (EXAMINE + BODY.PEEK): không xoá, không đánh dấu đã đọc, không gửi gì. Mật khẩu ứng dụng mã hoá bằng APP_SECRET, không trả về trình duyệt.
+- Email có thể giả mạo, nên chỉ nhận thư có From thuộc đúng tên miền đã khai VÀ máy chủ hộp thư đã xác thực DKIM/SPF/DMARC đạt cho tên miền đó (đọc dòng Authentication-Results trên cùng, do chính máy chủ hộp thư thêm). Công tắc này mặc định bật. Hộp thư không có dòng đó (một số nhà cung cấp) thì thư bị loại; chỉ tắt khi hiểu rủi ro.
+- Số tiền được đọc từ chữ trong thư, nên nếu lớn hơn lệnh nạp thì KHÔNG tự cộng mà để ở "chưa khớp" cho bạn xác nhận (nhận bằng hoặc ít hơn lệnh nạp thì cộng đúng số nhận).
+- Thư tiền ra, thư quảng cáo, thư không đọc được số tiền đều bị bỏ qua. Lần đọc đầu sau khi lưu chỉ ghi nhớ thư cũ (3 ngày gần nhất), không cộng coin. Mỗi thư chỉ cộng một lần (bank_events UNIQUE).
+- Thư nằm ở Spam hoặc thư mục khác ngoài Hộp thư đến sẽ không được đọc. Độ trễ phụ thuộc lúc ngân hàng gửi mail.
+- Form trong app Android botctl chưa có nguồn email; hãy cấu hình ở trang quản trị web.
