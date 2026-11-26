@@ -9,7 +9,7 @@
   const apply = (t) => {
     root.dataset.theme = t;
     document.querySelectorAll(".theme-toggle").forEach((b) => b.setAttribute("aria-checked", t === "light"));
-    const m = $("meta[name=theme-color]"); if (m) m.content = t === "light" ? "#f3f4ff" : "#12142b";
+    const m = $("meta[name=theme-color]"); if (m) m.content = t === "light" ? "#f4f5fb" : "#0e1124";
   };
   apply(root.dataset.theme || store.get() || "dark");
   const flip = () => { const t = root.dataset.theme === "light" ? "dark" : "light"; apply(t); store.set(t); };
@@ -49,16 +49,20 @@
     burger.setAttribute("aria-expanded", "false"); burger.setAttribute("aria-controls", "drawer");
     const h1 = bar && bar.querySelector("h1");
     if (h1) h1.after(burger); else actions.append(burger);
+    const pageTitle = el("span", "page-title"); pageTitle.id = "pageTitle";
+    burger.after(pageTitle);
 
     const scrim = el("div", "scrim"), drawer = el("aside", "drawer");
     drawer.id = "drawer"; drawer.setAttribute("aria-label", "Menu");
     const user = el("strong", "drawer-user"), nav = el("nav");
     const close = btn("drawer-close", "Đóng menu", '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>');
+    const brand = el("a", "drawer-brand", '<img src="/logo.svg" width="36" height="36" alt=""><span>Bảng điều khiển bot</span>');
+    brand.href = "/dashboard.html"; brand.setAttribute("aria-label", "Tải lại trang");
     const head = el("div", "drawer-head"); head.append(user, close);
     const row = el("div", "drawer-row", "<span>Giao diện sáng</span>"); row.append(toggle());
     const out = btn("danger wide logout-btn", "Đăng xuất", ic("M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9") + "<span>Đăng xuất</span>"); out.onclick = () => { set(false); document.getElementById("logout")?.click(); };
     const foot = el("div", "drawer-foot"); foot.append(row, out);
-    drawer.append(head, nav, foot); document.body.append(scrim, drawer);
+    drawer.append(brand, head, nav, foot); document.body.append(scrim, drawer);
 
     const sync = () => {
       nav.textContent = "";
@@ -67,7 +71,11 @@
         n.lastChild.textContent = b.textContent.trim();
         n.style.setProperty("--i", i); n.onclick = () => { b.click(); set(false); }; nav.append(n);
       });
+      const act = nav.querySelector(".on"); if (act) act.scrollIntoView({ block: "nearest" });
       user.textContent = (document.getElementById("who")?.textContent || "Tài khoản").trim();
+      user.dataset.initial = user.textContent.charAt(0);
+      const cur = tabs.querySelector("button.on");
+      pageTitle.textContent = cur ? cur.textContent.trim() : "";
     };
     function set(open) {
       document.body.classList.toggle("menu-open", open);
@@ -75,6 +83,13 @@
       document.body.style.overflow = open ? "hidden" : "";
       if (open) { sync(); close.focus(); }
     }
+    /* Menu luôn được dựng sẵn: trên máy tính nó là thanh cố định bên trái, nên phải cập nhật khi đổi tab, hiện/ẩn tab hoặc có tên người dùng */
+    let queued = false;
+    const resync = () => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; sync(); }); };
+    sync();
+    new MutationObserver(resync).observe(tabs, { subtree: true, attributes: true, attributeFilter: ["class", "hidden"] });
+    const who = document.getElementById("who");
+    if (who) new MutationObserver(resync).observe(who, { childList: true, characterData: true, subtree: true });
     burger.onclick = () => set(!document.body.classList.contains("menu-open"));
     close.onclick = scrim.onclick = () => { set(false); burger.focus(); };
     addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("menu-open")) set(false); });
