@@ -141,7 +141,9 @@
   const baseShow = window.showTab;
   window.showTab = function (name) {
     baseShow(name);
-    if (name === "stats") { loadStats(); loadLedger(lg.page || 1); }
+    if (name === "stats") loadStats();
+    if (name === "ledger") loadLedger(lg.page || 1);
   };
-  if (current === "stats") { loadStats(); loadLedger(1); }
+  if (current === "stats") loadStats();
+  if (current === "ledger") loadLedger(1);
 })();

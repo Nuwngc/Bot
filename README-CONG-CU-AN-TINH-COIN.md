@@ -8,7 +8,7 @@ Bấm Mở khoá lần nữa trong lúc phiên còn hiệu lực thì không b�
 - server/toolcfg.js (mới): danh sách công cụ, lưu cấu hình (settings.tools_config), bảng tool_unlocks, API, chặn ở máy chủ
 - server/routes.js : thêm 1 dòng đăng ký `require("./toolcfg").register(router, auth)` TRƯỚC tempmail / tts / pagetext
 - public/toolcfg.js (mới): áp cấu hình lên các thẻ công cụ (ẩn, nhãn giá, khoá / mở khoá). Không sửa tools.js và office-tools.js
-- public/toolcfg-admin.js (mới): khung "Công cụ: ẩn và tính coin" trong tab Quản trị web
+- public/toolcfg-admin.js (mới): khung "Công cụ: ẩn và tính coin" trong menu Quản trị → Cấu hình công cụ của web
 - public/dashboard.html : nạp 2 file trên
 - admin-app/app/src/main/assets/app.js : tab money, mục con "công cụ" (cần build lại APK)
 

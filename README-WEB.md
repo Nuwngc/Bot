@@ -220,7 +220,7 @@ src/
 
 Người dùng vào tab **Cá nhân** để liên kết email: hệ thống gửi mã 6 số tới email, nhập đúng mã là xong. Email đã xác thực dùng để lấy lại tài khoản ở trang **Quên mật khẩu** (`/forgot.html`): nhập tên đăng nhập hoặc email, nhận mã, đặt mật khẩu mới. Mã có hiệu lực 10 phút, nhập sai quá 5 lần thì phải xin mã mới, đổi mật khẩu xong các thiết bị khác bị đăng xuất.
 
-Admin bật gửi email ở tab **Quản trị → Email gửi mã xác thực** (hoặc đặt bằng biến môi trường):
+Admin bật gửi email ở menu **Quản trị → Email xác thực** (hoặc đặt bằng biến môi trường):
 
 | Cách | Khi nào dùng | Cấu hình |
 | --- | --- | --- |

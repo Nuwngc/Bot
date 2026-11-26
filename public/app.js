@@ -46,8 +46,7 @@ async function loadMe() {
   $("who").textContent = me.username;
   isAdmin = me.role === "admin";
   $("adminBox").hidden = !isAdmin;
-  $("tabAdminBtn").hidden = !isAdmin;
-  $("tabStatsBtn").hidden = !isAdmin;
+  if (typeof window.setAdminTabs === "function") window.setAdminTabs(isAdmin);   // admin-menu.js: nhóm Quản trị trong menu
   applySections(me.sections);
 
   $("aiModel").value = me.settings.aiModel;

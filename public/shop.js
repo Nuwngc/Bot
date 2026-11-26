@@ -264,7 +264,7 @@
     document.body.append(scrim);
   }
   document.addEventListener("click", (e) => {
-    const z = e.target.closest("#tab-shop [data-zoom], .sh-modal [data-zoom]");
+    const z = e.target.closest("#tab-shop [data-zoom], #tab-adm-shop [data-zoom], .sh-modal [data-zoom]");
     if (z) zoom(z.dataset.zoom);
   });
 

@@ -65,17 +65,57 @@
     const foot = el("div", "drawer-foot"); foot.append(row, out);
     drawer.append(brand, head, nav, foot); document.body.append(scrim, drawer);
 
+    /* Nhóm có danh sách sổ xuống: các nút tab có data-group sẽ gom vào một nhóm (hiện nay chỉ có "Quản trị", chỉ admin thấy).
+       data-sub (nếu có) là tiêu đề nhỏ chia các mục trong nhóm. */
+    const GROUPS = { admin: { title: "Quản trị", icon: ICONS.admin } };
+    const CHEV = '<svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>';
+    const openGroups = new Set();
+    let lastTab = null;
+    const makeGroup = (key) => {
+      const box = el("div", "nav-group"), list = el("div", "nav-sub-in"), sub = el("div", "nav-sub");
+      sub.id = "ng-" + key; sub.append(list);
+      const head = btn("nav-group-head", GROUPS[key].title, GROUPS[key].icon + "<span>" + GROUPS[key].title + "</span>" + CHEV);
+      head.setAttribute("aria-controls", sub.id);
+      head.onclick = () => {
+        const open = !box.classList.contains("open");
+        box.classList.toggle("open", open);
+        head.setAttribute("aria-expanded", open);
+        if (open) { openGroups.add(key); setTimeout(() => head.scrollIntoView({ block: "start", behavior: "smooth" }), 380); } else openGroups.delete(key);
+      };
+      box.append(head, sub);
+      return { key, box, head, list, sub: "", has: false };
+    };
+
     const sync = () => {
       nav.textContent = "";
+      const cur = tabs.querySelector("button.on"), curTab = cur ? cur.dataset.tab : "";
+      const changed = curTab !== lastTab; lastTab = curTab;
+      const groups = {};
       [...tabs.querySelectorAll("button")].filter((b) => !b.hidden).forEach((b, i) => {
         const n = btn(b.classList.contains("on") ? "on" : "", b.textContent.trim(), (ICONS[b.dataset.tab] || b.dataset.icon || "") + "<span></span>");
         n.lastChild.textContent = b.textContent.trim();
-        n.style.setProperty("--i", i); n.onclick = () => { b.click(); set(false); }; nav.append(n);
+        n.style.setProperty("--i", i); n.onclick = () => { b.click(); set(false); };
+        const key = b.dataset.group;
+        if (!key || !GROUPS[key]) { nav.append(n); return; }
+        const g = groups[key] || (groups[key] = makeGroup(key));
+        if (!g.box.parentNode) nav.append(g.box);
+        if (b.dataset.sub && b.dataset.sub !== g.sub) {
+          g.sub = b.dataset.sub;
+          g.list.append(el("div", "nav-cap", "")); g.list.lastChild.textContent = g.sub;
+        }
+        g.list.append(n);
+        if (n.classList.contains("on")) g.has = true;
       });
-      const act = nav.querySelector(".on"); if (act) act.scrollIntoView({ block: "nearest" });
+      Object.values(groups).forEach((g) => {
+        if (g.has && changed) openGroups.add(g.key);          // chuyển sang một trang trong nhóm thì tự sổ nhóm ra
+        const open = openGroups.has(g.key);
+        g.box.classList.toggle("open", open);
+        g.head.classList.toggle("has-on", g.has);
+        g.head.setAttribute("aria-expanded", open);
+      });
+      const act = nav.querySelector(".on"); if (act && !act.closest(".nav-group:not(.open)")) act.scrollIntoView({ block: "nearest" });
       user.textContent = (document.getElementById("who")?.textContent || "Tài khoản").trim();
       user.dataset.initial = user.textContent.charAt(0);
-      const cur = tabs.querySelector("button.on");
       pageTitle.textContent = cur ? cur.textContent.trim() : "";
     };
     function set(open) {

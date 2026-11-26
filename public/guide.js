@@ -162,14 +162,17 @@
     ]) },
 
     { id: "admin", title: "Dành cho quản trị viên", admin: true, html:
+      p("Mở menu 3 gạch rồi bấm **Quản trị** để sổ danh sách. Mỗi mục là một trang riêng, chia theo nhóm Thống kê, Tiền và coin, Tính năng, Hệ thống. Tài khoản thường không thấy nhóm này.") +
       list([
         "**Tài khoản**: tạo tài khoản mới (mật khẩu tối thiểu 8 ký tự), cấp quyền quản trị, khoá hoặc xoá.",
-        "**Doanh thu**: thống kê tiền nạp và coin chi thuê bot, xem danh sách giao dịch toàn hệ thống và lọc theo nhu cầu.",
-        "**Nạp coin chờ duyệt**: đối chiếu nội dung chuyển khoản với mã `NAP` rồi bấm **Xác nhận**. Bấm **Huỷ** nếu không hợp lệ.",
-        "**Phần thưởng xếp hạng**: đặt mức thưởng cho top 1 đến top 10, hệ thống tự cộng đầu tháng. Đặt 0 để hạng đó không có thưởng.",
-        "**Cộng hoặc trừ coin thủ công**: nhập tên tài khoản, số coin (số âm là trừ) và ghi chú.",
+        "**Doanh thu** và **Lịch sử giao dịch**: thống kê tiền nạp, coin chi thuê bot, rồi xem danh sách giao dịch toàn hệ thống và lọc theo nhu cầu. **Thống kê link** cho biết lượt vượt và tiền thu về của từng nhà cung cấp.",
+        "**Duyệt nạp coin** và **Tự động cộng tiền**: đối chiếu nội dung chuyển khoản với mã `NAP` rồi bấm **Xác nhận**. Bấm **Huỷ** nếu không hợp lệ.",
+        "**Thưởng xếp hạng**: đặt mức thưởng cho top 1 đến top 10, hệ thống tự cộng đầu tháng. Đặt 0 để hạng đó không có thưởng.",
+        "**Cộng / trừ coin**: nhập tên tài khoản, số coin (số âm là trừ) và ghi chú.",
         "**Bảng giá** và **Mã giảm giá**: chỉnh giá các gói và tạo mã giảm theo số lượt hoặc hạn dùng.",
         "**Đơn thuê bot** và **Thời hạn các bot**: theo dõi và duyệt các đơn cũ, chỉnh hạn từng bot.",
+        "**Nhà cung cấp link**, **Quản lý shop acc** và **Cấu hình công cụ**: phần quản lý của tab Vượt link, Shop acc và Công cụ nằm ở đây, không nằm trong các tab đó nữa.",
+        "**Ẩn mục** và **Email xác thực**: ẩn Facebook hoặc Zalo với người dùng thường, cấu hình gửi mã xác thực qua email.",
         "**Cấu hình chung**: bật hoặc tắt đăng ký, số ngày dùng thử, tài khoản ngân hàng VietQR (mã ngân hàng, số tài khoản, chủ tài khoản, ghi chú), khoá AI, model và tính cách mặc định dùng chung.",
       ]) },
   ];

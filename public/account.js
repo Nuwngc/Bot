@@ -162,7 +162,7 @@
     } else if (admin && !prof.mailEnabled) {
       $("mailNoticeText").textContent = "Chưa bật gửi email nên người dùng chưa thể tự lấy lại mật khẩu.";
       $("mailNoticeGo").textContent = "Cấu hình";
-      n.dataset.go = "admin";
+      n.dataset.go = "adm-mail";
       n.hidden = false;
     } else {
       n.hidden = true;
@@ -171,7 +171,6 @@
   $("mailNoticeGo").addEventListener("click", () => {
     const go = $("mailNotice").dataset.go;
     showTab(go);
-    if (go === "admin") setTimeout(() => $("mailBox").scrollIntoView({ behavior: "smooth", block: "start" }), 100);
   });
   $("mailNoticeX").addEventListener("click", () => {
     sessionStorage.setItem(NOTICE_KEY, "1");
