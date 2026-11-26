@@ -1129,3 +1129,60 @@ html body details.gd-sec[open], html body details.tl-card[open] { border-color: 
   .tab section > .field, .tab section > .check, .tab section > .hint { max-width: 34rem; }
 }
 @media (min-width: 1500px) { .wrap { max-width: 70rem; } }
+
+/* =====================================================================
+   v6.1: các ô nhập còn dùng giao diện mặc định của trình duyệt
+   (ô số, tìm kiếm, ngày giờ, thanh trượt, ô tick ở công cụ và cấu hình công cụ)
+   ===================================================================== */
+input[type=number], input[type=search], input[type=email], input[type=url], input[type=tel],
+input[type=time], input[type=datetime-local], input[type=month] {
+  width: 100%; background-color: var(--field); color: var(--paper);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  padding: .62rem .8rem; font: inherit; font-size: .92rem;
+  transition: border-color .2s, box-shadow .25s, background .2s;
+}
+input[type=number]:hover, input[type=search]:hover, input[type=email]:hover, input[type=url]:hover, input[type=tel]:hover,
+input[type=time]:hover, input[type=datetime-local]:hover, input[type=month]:hover { border-color: var(--line-strong); }
+input[type=number]:focus, input[type=search]:focus, input[type=email]:focus, input[type=url]:focus, input[type=tel]:focus,
+input[type=time]:focus, input[type=datetime-local]:focus, input[type=month]:focus {
+  outline: 0; border-color: var(--lamp2); box-shadow: 0 0 0 3px color-mix(in srgb, var(--lamp2) 26%, transparent);
+}
+input[type=number] { -moz-appearance: textfield; appearance: textfield; font-variant-numeric: tabular-nums; }
+input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=search] { -webkit-appearance: none; appearance: none; }
+input:disabled, textarea:disabled, select:disabled { opacity: .55; cursor: not-allowed; }
+
+/* thanh trượt */
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 1.5rem; padding: 0; border: 0; background: none; cursor: pointer; }
+input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 99px; background: var(--line-strong); }
+input[type=range]::-moz-range-track { height: 6px; border-radius: 99px; background: var(--line-strong); }
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 1.2rem; height: 1.2rem; margin-top: calc((6px - 1.2rem) / 2);
+  border-radius: 50%; border: 2px solid var(--panel); background: var(--grad); box-shadow: 0 1px 4px rgba(0,0,0,.4);
+}
+input[type=range]::-moz-range-thumb { width: 1.2rem; height: 1.2rem; border-radius: 50%; border: 2px solid var(--panel); background: var(--lamp); box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+input[type=range]:focus-visible { outline: 2px solid var(--lamp2); outline-offset: 3px; border-radius: 99px; }
+
+/* ô tick dạng công tắc: dùng chung cho mọi nhãn tick, không chỉ .check */
+:is(.check, .of-check, .lc-check, .tc-f label) input[type=checkbox] {
+  appearance: none; -webkit-appearance: none; position: relative; flex: none; margin: 0;
+  width: 2.6rem; height: 1.5rem; border-radius: 99px; border: 0; background: var(--line-strong); cursor: pointer;
+  transition: background .3s;
+}
+:is(.check, .of-check, .lc-check, .tc-f label) input[type=checkbox]::before {
+  content: ""; position: absolute; top: .2rem; left: .2rem; width: 1.1rem; height: 1.1rem; border-radius: 50%;
+  background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35); transition: transform .4s cubic-bezier(.3, 1.5, .5, 1);
+}
+:is(.check, .of-check, .lc-check, .tc-f label) input[type=checkbox]:checked { background: var(--grad); }
+:is(.check, .of-check, .lc-check, .tc-f label) input[type=checkbox]:checked::before { transform: translateX(1.1rem); }
+:is(.check, .of-check, .lc-check, .tc-f label) input[type=checkbox]:focus-visible { outline: 2px solid var(--lamp2); outline-offset: 2px; }
+.of-check input { margin-top: 0; }
+.of-check, .lc-check { align-items: center; }
+
+/* cấu hình công cụ (admin): mỗi công cụ là một dòng gọn, ô số rộng vừa đủ */
+html body .tc-row { border-radius: var(--r-sm); background: var(--panel); padding: .8rem .9rem; }
+html body .tc-top b { font-weight: 600; }
+html body .tc-srv { border: 0; background: var(--raised); padding: .12rem .6rem; font-size: .72rem; }
+html body .tc-f { gap: .6rem 1.2rem; margin-top: .65rem; padding-top: .65rem; border-top: 1px solid var(--line); }
+html body .tc-f label { color: var(--dim); gap: .55rem; }
+html body .tc-f input[type=number] { width: 5.5rem; padding: .45rem .6rem; text-align: right; color: var(--paper); }
