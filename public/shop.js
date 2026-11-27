@@ -334,6 +334,11 @@
     ? `<img src="${esc(g.image)}" alt="" loading="lazy" referrerpolicy="no-referrer">`
     : `<i class="sx-emoji">${esc(g.emoji)}</i>`;
 
+  // Banner của thẻ Random: ảnh admin đã up cho acc random (nếu có), không có thì ảnh bìa game + xúc xắc
+  const rcover = (g) => (g.randomImage
+    ? `<span class="sx-cover sx-rcover real"><img src="${esc(g.randomImage)}" alt="" loading="lazy" referrerpolicy="no-referrer">`
+    : `<span class="sx-cover sx-rcover">${cover(g)}`);
+
   function renderHome() {
     $("shGameGrid").innerHTML = data.games.length
       ? data.games.map((g) => {
@@ -350,7 +355,7 @@
     $("shRandHome").hidden = !rg.length;
     $("shRandGrid").innerHTML = rg.map((g) => `
       <div class="sx-game sx-rtile${g.randomStock ? "" : " out"}" role="button" tabindex="0" data-rgame="${g.id}" aria-label="Random ${esc(g.name)}">
-        <span class="sx-cover">${cover(g)}<span class="sx-rveil"><i>🎲</i><b>Random</b></span><em class="sx-badge">🎲 Random</em></span>
+        ${rcover(g).replace("sx-rcover", "sx-rtcover")}<span class="sx-rveil"><i>🎲</i><b>Random</b></span><em class="sx-badge">🎲 Random</em></span>
         <span class="sx-gname">Random ${esc(g.name)}</span>
         <span class="sx-nums"><span>Còn: <b>${fmt(g.randomStock)}</b></span><span>Giá: <b>${fmt(g.randomPrice)}</b></span></span>
         <span class="sx-rprice">${g.randomStock ? `Mở random · ${fmt(g.randomPrice)} coin` : "Tạm hết acc"}</span>
@@ -369,7 +374,7 @@
     rnd.hidden = !(g.randomPrice > 0);
     if (g.randomPrice > 0) {
       rnd.innerHTML = `
-        <span class="sx-cover sx-rcover">${cover(g)}<span class="sx-rveil"><i>🎲</i><b>Random</b></span><em class="sx-badge">🎲 Random</em></span>
+        ${rcover(g)}<span class="sx-rveil"><i>🎲</i><b>Random</b></span><em class="sx-badge">🎲 Random</em></span>
         <div class="sx-rbody">
           <h4>Random ${esc(g.name)}</h4>
           <p>${g.randomStock ? "Nhận ngẫu nhiên 1 acc trong kho. Bạn không biết trước là acc gì và không chọn lại được." : "Kho random tạm hết acc, quay lại sau nhé."}</p>

@@ -112,6 +112,11 @@ const sq = {
   stock: db.prepare(
     `SELECT game_id, kind, COUNT(*) AS n FROM shop_accounts WHERE status = 'available' GROUP BY game_id, kind`
   ),
+  // Anh dung lam banner cho the Random: anh cua acc random moi nhat con ban cua game do (co anh)
+  randomBanner: db.prepare(
+    `SELECT game_id, image_url, MAX(id) FROM shop_accounts
+      WHERE kind = 'random' AND status = 'available' AND image_url IS NOT NULL AND image_url != '' GROUP BY game_id`
+  ),
   soldByGame: db.prepare(`SELECT game_id, COUNT(*) AS n FROM shop_accounts WHERE status = 'sold' GROUP BY game_id`),
   insImage: db.prepare("INSERT INTO shop_images (id, mime, data, size) VALUES (?, ?, ?, ?)"),
   image: db.prepare("SELECT mime, data FROM shop_images WHERE id = ?"),
@@ -413,12 +418,13 @@ function register(router, auth) {
     const stock = {};
     for (const r of sq.stock.all()) (stock[r.game_id] ||= {})[r.kind] = r.n;
     const sold = Object.fromEntries(sq.soldByGame.all().map((r) => [r.game_id, r.n]));
+    const banner = Object.fromEntries(sq.randomBanner.all().map((r) => [r.game_id, r.image_url]));
     res.json({
       balance: wallet.balance(req.user.id),
       games: sq.games.all().filter((g) => g.active).map((g) => ({
         id: g.id, name: g.name, emoji: g.emoji, image: g.image_url || null,
         randomPrice: g.random_price, randomStock: stock[g.id]?.random || 0, normalStock: stock[g.id]?.normal || 0,
-        sold: sold[g.id] || 0,
+        sold: sold[g.id] || 0, randomImage: banner[g.id] || null,
       })),
       accounts: sq.listNormal.all(),
     });

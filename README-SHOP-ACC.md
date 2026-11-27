@@ -15,7 +15,7 @@ Vào tab Shop acc, kéo xuống mục **Quản lý shop**:
 ## Ảnh acc và ảnh bìa game (gửi trực tiếp, không cần link)
 - Ở form *Thêm game*, *Thêm acc* và nút **Ảnh** của từng acc trong Kho acc: bấm *Chọn ảnh / chụp ảnh*, hoặc **kéo thả**, hoặc **dán (Ctrl+V)** ảnh chụp màn hình vào ô ảnh. Trình duyệt tự thu nhỏ về tối đa 1280px và nén WebP (ảnh vài MB chỉ còn khoảng 50-250 KB) rồi gửi lên server. Vẫn dùng được link `https://` như trước.
 - **Acc random cũng đổi / gỡ ảnh được** bất cứ lúc nào (khi chưa bán) bằng nút **Ảnh**. Đổi ảnh một acc không ảnh hưởng các acc khác dùng chung ảnh cũ.
-- Khách không thấy ảnh của acc random trước khi mở. Sau khi mua, ảnh hiện trong hộp tài khoản và khi xem lại ở *Acc đã mua*. Ảnh acc thường hiện ở thẻ acc, bấm vào để xem lớn.
+- Thẻ Random (trang chủ và trang game) dùng ảnh của acc random còn bán mới nhất có ảnh làm banner lớn; không có ảnh thì dùng ảnh bìa game. Khách không thấy ảnh riêng của từng acc trước khi mở, chỉ thấy banner đó. Sau khi mua, ảnh hiện trong hộp tài khoản và khi xem lại ở *Acc đã mua*. Ảnh acc thường hiện ở thẻ acc, bấm vào để xem lớn.
 - Ảnh lưu trong database (bảng `shop_images`), mã ảnh ngẫu nhiên 24 ký tự nên không đoán được địa chỉ. Server kiểm tra đúng định dạng JPG / PNG / WebP / GIF bằng nội dung file (từ chối SVG và file khác), giới hạn 3 MB mỗi ảnh. Ảnh không còn acc / game nào dùng sẽ tự bị xoá, ảnh tải lên mà không lưu sẽ được dọn sau 1 giờ.
 - Vì ảnh nằm trong database nên cũng mất khi Render free khởi động lại, giống kho acc (xem lưu ý bên dưới).
 
