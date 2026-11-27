@@ -117,6 +117,11 @@
         <div class="field">
           <label for="shAccLines">Tài khoản</label>
           <textarea id="shAccLines" rows="5" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="taikhoan|matkhau&#10;taikhoan2|matkhau2|thông tin thêm"></textarea>
+          <div class="sh-file" id="shFileBox" hidden>
+            <input type="file" id="shAccFile" accept=".txt,.csv,text/plain,text/csv" multiple hidden>
+            <button type="button" id="shAccFileBtn">Chọn file .txt</button>
+            <span class="hint" id="shFileInfo">Hoặc kéo thả file .txt vào ô trên. Mỗi dòng một acc, thêm được cả nghìn dòng một lúc.</span>
+          </div>
           <div class="hint" id="shLinesHint">Mỗi dòng một acc: <code>tài_khoản|mật_khẩu</code> hoặc <code>tài_khoản:mật_khẩu</code>. Có thể thêm <code>|thông tin thêm</code> (mail khôi phục, mã 2FA…). Nếu mật khẩu có dấu <code>|</code> thì dùng dấu <code>:</code> làm phân cách.</div>
         </div>
         <div class="row"><button type="submit" class="primary" id="shAccSave">Mã hoá &amp; thêm vào kho</button></div>
@@ -509,6 +514,7 @@
     $("shTitleBox").hidden = rnd;
     $("shPriceBox").hidden = rnd;
     $("shDescBox").hidden = rnd;
+    $("shFileBox").hidden = !rnd;
     $("shImgLabel").textContent = rnd ? "Ảnh acc random (không bắt buộc)" : "Ảnh acc (không bắt buộc)";
     $("shImgHint").textContent = rnd
       ? "Ảnh này dùng chung cho cả lô vừa thêm. Muốn mỗi acc một ảnh riêng, bấm nút “Ảnh” ở từng acc trong Kho acc. Người mua chỉ thấy ảnh sau khi mở random."
@@ -640,33 +646,111 @@
     save.disabled = false;
   });
 
+  /* ---- Nạp acc random từ file .txt (mỗi dòng tài_khoản|mật_khẩu) ---- */
+  const FILE_MAX_BYTES = 5 * 1024 * 1024, FILE_MAX_LINES = 5000, CHUNK_LINES = 200, CHUNK_BYTES = 150000;
+  const accLines = () => $("shAccLines").value.split(/\r?\n/).map((x) => x.replace(/^\uFEFF/, "").trim()).filter(Boolean);
+  const readText = (f) => (f.text ? f.text() : new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = () => no(r.error); r.readAsText(f); }));
+  const refreshFileInfo = (extra) => {
+    const n = accLines().length;
+    $("shFileInfo").textContent = (extra ? extra + " " : "") + (n ? `Trong ô đang có ${fmt(n)} dòng.` : "Hoặc kéo thả file .txt vào ô trên. Mỗi dòng một acc, thêm được cả nghìn dòng một lúc.");
+  };
+  async function loadFiles(files) {
+    if ($("shAccKind").value !== "random") return say("Nạp file chỉ dùng cho loại Acc random.", "bad");
+    const list = Array.from(files || []);
+    if (!list.length) return;
+    const have = accLines();
+    let added = 0, skipped = [];
+    for (const f of list) {
+      if (f.size > FILE_MAX_BYTES) { skipped.push(`${f.name} (quá 5 MB)`); continue; }
+      if (/\.(zip|rar|7z|pdf|docx?|xlsx?|png|jpe?g|webp|gif)$/i.test(f.name)) { skipped.push(`${f.name} (không phải file văn bản)`); continue; }
+      let text;
+      try { text = await readText(f); } catch { skipped.push(`${f.name} (không đọc được)`); continue; }
+      const rows = text.replace(/^\uFEFF/, "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+      if (have.length + rows.length > FILE_MAX_LINES) { skipped.push(`${f.name} (vượt ${fmt(FILE_MAX_LINES)} dòng mỗi lần)`); continue; }
+      have.push(...rows); added += rows.length;
+    }
+    $("shAccLines").value = have.join("\n");
+    $("shAccFile").value = "";
+    if (skipped.length) say("Bỏ qua: " + skipped.join("; "), "bad");
+    refreshFileInfo(added ? `Đã nạp ${fmt(added)} dòng từ file.` : "");
+  }
+  $("shAccFileBtn").addEventListener("click", () => $("shAccFile").click());
+  $("shAccFile").addEventListener("change", (e) => loadFiles(e.target.files));
+  $("shAccLines").addEventListener("input", () => { if (!$("shFileBox").hidden) refreshFileInfo(); });
+  ["dragover", "drop"].forEach((ev) => $("shAccLines").addEventListener(ev, (e) => {
+    if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes("Files")) return;
+    e.preventDefault();
+    if (ev === "drop") loadFiles(e.dataTransfer.files);
+  }));
+
+  /* kiểm tra từng dòng giống server (tai_khoan|mat_khau[|them] hoặc tai_khoan:mat_khau) để báo sai dòng ngay, trước khi gửi */
+  function badLineNumbers(text) {
+    const bad = [];
+    text.split(/\r?\n/).forEach((raw, i) => {
+      const line = raw.replace(/^\uFEFF/, "").trim();
+      if (!line) return;
+      let parts;
+      if (line.includes("|")) parts = line.split("|").map((x) => x.trim());
+      else { const k = line.indexOf(":"); parts = k < 0 ? [line] : [line.slice(0, k).trim(), line.slice(k + 1).trim()]; }
+      const [u, p, ...rest] = parts, extra = rest.join(" | ").trim();
+      if (!u || !p || u.length > 200 || p.length > 200 || extra.length > 500) bad.push(i + 1);
+    });
+    return bad;
+  }
+  /* cắt danh sách thành các gói nhỏ (tối đa 200 dòng / ~150 KB) để gửi nhiều lần, khỏi vượt giới hạn server */
+  function chunkLines(lines) {
+    const out = []; let cur = [], bytes = 0;
+    for (const l of lines) {
+      const sz = l.length * 3 + 4;
+      if (cur.length && (cur.length >= CHUNK_LINES || bytes + sz > CHUNK_BYTES)) { out.push(cur); cur = []; bytes = 0; }
+      cur.push(l); bytes += sz;
+    }
+    if (cur.length) out.push(cur);
+    return out;
+  }
+
   /* Thêm acc: dữ liệu gửi qua HTTPS, server mã hoá rồi mới lưu */
   $("shAccForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     if (accPick.busy) return say("Ảnh đang tải lên, đợi một chút nhé.", "bad");
-    const save = $("shAccSave");
+    const save = $("shAccSave"), label = save.textContent;
+    const kind = $("shAccKind").value;
+    const all = accLines();
+    if (!all.length) return say("Chưa có dòng tài khoản nào.", "bad");
+    if (kind === "random") {
+      const bad = badLineNumbers($("shAccLines").value);
+      if (bad.length) return say(`Dòng ${bad.slice(0, 8).join(", ")}${bad.length > 8 ? "…" : ""} sai định dạng. Mỗi dòng: tài_khoản|mật_khẩu (hoặc tài_khoản:mật_khẩu)`, "bad");
+    }
+    const chunks = kind === "random" ? chunkLines(all) : [all];
+    const base = {
+      game_id: Number($("shAccGame").value),
+      kind,
+      title: $("shAccTitle").value,
+      price: num($("shAccPrice").value),
+      description: $("shAccDesc").value,
+      image_url: accPick.get() || $("shAccImg").value,
+    };
     save.disabled = true;
+    let added = 0, dup = 0, done = 0;
     try {
-      const kind = $("shAccKind").value;
-      const r = await api("/admin/shop/accounts", {
-        method: "POST",
-        body: JSON.stringify({
-          game_id: Number($("shAccGame").value),
-          kind,
-          title: $("shAccTitle").value,
-          price: num($("shAccPrice").value),
-          description: $("shAccDesc").value,
-          image_url: accPick.get() || $("shAccImg").value,
-          lines: $("shAccLines").value,
-        }),
-      });
-      say(`Đã mã hoá và thêm ${r.added} acc` + (r.duplicated ? `, bỏ qua ${r.duplicated} acc đã có trong kho` : ""));
+      for (const ch of chunks) {
+        if (chunks.length > 1) save.textContent = `Đang thêm ${fmt(done)}/${fmt(all.length)}…`;
+        const r = await api("/admin/shop/accounts", { method: "POST", body: JSON.stringify({ ...base, lines: ch.join("\n") }) });
+        added += r.added; dup += r.duplicated; done += ch.length;
+      }
+      say(`Đã mã hoá và thêm ${fmt(added)} acc` + (dup ? `, bỏ qua ${fmt(dup)} acc đã có trong kho` : ""));
       $("shAccLines").value = "";   // xoá ngay khỏi ô nhập
       $("shAccImg").value = "";
       accPick.reset();
       if (kind === "normal") { $("shAccTitle").value = ""; $("shAccPrice").value = ""; $("shAccDesc").value = ""; }
+      refreshFileInfo();
       reload();
-    } catch (err) { say(err.message, "bad"); }
+    } catch (err) {
+      // gói đã thêm xong thì bỏ khỏi ô, giữ lại phần còn lại để bấm thêm lần nữa
+      if (done) { $("shAccLines").value = all.slice(done).join("\n"); refreshFileInfo(); reload(); }
+      say(err.message + (done ? ` (đã thêm ${fmt(added)} acc trước đó, phần còn lại vẫn nằm trong ô)` : ""), "bad");
+    }
+    save.textContent = label;
     save.disabled = false;
   });
 

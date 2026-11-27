@@ -23,7 +23,7 @@ const CATALOG = [
   { id: "cookie", title: "Chuyển đổi cookie" },
   { id: "qr", title: "Tạo mã QR" },
   { id: "text", title: "Xử lý văn bản" },
-  { id: "pass", title: "Tạo mật khẩu mạnh" },
+  { id: "pass", title: "Tạo tài khoản + mật khẩu ngẫu nhiên" },
   { id: "pick", title: "Chọn ngẫu nhiên / chia đội" },
   { id: "time", title: "Đổi thời gian" },
   { id: "img2pdf", title: "Ảnh sang PDF" },

@@ -9,6 +9,7 @@ Vào tab Shop acc, kéo xuống mục **Quản lý shop**:
    - *Acc thường*: có tiêu đề, giá, mô tả, ảnh riêng. Thêm từng acc một.
    - *Acc random*: dán nhiều dòng một lúc (tối đa 200). Khách trả giá random của game và nhận 1 acc ngẫu nhiên trong kho. Có thể gắn ảnh cho cả lô, rồi đổi ảnh riêng từng acc ở Kho acc. Có thể gắn ảnh cho cả lô, rồi đổi ảnh riêng từng acc ở Kho acc.
    - Định dạng mỗi dòng: `tài_khoản|mật_khẩu` hoặc `tài_khoản:mật_khẩu`, thêm `|thông tin thêm` nếu cần (mail khôi phục, 2FA...). Mật khẩu có dấu `|` thì dùng dấu `:` làm phân cách.
+   - **Nạp acc random từ file**: chọn loại *Acc random* rồi bấm **Chọn file .txt** (hoặc kéo thả file vào ô Tài khoản). Mỗi dòng một acc, cùng định dạng ở trên; chọn nhiều file một lúc được, dòng của các file được gộp vào ô để xem lại trước khi bấm *Mã hoá & thêm vào kho*. File tối đa 5 MB, tối đa 5000 dòng trong ô. Dòng sai định dạng được báo số dòng ngay, chưa gửi gì lên server. Khi thêm, web tự chia thành từng gói 200 dòng gửi lần lượt; nếu giữa chừng bị lỗi, các gói đã thêm được bỏ khỏi ô và phần còn lại vẫn nằm trong ô để bấm thêm tiếp. Acc trùng tài khoản trong cùng game tự bị bỏ qua. File tạo từ tab Công cụ (*Tạo tài khoản + mật khẩu ngẫu nhiên*) dùng được luôn.
 3. Kho acc: ẩn/hiện, đổi giá, xoá. Acc đã bán được giữ lại để đối chiếu đơn.
 
 ## Ảnh acc và ảnh bìa game (gửi trực tiếp, không cần link)

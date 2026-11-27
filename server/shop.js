@@ -256,7 +256,7 @@ function parseLines(text) {
   const out = [];
   const bad = [];
   String(text || "").split(/\r?\n/).forEach((raw, i) => {
-    const line = raw.trim();
+    const line = raw.replace(/^\uFEFF/, "").trim();
     if (!line) return;
     let parts;
     if (line.includes("|")) parts = line.split("|").map((s) => s.trim());

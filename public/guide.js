@@ -121,7 +121,7 @@
         "**Chuyển đổi cookie**: đổi cookie giữa dạng chuỗi và JSON, hiện UID Facebook và cho biết thiếu `c_user` hay `xs`. Cookie không gửi lên máy chủ.",
         "**Tạo mã QR**: từ văn bản, liên kết, hoặc mã QR chuyển khoản VietQR (chọn ngân hàng, số tài khoản, số tiền, nội dung). Ảnh QR do dịch vụ bên ngoài tạo.",
         "**Xử lý văn bản**: bỏ dấu tiếng Việt, đổi chữ hoa thường, tạo slug, xoá dòng trùng, sắp xếp, đếm ký tự.",
-        "**Tạo mật khẩu mạnh**: ngẫu nhiên an toàn, chọn độ dài và loại ký tự.",
+        "**Tạo tài khoản + mật khẩu ngẫu nhiên**: tạo hàng loạt (tối đa 1000) cặp `tài_khoản|mật_khẩu`, chọn số lượng, tiền tố tên, độ dài và loại ký tự của mật khẩu. Sao chép hoặc bấm **Tải file .txt**. File này nạp thẳng được vào ô Acc random của Shop acc.",
         "**Chọn ngẫu nhiên / chia đội**: bốc thăm người trúng thưởng hoặc chia đội đều nhau từ danh sách tên.",
         "**Đổi thời gian**: đổi timestamp sang giờ Việt Nam và ngược lại, tính ngày sau khi cộng thêm N ngày.",
       ]) },

@@ -115,20 +115,52 @@
     join: [(s) => lines(s).map((l) => l.trim()).filter(Boolean).join(", "), "Gộp thành một dòng"],
   };
 
-  /* ================= 4. MẬT KHẨU ================= */
+  /* ================= 4. TÀI KHOẢN + MẬT KHẨU NGẪU NHIÊN ================= */
   const SETS = { lower: "abcdefghijkmnopqrstuvwxyz", upper: "ABCDEFGHJKLMNPQRSTUVWXYZ", digit: "23456789", sym: "!@#$%^&*()-_=+?" };
   const FULL = { lower: "abcdefghijklmnopqrstuvwxyz", upper: "ABCDEFGHIJKLMNOPQRSTUVWXYZ", digit: "0123456789", sym: SETS.sym };
   function makePassword(len, use, clear) {
     const src = clear ? SETS : FULL;
     const kinds = Object.keys(use).filter((k) => use[k]);
-    if (!kinds.length) throw new Error("Chọn ít nhất một loại ký tự.");
+    if (!kinds.length) throw new Error("Chọn ít nhất một loại ký tự cho mật khẩu.");
     if (len < kinds.length) len = kinds.length;
     const pool = kinds.map((k) => src[k]).join("");
     const chars = kinds.map((k) => src[k][rnd(src[k].length)]);
     while (chars.length < len) chars.push(pool[rnd(pool.length)]);
     return { pw: shuffle(chars).join(""), bits: Math.round(len * Math.log2(pool.length)) };
   }
+  /* tên tài khoản: chữ thường + số, ký tự đầu luôn là chữ cái (hợp với đa số game / web) */
+  const UL = "abcdefghijklmnopqrstuvwxyz", UD = "0123456789";
+  function makeUsername(prefix, len) {
+    let u = prefix;
+    for (let i = 0; i < len; i++) {
+      const pool = i === 0 && !prefix ? UL : UL + UD;
+      u += pool[rnd(pool.length)];
+    }
+    return u;
+  }
   const strength = (b) => (b < 40 ? ["Yếu", "bad"] : b < 60 ? ["Khá", ""] : b < 80 ? ["Mạnh", "ok"] : ["Rất mạnh", "ok"]);
+  const PW_MAX = 1000;
+  function makeAccounts(count, userLen, prefix, pwLen, use, clear, sep) {
+    const seen = new Set(), rows = [];
+    let bits = 0, guard = 0;
+    while (rows.length < count) {
+      if (++guard > count * 20) throw new Error("Không tạo đủ tên không trùng, hãy tăng độ dài tên tài khoản.");
+      const u = makeUsername(prefix, userLen);
+      if (seen.has(u)) continue;
+      seen.add(u);
+      const r = makePassword(pwLen, use, clear);
+      bits = r.bits;
+      rows.push(u + sep + r.pw);
+    }
+    return { text: rows.join("\n"), bits };
+  }
+  function saveTxt(text, name) {
+    const url = URL.createObjectURL(new Blob(["\uFEFF" + text.replace(/\n/g, "\r\n") + "\r\n"], { type: "text/plain;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = name; document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+  const stamp = () => { const d = new Date(), z = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}`; };
 
   /* ================= 6. THỜI GIAN ================= */
   const VN = "Asia/Ho_Chi_Minh";
@@ -192,16 +224,24 @@
       <div class="tl-stats" id="tx-stats">0 ký tự · 0 từ · 0 dòng</div>
       <div class="tl-btns">${Object.entries(TEXT_OPS).map(([k, [, n]]) => `<button type="button" data-op="${k}">${esc(n)}</button>`).join("")}</div>
       <div class="row"><button id="tx-undo" type="button">Hoàn tác</button><button id="tx-copy" type="button">Sao chép</button><button id="tx-clr" type="button">Xoá</button></div>` },
-    { id: "pass", title: "Tạo mật khẩu mạnh", desc: "Ngẫu nhiên an toàn, tuỳ chọn độ dài và ký tự", icon: ic('<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3"/>'), html: `
-      <div class="field"><label for="pw-len">Độ dài: <b id="pw-lenv">16</b></label><input id="pw-len" type="range" min="8" max="64" value="16"></div>
+    { id: "pass", title: "Tạo tài khoản + mật khẩu ngẫu nhiên", desc: "Tạo hàng loạt tài khoản và mật khẩu, xuất file .txt", icon: ic('<circle cx=\"8\" cy=\"15\" r=\"4\"/><path d=\"M11 12l9-9M16 7l3 3\"/>'), html: `
+      <p class="tl-note">Mỗi dòng một cặp <code>tài_khoản|mật_khẩu</code>, đúng định dạng ô nhập acc random của Shop acc nên có thể nạp thẳng file vừa tạo. Tên tài khoản gồm chữ thường và số, bắt đầu bằng chữ cái. Mọi thứ được tạo ngay trên trình duyệt, không gửi lên máy chủ.</p>
+      <div class="lc-grid sh-two">
+        <div class="field"><label for="pw-count">Số tài khoản (1 - ${PW_MAX})</label><input id="pw-count" type="text" inputmode="numeric" value="10"></div>
+        <div class="field"><label for="pw-prefix">Tiền tố (tuỳ chọn)</label><input id="pw-prefix" type="text" maxlength="12" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="vd: acc"></div>
+      </div>
+      <div class="field"><label for="pw-ulen">Độ dài phần ngẫu nhiên của tên: <b id="pw-ulenv">10</b></label><input id="pw-ulen" type="range" min="5" max="20" value="10"></div>
+      <div class="field"><label for="pw-len">Độ dài mật khẩu: <b id="pw-lenv">12</b></label><input id="pw-len" type="range" min="8" max="64" value="12"></div>
       <label class="check"><input type="checkbox" id="pw-lower" checked> Chữ thường (a-z)</label>
       <label class="check"><input type="checkbox" id="pw-upper" checked> Chữ hoa (A-Z)</label>
       <label class="check"><input type="checkbox" id="pw-digit" checked> Số (0-9)</label>
-      <label class="check"><input type="checkbox" id="pw-sym" checked> Ký hiệu (!@#$...)</label>
+      <label class="check"><input type="checkbox" id="pw-sym"> Ký hiệu (!@#$...)</label>
       <label class="check"><input type="checkbox" id="pw-clear"> Bỏ ký tự dễ nhầm (0 O 1 l I)</label>
-      <div class="tl-result" id="pw-out">Bấm Tạo mật khẩu</div>
+      <div class="field"><label for="pw-sep">Dấu ngăn giữa tài khoản và mật khẩu</label><select id="pw-sep"><option value="|">tài_khoản|mật_khẩu</option><option value=":">tài_khoản:mật_khẩu</option></select></div>
+      <div class="row"><button class="primary" id="pw-go" type="button">Tạo danh sách</button></div>
+      <div class="field"><label for="pw-out">Kết quả</label><textarea id="pw-out" rows="8" readonly spellcheck="false" placeholder="Bấm Tạo danh sách"></textarea></div>
       <div class="tl-chips" id="pw-meter"></div>
-      <div class="row"><button class="primary" id="pw-go" type="button">Tạo mật khẩu</button><button id="pw-copy" type="button">Sao chép</button></div>` },
+      <div class="row"><button id="pw-copy" type="button">Sao chép</button><button id="pw-save" type="button">Tải file .txt</button></div>` },
     { id: "pick", title: "Chọn ngẫu nhiên / chia đội", desc: "Bốc thăm người trúng thưởng, chia đội đều nhau", icon: ic('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8.5 8.5h.01M15.5 8.5h.01M12 12h.01M8.5 15.5h.01M15.5 15.5h.01"/>'), html: `
       <div class="field"><label for="pk-in">Danh sách (mỗi dòng hoặc cách nhau bằng dấu phẩy)</label><textarea id="pk-in" rows="5" placeholder="An&#10;Bình&#10;Chi"></textarea></div>
       <div class="seg row" id="pk-mode"><button class="primary" data-m="pick" type="button">Chọn người</button><button data-m="team" type="button">Chia đội</button></div>
@@ -341,17 +381,31 @@
   g("tx-copy").onclick = () => copyText(txIn.value);
   g("tx-clr").onclick = () => { if (txIn.value) undo.push(txIn.value); txIn.value = ""; txStats(); };
 
-  // 4. mật khẩu
+  // 4. tài khoản + mật khẩu ngẫu nhiên
   g("pw-len").addEventListener("input", () => (g("pw-lenv").textContent = g("pw-len").value));
+  g("pw-ulen").addEventListener("input", () => (g("pw-ulenv").textContent = g("pw-ulen").value));
   g("pw-go").onclick = () => {
     try {
-      const r = makePassword(+g("pw-len").value, { lower: g("pw-lower").checked, upper: g("pw-upper").checked, digit: g("pw-digit").checked, sym: g("pw-sym").checked }, g("pw-clear").checked);
+      const count = num(g("pw-count").value);
+      if (count < 1 || count > PW_MAX) throw new Error(`Số tài khoản từ 1 đến ${PW_MAX}.`);
+      const prefix = g("pw-prefix").value.trim().toLowerCase().replace(/[^a-z0-9._-]/g, "");
+      const r = makeAccounts(count, +g("pw-ulen").value, prefix, +g("pw-len").value,
+        { lower: g("pw-lower").checked, upper: g("pw-upper").checked, digit: g("pw-digit").checked, sym: g("pw-sym").checked },
+        g("pw-clear").checked, g("pw-sep").value);
       const [label, cls] = strength(r.bits);
-      g("pw-out").textContent = r.pw; g("pw-out").classList.remove("tl-win"); void g("pw-out").offsetWidth; g("pw-out").classList.add("tl-win");
-      g("pw-meter").innerHTML = `<span class="tl-chip ${cls}">Độ mạnh: ${label}</span><span class="tl-chip">${r.bits} bit</span>`;
+      const out = g("pw-out");
+      out.value = r.text; out.scrollTop = 0;
+      out.classList.remove("tl-win"); void out.offsetWidth; out.classList.add("tl-win");
+      g("pw-meter").innerHTML = `<span class="tl-chip">${fmt(count)} tài khoản</span><span class="tl-chip ${cls}">Mật khẩu: ${label}</span><span class="tl-chip">${r.bits} bit</span>`;
     } catch (e) { toast(e.message, "bad"); }
   };
-  g("pw-copy").onclick = () => { const t = g("pw-out").textContent; copyText(/^Bấm /.test(t) ? "" : t); };
+  g("pw-copy").onclick = () => copyText(g("pw-out").value);
+  g("pw-save").onclick = () => {
+    const t = g("pw-out").value;
+    if (!t) return toast("Chưa có danh sách, hãy bấm Tạo danh sách trước.", "bad");
+    saveTxt(t, `taikhoan-${stamp()}-${t.split("\n").length}acc.txt`);
+    toast("Đã tạo file .txt.");
+  };
 
   // 5. chọn ngẫu nhiên / chia đội
   let pkMode = "pick", pkText = "";

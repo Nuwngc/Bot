@@ -174,3 +174,8 @@
   .sx-rand { flex-wrap: wrap; }
   .sx-rand .sx-btn { width: 100%; }
 }
+
+/* Nạp acc random từ file .txt */
+.sh-file { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-top: .55rem; }
+.sh-file[hidden] { display: none; }
+.sh-file .hint { margin: 0; flex: 1 1 14rem; min-width: 0; }
