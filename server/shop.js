@@ -10,6 +10,8 @@
  *  - Acc random: admin dat 1 gia cho moi game; khach tra gia do va nhan 1 acc NGAU NHIEN trong kho random
  *    cua game (khach khong biet truoc la acc gi).
  *  - Coin tieu o day ghi vao wallet_tx.kind = 'shop' (khong tinh vao bang xep hang nap).
+ *  - QTV xem lai tk/mk da ma hoa: phai nhap KHOA XEM (bien moi truong SHOP_VIEW_KEY; neu chua dat thi dung APP_SECRET)
+ *    de mo khoa 10 phut cho phien dang nhap do. Nhap sai 5 lan bi khoa 15 phut. Moi lan xem deu ghi vao shop_view_log.
  *  - Anh acc / anh bia game: admin gui anh TRUC TIEP len server (POST /admin/shop/upload, da nen nho o trinh duyet).
  *    Anh luu trong bang shop_images (BLOB) voi ma ngau nhien 24 ky tu hex nen khong doan duoc dia chi anh cua acc
  *    random truoc khi mua. Van dung duoc link https:// nhu truoc. Acc nao (thuong hay random) cung doi / go anh duoc.
@@ -61,6 +63,13 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS shop_orders_user ON shop_orders(user_id, id);
+
+  CREATE TABLE IF NOT EXISTS shop_view_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    admin_id   INTEGER NOT NULL,
+    account_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 
   CREATE TABLE IF NOT EXISTS shop_images (
     id         TEXT PRIMARY KEY,                 -- 24 ky tu hex ngau nhien (khong doan duoc)
@@ -151,6 +160,18 @@ const sq = {
       WHERE (? = '' OR a.status = ?) AND (? = 0 OR a.game_id = ?)
       ORDER BY a.id DESC LIMIT 200`
   ),
+  revealById: db.prepare(
+    `SELECT a.*, g.name AS game_name, u.username AS buyer
+       FROM shop_accounts a JOIN shop_games g ON g.id = a.game_id LEFT JOIN users u ON u.id = a.buyer_id
+      WHERE a.id = ?`
+  ),
+  revealList: db.prepare(
+    `SELECT a.*, g.name AS game_name, u.username AS buyer
+       FROM shop_accounts a JOIN shop_games g ON g.id = a.game_id LEFT JOIN users u ON u.id = a.buyer_id
+      WHERE (? = '' OR a.status = ?) AND (? = 0 OR a.game_id = ?)
+      ORDER BY a.id DESC LIMIT 200`
+  ),
+  insViewLog: db.prepare("INSERT INTO shop_view_log (admin_id, account_id) VALUES (?, ?)"),
   adminOrders: db.prepare(
     `SELECT o.id, o.code, o.game_name, o.title, o.kind, o.price, o.created_at, u.username
        FROM shop_orders o JOIN users u ON u.id = o.user_id ORDER BY o.id DESC LIMIT 50`
@@ -356,6 +377,30 @@ function buyRandom(user, gameId) {
   return { order: { ...orderView(r.order), image: r.image }, credentials: r.creds, balance: wallet.balance(user.id) };
 }
 
+/* ---------- QTV xem lai acc da ma hoa (can khoa xem) ---------- */
+
+// Khoa xem: SHOP_VIEW_KEY (nen dat rieng, khac APP_SECRET). Chua dat thi dung APP_SECRET.
+const VIEW_KEY_SRC = process.env.SHOP_VIEW_KEY || process.env.APP_SECRET;
+const VIEW_KEY_HASH = crypto.createHash("sha256").update("shop-view:" + VIEW_KEY_SRC).digest();
+const viewKeyOk = (input) =>
+  crypto.timingSafeEqual(crypto.createHash("sha256").update("shop-view:" + String(input ?? "")).digest(), VIEW_KEY_HASH);
+const VIEW_TTL = 10 * 60e3;       // mo khoa co hieu luc 10 phut
+const VIEW_MAX_FAIL = 5, VIEW_LOCK = 15 * 60e3;
+const viewFails = new Map();      // adminId -> { n, until }
+
+const unlockLeft = (req) =>
+  req.session?.shopViewUser === req.user.id ? Math.max(0, (req.session.shopViewUntil || 0) - Date.now()) : 0;
+
+function revealRow(a, adminId) {
+  const c = reveal(a);
+  sq.insViewLog.run(adminId, a.id);
+  return {
+    id: a.id, game_name: a.game_name, kind: a.kind, title: a.title, status: a.status, buyer: a.buyer || null,
+    username: c ? c.username : null, password: c ? c.password : null, extra: c ? c.extra : "",
+    error: c ? null : "Không giải mã được (đã đổi APP_SECRET hoặc dữ liệu hỏng)",
+  };
+}
+
 /* ---------- Route ---------- */
 
 function register(router, auth) {
@@ -542,6 +587,55 @@ function register(router, auth) {
       }
       if (b.status === "hidden" || b.status === "available") sq.setStatus.run(b.status, a.id);
       res.json({ ok: true });
+    } catch (e) { fail(res, e); }
+  });
+
+  /* ---- Xem lai tk/mk da ma hoa (chi admin, can khoa xem) ---- */
+
+  router.get("/admin/shop/view-status", auth.requireAdmin, (req, res) => {
+    noStore(res);
+    res.json({ unlocked_ms: unlockLeft(req), own_key: !!process.env.SHOP_VIEW_KEY });
+  });
+
+  router.post("/admin/shop/unlock", auth.requireAdmin, (req, res) => {
+    noStore(res);
+    const f = viewFails.get(req.user.id);
+    if (f && Date.now() < f.until && f.n >= VIEW_MAX_FAIL) {
+      return res.status(429).json({ error: `Nhập sai quá nhiều lần, thử lại sau ${Math.ceil((f.until - Date.now()) / 60e3)} phút.` });
+    }
+    if (!viewKeyOk(req.body?.key)) {
+      const n = f && Date.now() < f.until ? f.n + 1 : 1;
+      viewFails.set(req.user.id, { n, until: Date.now() + VIEW_LOCK });
+      return res.status(403).json({ error: "Khoá xem không đúng." });
+    }
+    viewFails.delete(req.user.id);
+    req.session.shopViewUser = req.user.id;
+    req.session.shopViewUntil = Date.now() + VIEW_TTL;
+    res.json({ ok: true, unlocked_ms: VIEW_TTL });
+  });
+
+  router.post("/admin/shop/lock", auth.requireAdmin, (req, res) => {
+    noStore(res);
+    if (req.session) { delete req.session.shopViewUser; delete req.session.shopViewUntil; }
+    res.json({ ok: true });
+  });
+
+  /** Giai ma de xem: body { ids: [..] } (toi da 200) hoac { status, game } = danh sach dang loc o Kho acc. */
+  router.post("/admin/shop/reveal", auth.requireAdmin, (req, res) => {
+    noStore(res);
+    if (!unlockLeft(req)) return res.status(403).json({ error: "Cần nhập khoá xem để xem tài khoản.", locked: true });
+    try {
+      const b = req.body || {};
+      let rows;
+      if (Array.isArray(b.ids)) {
+        const ids = [...new Set(b.ids.map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 200);
+        rows = ids.map((id) => sq.revealById.get(id)).filter(Boolean);
+      } else {
+        const status = ["available", "sold", "hidden"].includes(b.status) ? b.status : "";
+        const gameId = intIn(b.game, 0, 1e9, 0);
+        rows = sq.revealList.all(status, status, gameId, gameId);
+      }
+      res.json({ ok: true, items: rows.map((a) => revealRow(a, req.user.id)) });
     } catch (e) { fail(res, e); }
   });
 

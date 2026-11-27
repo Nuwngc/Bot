@@ -47,6 +47,10 @@
         <div id="shHome">
           <h3 class="sx-title">Danh sách Games</h3>
           <div class="sx-games" id="shGameGrid"><div class="empty loading">Đang tải…</div></div>
+          <div id="shRandHome" hidden>
+            <h3 class="sx-title">🎲 Mua Random</h3>
+            <div class="sx-games" id="shRandGrid"></div>
+          </div>
         </div>
 
         <div id="shGameView" hidden>
@@ -74,7 +78,7 @@
 
     <section id="shAdmin" hidden>
       <h2>Quản lý shop (admin)</h2>
-      <p>Tài khoản và mật khẩu được mã hoá ngay trên server trước khi lưu vào database. Sau khi thêm, hệ thống không hiển thị lại mật khẩu cho ai, kể cả admin. Chỉ người mua mới nhận được.</p>
+      <p>Tài khoản và mật khẩu được mã hoá ngay trên server trước khi lưu vào database. Danh sách chỉ hiện tài khoản đã che. Muốn xem lại tài khoản và mật khẩu, bấm <b>Xem</b> rồi nhập khoá xem (biến môi trường <code>SHOP_VIEW_KEY</code> trên server); mở khoá có hiệu lực 10 phút.</p>
 
       <div class="sh-stats" id="shTotals"></div>
 
@@ -133,6 +137,11 @@
         <button type="button" data-st="available">Đang bán</button>
         <button type="button" data-st="hidden">Đang ẩn</button>
         <button type="button" data-st="sold">Đã bán</button>
+      </div>
+      <div class="sh-vwbar" id="shViewBar">
+        <span class="hint" id="shViewState">🔒 Acc đang được mã hoá.</span>
+        <button type="button" id="shViewAll">Xem acc đang lọc</button>
+        <button type="button" id="shViewLock" hidden>Khoá lại</button>
       </div>
       <div class="users" id="shStock"></div>
 
@@ -336,6 +345,16 @@
           </div>`;
         }).join("")
       : `<div class="empty">Shop chưa có game nào.</div>`;
+
+    const rg = data.games.filter((g) => g.randomPrice > 0);
+    $("shRandHome").hidden = !rg.length;
+    $("shRandGrid").innerHTML = rg.map((g) => `
+      <div class="sx-game sx-rtile${g.randomStock ? "" : " out"}" role="button" tabindex="0" data-rgame="${g.id}" aria-label="Random ${esc(g.name)}">
+        <span class="sx-cover">${cover(g)}<span class="sx-rveil"><i>🎲</i><b>Random</b></span><em class="sx-badge">🎲 Random</em></span>
+        <span class="sx-gname">Random ${esc(g.name)}</span>
+        <span class="sx-nums"><span>Còn: <b>${fmt(g.randomStock)}</b></span><span>Giá: <b>${fmt(g.randomPrice)}</b></span></span>
+        <span class="sx-rprice">${g.randomStock ? `Mở random · ${fmt(g.randomPrice)} coin` : "Tạm hết acc"}</span>
+      </div>`).join("");
   }
 
   function renderGame() {
@@ -350,9 +369,13 @@
     rnd.hidden = !(g.randomPrice > 0);
     if (g.randomPrice > 0) {
       rnd.innerHTML = `
-        <div class="sx-rand-ico">🎲</div>
-        <div class="sx-rand-info"><b>Random ${esc(g.name)}</b><small>${g.randomStock ? `Nhận ngẫu nhiên 1 acc trong kho, còn ${fmt(g.randomStock)} acc. Bạn không biết trước là acc gì.` : "Kho random tạm hết acc, quay lại sau nhé."}</small></div>
-        <button type="button" class="sx-btn gold" data-rand="${g.id}" ${g.randomStock ? "" : "disabled"}>${fmt(g.randomPrice)} coin</button>`;
+        <span class="sx-cover sx-rcover">${cover(g)}<span class="sx-rveil"><i>🎲</i><b>Random</b></span><em class="sx-badge">🎲 Random</em></span>
+        <div class="sx-rbody">
+          <h4>Random ${esc(g.name)}</h4>
+          <p>${g.randomStock ? "Nhận ngẫu nhiên 1 acc trong kho. Bạn không biết trước là acc gì và không chọn lại được." : "Kho random tạm hết acc, quay lại sau nhé."}</p>
+          <div class="sx-nums"><span>Còn lại: <b>${fmt(g.randomStock)}</b> acc</span><span>Đã bán: <b>${fmt(g.sold)}</b></span></div>
+          <button type="button" class="sx-btn gold lg" data-rand="${g.id}" ${g.randomStock ? "" : "disabled"}>🎲 Mở random · ${fmt(g.randomPrice)} coin</button>
+        </div>`;
     }
 
     $("shSort").querySelectorAll("[data-sort]").forEach((b) => b.classList.toggle("on", b.dataset.sort === sortMode));
@@ -453,7 +476,7 @@
 
   const onActivate = (el, fn) => {
     el.addEventListener("click", fn);
-    el.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && e.target.closest("[data-game]")) { e.preventDefault(); fn(e); } });
+    el.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && e.target.closest("[data-game], [data-rgame]")) { e.preventDefault(); fn(e); } });
   };
   onActivate($("shGameGrid"), (e) => {
     const c = e.target.closest("[data-game]");
@@ -476,13 +499,20 @@
     if (ok) purchase("/shop/buy", { id: a.id }, b);
   });
 
-  $("shRandom").addEventListener("click", async (e) => {
-    const b = e.target.closest("[data-rand]");
-    if (!b) return;
-    const g = data.games.find((x) => x.id === Number(b.dataset.rand));
+  async function buyRandomOf(gameId, el) {
+    const g = data.games.find((x) => x.id === Number(gameId));
     if (!g) return;
+    if (!g.randomStock) return say("Kho random của game này tạm hết acc, quay lại sau nhé.", "bad");
     const ok = await confirmBox(`Mở random ${g.name} với giá ${fmt(g.randomPrice)} coin? Bạn nhận 1 acc ngẫu nhiên và không chọn lại được.`, { title: "Mua acc random", ok: "Mở random" });
-    if (ok) purchase("/shop/random", { game_id: g.id }, b);
+    if (ok) purchase("/shop/random", { game_id: g.id }, el);
+  }
+  $("shRandom").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-rand]");
+    if (b) buyRandomOf(b.dataset.rand, b);
+  });
+  onActivate($("shRandGrid"), (e) => {
+    const c = e.target.closest("[data-rgame]");
+    if (c) buyRandomOf(c.dataset.rgame, c);
   });
 
   $("shOrders").addEventListener("click", async (e) => {
@@ -556,6 +586,7 @@
           <span class="tag">${esc(a.masked)}</span>
           <span class="tag ${a.status === "available" ? "ok" : "off"}">${STATUS[a.status]}${a.buyer ? " · " + esc(a.buyer) : ""}</span>
           <span class="spacer"></span>
+          <button type="button" data-vw="${a.id}">Xem</button>
           ${a.status === "sold" ? "" : `
             <button type="button" data-img="${a.id}">Ảnh</button>
             <button type="button" data-tog="${a.id}" data-to="${a.status === "available" ? "hidden" : "available"}">${a.status === "available" ? "Ẩn" : "Hiện"}</button>
@@ -754,6 +785,86 @@
     save.disabled = false;
   });
 
+  /* ---- Xem lại tk/mk đã mã hoá (cần khoá xem, mở khoá 10 phút) ---- */
+  let unlockedUntil = 0;
+  const isUnlocked = () => Date.now() < unlockedUntil;
+
+  function paintView() {
+    const on = isUnlocked();
+    const mins = Math.max(1, Math.ceil((unlockedUntil - Date.now()) / 60e3));
+    $("shViewState").textContent = on ? `🔓 Đã mở khoá, còn khoảng ${mins} phút.` : "🔒 Acc đang được mã hoá. Bấm Xem rồi nhập khoá xem.";
+    $("shViewLock").hidden = !on;
+  }
+  setInterval(() => { if (!$("shAdmin").hidden) paintView(); }, 15e3);
+
+  async function ensureUnlocked() {
+    if (isUnlocked()) return true;
+    const key = await promptBox("Nhập khoá xem (biến môi trường SHOP_VIEW_KEY trên server) để giải mã tài khoản. Mở khoá có hiệu lực 10 phút.", {
+      title: "Khoá xem acc", type: "password", ok: "Mở khoá", validate: (v) => (v ? "" : "Chưa nhập khoá"),
+    });
+    if (key === null) return false;
+    const r = await api("/admin/shop/unlock", { method: "POST", body: JSON.stringify({ key }) });
+    unlockedUntil = Date.now() + r.unlocked_ms;
+    paintView();
+    return true;
+  }
+
+  async function viewAccs(payload) {
+    try {
+      if (!(await ensureUnlocked())) return;
+      let r;
+      try { r = await api("/admin/shop/reveal", { method: "POST", body: JSON.stringify(payload) }); }
+      catch (e) { if (/khoá xem/i.test(e.message)) { unlockedUntil = 0; paintView(); } throw e; }
+      if (!r.items.length) return say("Không có acc nào để xem.", "bad");
+      showAccList(r.items);
+    } catch (e) { say(e.message, "bad"); }
+  }
+
+  const accLine = (c) => [c.username, c.password].concat(c.extra ? [c.extra] : []).join("|");
+
+  function showAccList(items) {
+    document.querySelector(".sh-modal-scrim")?.remove();
+    const scrim = document.createElement("div");
+    scrim.className = "sh-modal-scrim";
+    const row = (label, key, i) => `<div class="sh-cred"><small>${label}</small><div><code data-v="${key}" data-i="${i}"></code><button type="button" data-copy="${key}" data-i="${i}">Sao chép</button></div></div>`;
+    scrim.innerHTML = `
+      <div class="sh-modal wide" role="dialog" aria-modal="true" aria-label="Tài khoản đã giải mã">
+        <h3>Tài khoản đã giải mã (${fmt(items.length)})</h3>
+        <p class="sh-sub">Chỉ admin thấy. Mỗi lần xem đều được ghi lại trên server.</p>
+        ${items.length > 1 ? `<div class="row" style="margin-bottom:.8rem"><button type="button" data-copyall>Sao chép tất cả</button><button type="button" data-dl>Tải .txt</button></div>` : ""}
+        <div class="sh-vwlist">${items.map((c, i) => `
+          <div class="sh-vwitem">
+            <div class="sh-vwhead"><b>#${c.id} ${esc(c.title)}</b><span class="tag">${esc(c.game_name)}</span><span class="tag ${c.status === "available" ? "ok" : "off"}">${esc(STATUS[c.status] || c.status)}${c.buyer ? " · " + esc(c.buyer) : ""}</span></div>
+            ${c.error ? `<p class="sh-warn">${esc(c.error)}</p>` : row("Tài khoản", "username", i) + row("Mật khẩu", "password", i) + (c.extra ? row("Thông tin thêm", "extra", i) : "")}
+          </div>`).join("")}</div>
+        <div class="row" style="margin-top:1rem"><button type="button" class="primary" data-close>Đóng</button></div>
+      </div>`;
+    // textContent để ký tự đặc biệt trong tk/mk không phá giao diện
+    scrim.querySelectorAll("[data-v]").forEach((el) => { el.textContent = items[Number(el.dataset.i)][el.dataset.v]; });
+    scrim.addEventListener("click", (e) => {
+      const cp = e.target.closest("[data-copy]");
+      if (cp) return copy(items[Number(cp.dataset.i)][cp.dataset.copy]);
+      if (e.target.closest("[data-copyall]")) return copy(items.filter((c) => !c.error).map(accLine).join("\n"));
+      if (e.target.closest("[data-dl]")) {
+        const blob = new Blob([items.filter((c) => !c.error).map(accLine).join("\n") + "\n"], { type: "text/plain;charset=utf-8" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `acc-${new Date().toISOString().slice(0, 10)}.txt`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        return say("File tải về là chữ thường, nhớ xoá sau khi dùng.");
+      }
+      if (e.target === scrim || e.target.closest("[data-close]")) scrim.remove();
+    });
+    document.body.append(scrim);
+  }
+
+  $("shViewAll").addEventListener("click", () => viewAccs({ status: stFilter }));
+  $("shViewLock").addEventListener("click", async () => {
+    try { await api("/admin/shop/lock", { method: "POST", body: "{}" }); } catch (_) {}
+    unlockedUntil = 0; paintView();
+  });
+
   /* Đổi / gỡ ảnh của một acc đã có trong kho (acc thường lẫn acc random) */
   function editImage(a) {
     document.querySelector(".sh-modal-scrim")?.remove();
@@ -782,8 +893,11 @@
     const pr = e.target.closest("[data-price]");
     const del = e.target.closest("[data-adel]");
     const im = e.target.closest("[data-img]");
+    const vw = e.target.closest("[data-vw]");
     try {
-      if (im) {
+      if (vw) {
+        viewAccs({ ids: [Number(vw.dataset.vw)] });
+      } else if (im) {
         const a = adm.accounts.find((x) => x.id === Number(im.dataset.img));
         if (a) editImage(a);
       } else if (tog) {
@@ -803,7 +917,10 @@
     } catch (err) { say(err.message, "bad"); }
   });
 
-  api("/me").then((me) => { if (me.role === "admin") { $("shAdmin").hidden = false; loadAdmin().catch(() => {}); } }).catch(() => {});
+  api("/me").then((me) => { if (me.role === "admin") {
+    $("shAdmin").hidden = false; loadAdmin().catch(() => {});
+    api("/admin/shop/view-status").then((r) => { unlockedUntil = Date.now() + (r.unlocked_ms || 0); paintView(); }).catch(() => {});
+  } }).catch(() => {});
 
   /* ---------- Mở tab ---------- */
   btn.addEventListener("click", () => { load(); if (!$("shAdmin").hidden) loadAdmin().catch(() => {}); });

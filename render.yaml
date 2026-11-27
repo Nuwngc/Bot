@@ -16,6 +16,8 @@ services:
         value: production
       - key: APP_SECRET        # Render tu sinh 1 lan; doi gia tri = mat cookie da luu
         generateValue: true
+      - key: SHOP_VIEW_KEY     # khoa QTV xem lai acc da ma hoa; tu nhap trong dashboard Render
+        sync: false
       - key: ADMIN_USER
         value: admin
       - key: ADMIN_PASS        # tu nhap trong dashboard Render, khong luu vao git
