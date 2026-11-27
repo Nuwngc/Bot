@@ -1,0 +1,34 @@
+{
+  "autoUpdate": false,
+  "checkUpdate": {
+    "enabled": false,
+    "install": false,
+    "notifyIfCurrent": false
+  },
+  "mqtt": {
+    "enabled": true,
+    "reconnectInterval": 3600
+  },
+  "autoLogin": false,
+  "apiServer": "",
+  "apiKey": "",
+  "credentials": {
+    "email": "",
+    "password": "",
+    "twofactor": ""
+  },
+  "antiGetInfo": {
+    "AntiGetThreadInfo": false,
+    "AntiGetUserInfo": false
+  },
+  "remoteControl": {
+    "enabled": false,
+    "url": "",
+    "token": "",
+    "autoReconnect": false
+  },
+  "threadCache": {
+    "maxAgeMs": 900000,
+    "invalidateIntervalMs": 900000
+  }
+}

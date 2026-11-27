@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Đăng nhập — Bảng điều khiển bot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<meta name="theme-color" content="#090b14">
+<script>try{var t=localStorage.theme;document.documentElement.dataset.theme=t||(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark")}catch(e){}</script>
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/logo-192.png">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="login-shell">
+  <div class="auth-split">
+    <aside class="auth-aside" aria-hidden="true">
+      <div>
+        <span class="auth-badge"><i class="live-dot"></i> Hệ thống vận hành 24/7</span>
+        <h2>Quản lý hệ thống Bot tập trung &amp; tự động hoá</h2>
+        <p>Điều khiển đồng thời nhiều bot Facebook &amp; Zalo, theo dõi nhật ký thời gian thực và tích hợp trợ lý AI thông minh.</p>
+        <div class="auth-features">
+          <div class="auth-feat"><i>✓</i><span>Khởi chạy, giám sát và tự khôi phục phiên hoạt động bot ổn định</span></div>
+          <div class="auth-feat"><i>✓</i><span>Tích hợp AI phản hồi tự nhiên kèm tuỳ chỉnh tính cách &amp; model</span></div>
+          <div class="auth-feat"><i>✓</i><span>Ví Coin tự động, gia hạn gói linh hoạt và cửa hàng tài khoản tích hợp</span></div>
+        </div>
+      </div>
+      <small style="color:var(--dim);font-size:.8rem">Bảo mật phiên đăng nhập · Hỗ trợ giao diện Sáng / Tối</small>
+    </aside>
+
+    <div class="login-card">
+      <img class="login-logo" src="/logo.svg" width="46" height="46" alt="">
+      <h1>Đăng nhập hệ thống</h1>
+      <p class="lead" id="lead">Đăng nhập để quản lý bot của bạn.</p>
+
+      <div class="note" id="note"></div>
+
+      <form id="form">
+        <div class="field">
+          <label for="u">Tên đăng nhập</label>
+          <input type="text" id="u" name="username" placeholder="Nhập tên đăng nhập" autocomplete="username" autocapitalize="off" required>
+        </div>
+        <div class="field">
+          <label for="p">Mật khẩu</label>
+          <input type="password" id="p" name="password" placeholder="Nhập mật khẩu" autocomplete="current-password" required>
+        </div>
+        <p class="aux" id="forgotLine"><a href="/forgot.html" id="forgotLink" hidden>Quên mật khẩu?</a><span id="forgotOff" hidden>Quên mật khẩu? Hãy nhắn quản trị viên để được cấp lại.</span></p>
+        <button class="primary wide" type="submit" id="btn">Đăng nhập</button>
+      </form>
+
+      <p id="signupLine" hidden style="margin-top:1.25rem;font-size:0.86rem;color:var(--dim)">
+        Chưa có tài khoản? <a href="/register.html" style="font-weight:600">Tạo tài khoản mới</a>
+      </p>
+    </div>
+  </div>
+</main>
+
+<script>
+const note = document.getElementById("note");
+
+fetch("/api/public").then(r => r.json()).then(d => {
+  if (d.signupOpen) {
+    document.getElementById("signupLine").hidden = false;
+    document.getElementById("lead").textContent = "Đăng nhập, hoặc tạo tài khoản mới nếu bạn chưa có.";
+  } else {
+    document.getElementById("lead").textContent = "Tài khoản do quản trị viên cấp.";
+  }
+  document.getElementById(d.mailEnabled ? "forgotLink" : "forgotOff").hidden = false;
+}).catch(() => {});
+
+document.getElementById("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("btn");
+  const prevText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Đang xác thực…";
+  note.className = "note";
+  note.textContent = "";
+  try {
+    const r = await fetch("/api/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        username: document.getElementById("u").value,
+        password: document.getElementById("p").value,
+      }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || "Đăng nhập thất bại");
+    location.href = "/dashboard.html";
+  } catch (err) {
+    note.className = "note bad";
+    note.textContent = err.message;
+    btn.disabled = false;
+    btn.textContent = prevText;
+  }
+});
+</script>
+<script src="/ui.js"></script>
+<script src="/site.js" defer></script>
+</body>
+</html>

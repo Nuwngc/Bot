@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Logo bot">
+  <defs>
+    <linearGradient id="g" x1="6" y1="4" x2="58" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#a77dff"/>
+      <stop offset="1" stop-color="#ec407a"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#g)"/>
+  <path d="M32 15V9.5" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="32" cy="7.6" r="3" fill="#fff"/>
+  <path fill="#fff" d="M19 15H45a9 9 0 0 1 9 9v10a9 9 0 0 1-9 9H31L21 52v-9h-2a9 9 0 0 1-9-9V24a9 9 0 0 1 9-9z"/>
+  <circle cx="24" cy="29" r="3.4" fill="#c2368f"/>
+  <circle cx="40" cy="29" r="3.4" fill="#c2368f"/>
+  <path d="M27.5 36.2q4.5 3 9 0" fill="none" stroke="#c2368f" stroke-width="2.6" stroke-linecap="round"/>
+</svg>

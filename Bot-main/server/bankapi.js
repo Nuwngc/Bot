@@ -1,0 +1,237 @@
+/**
+ * DOC LICH SU GIAO DICH NGAN HANG QUA API (theo bo code mau api_check.php trong file rar)
+ *
+ *  Hai dich vu:
+ *   - dichvudark (MB Bank, code mau trong file rar): POST https://api.dichvudark.vn/api/ApiMbBank, Loai_api = lsgdv2, kem Token, Code, Stk.
+ *   - casso (Techcombank va nhieu ngan hang khac): GET https://oauth.casso.vn/v2/transactions, header Authorization: Apikey <key>.
+ *     Techcombank khong co API cong khai cho tai khoan ca nhan, phai lien ket tai khoan vao Casso roi doc qua API cua Casso.
+ *  Moi giao dich tien VAO co noi dung chua ma NAPxxxxxxx se duoc khop voi lenh nap dang cho (xem autopay.js).
+ *
+ *  Token va Code ma hoa bang APP_SECRET khi luu CSDL, KHONG BAO GIO tra ve trinh duyet / app.
+ *  Luu y so voi code mau: khong tat kiem tra chung chi SSL, va xet TUNG giao dich (code mau chi xet giao dich dau tien).
+ */
+
+const crypto = require("crypto");
+const { getSetting, setSetting } = require("./db");
+const { encrypt, decrypt } = require("./crypto");
+const mailbox = require("./mailbox");
+
+const URLS = {
+  dichvudark: "https://api.dichvudark.vn/api/ApiMbBank", // MB Bank (code mau trong file rar)
+  casso: "https://oauth.casso.vn/v2/transactions",        // Casso: Techcombank va nhieu ngan hang khac
+};
+const PROVIDERS = [...Object.keys(URLS), "email"]; // email: doc thu bien dong so du cua ngan hang qua IMAP (server/mailbox.js)
+const TIMEOUT = 30000;
+
+const K = {
+  provider: "autopay_api_provider",
+  url: "autopay_api_url",
+  token: "autopay_api_token_enc",
+  code: "autopay_api_code_enc",
+  stk: "autopay_api_stk",
+  baseline: "autopay_api_baseline",
+  // Nguon "email": dang nhap hop thu qua IMAP de doc thu bien dong so du (mat khau ung dung ma hoa)
+  boxHost: "autopay_box_host",
+  boxPort: "autopay_box_port",
+  boxUser: "autopay_box_user",
+  boxPass: "autopay_box_pass_enc",
+  boxFrom: "autopay_box_from",
+  boxStrict: "autopay_box_strict",
+};
+const mailState = {}; // thu da doc trong bo nho, de lan hoi sau chi tai thu moi
+
+class BankApiError extends Error {}
+
+const providerOf = () => (PROVIDERS.includes(getSetting(K.provider)) ? getSetting(K.provider) : "dichvudark");
+
+const creds = () => {
+  const provider = providerOf();
+  return {
+    provider,
+    url: getSetting(K.url) || URLS[provider] || "",
+    defaultUrl: URLS[provider] || "",
+    token: decrypt(getSetting(K.token)) || "", // dichvudark: Token. casso: API Key
+    code: decrypt(getSetting(K.code)) || "",   // chi dichvudark
+    stk: getSetting(K.stk) || "",
+    mail: {
+      host: getSetting(K.boxHost) || "",
+      port: Number(getSetting(K.boxPort)) || 993,
+      user: getSetting(K.boxUser) || "",
+      pass: decrypt(getSetting(K.boxPass)) || "",
+      from: getSetting(K.boxFrom) || "",
+      strict: getSetting(K.boxStrict) !== "0", // mac dinh BAT kiem tra DKIM/SPF
+    },
+  };
+};
+
+/** Ten dung trong bang bank_events de tach giao dich cua tung dich vu */
+const eventProvider = () => ({ casso: "casso", email: "email" }[providerOf()] || "mbapi");
+
+/** Du thong tin de goi API chua */
+function isReady(c) {
+  c = c || creds();
+  if (c.provider === "email") return !!(c.mail.host && c.mail.user && c.mail.pass && c.mail.from);
+  return c.provider === "casso" ? !!c.token : !!(c.token && c.code && c.stk);
+}
+
+/** Luu cau hinh. Token / Code de trong = giu nguyen gia tri cu. Doi dich vu, so tai khoan hay khoa thi phai lay moc lai. */
+function save(b) {
+  b = b || {};
+  const cur = creds();
+  const provider = PROVIDERS.includes(b.provider) ? b.provider : cur.provider;
+  if (provider === "email") return saveEmail(b, cur, provider !== cur.provider);
+  if (cur.provider === "email" && provider !== cur.provider) wipeMail(); // roi nguon email: quen mat khau hop thu
+  const typedUrl = String(b.url || "").trim();
+  const url = typedUrl === URLS[provider] ? "" : typedUrl; // de trong = dung dia chi mac dinh cua dich vu
+  const token = String(b.token || "").trim();
+  const code = String(b.code || "").trim();
+  const stk = String(b.stk || "").trim();
+  if (url && (!/^https:\/\/[^\s/]+(\/\S*)?$/.test(url) || url.length > 300)) throw new Error("Địa chỉ API phải bắt đầu bằng https://");
+  if (token && !/^[\x21-\x7e]{8,3000}$/.test(token)) throw new Error(provider === "casso" ? "API Key không hợp lệ" : "Token không hợp lệ");
+  if (code && !/^[\x21-\x7e]{8,3000}$/.test(code)) throw new Error("Code không hợp lệ");
+  if (provider === "dichvudark" && !/^[0-9A-Za-z]{4,30}$/.test(stk)) throw new Error("Số tài khoản không hợp lệ");
+  if (provider === "casso" && stk && !/^[0-9A-Za-z]{4,30}$/.test(stk)) throw new Error("Số tài khoản không hợp lệ");
+  const switched = provider !== cur.provider;
+  const hasTok = !!token || (!switched && !!cur.token);
+  const hasCode = !!code || (!switched && !!cur.code);
+  if (!hasTok) throw new Error(provider === "casso" ? "Nhập API Key của Casso" : "Nhập Token");
+  if (provider === "dichvudark" && !hasCode) throw new Error("Nhập Code");
+  const changed = switched || (url || URLS[provider]) !== cur.url || stk !== cur.stk || !!token || !!code;
+  if (switched) { setSetting(K.token, ""); setSetting(K.code, ""); } // khoa cua dich vu cu khong dung cho dich vu moi
+  setSetting(K.provider, provider);
+  setSetting(K.url, url);
+  setSetting(K.stk, stk);
+  if (token) setSetting(K.token, encrypt(token));
+  if (code) setSetting(K.code, encrypt(code));
+  if (changed) setSetting(K.baseline, ""); // lan doc tiep theo chi ghi nho giao dich cu, khong cong coin
+}
+
+const wipeMail = () => { for (const k of [K.boxHost, K.boxPort, K.boxUser, K.boxPass, K.boxFrom, K.boxStrict]) setSetting(k, ""); };
+
+/** Luu cau hinh nguon email. Mat khau ung dung de trong = giu nguyen. Doi bat ky thong tin nao thi lay moc lai. */
+function saveEmail(b, cur, switched) {
+  const mb = b.mail;
+  if (!mb || typeof mb !== "object") throw new Error("Cấu hình đọc email hãy nhập trong trang quản trị trên web");
+  const host = String(mb.host || "").trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9.-]{1,98}[a-z0-9]$/.test(host) || !host.includes(".")) throw new Error("Máy chủ IMAP không hợp lệ (ví dụ imap.gmail.com)");
+  const port = Math.round(Number(mb.port) || 993);
+  if (!(port >= 1 && port <= 65535)) throw new Error("Cổng IMAP không hợp lệ");
+  const user = String(mb.user || "").trim();
+  if (!/^[\x21-\x7e]{3,254}$/.test(user)) throw new Error("Email đăng nhập không hợp lệ");
+  let pass = String(mb.pass || "").trim();
+  if (pass && /gmail|googlemail/.test(host)) pass = pass.replace(/\s+/g, ""); // Gmail hien mat khau ung dung kem dau cach
+  if (pass && !/^[\x20-\x7e]{4,200}$/.test(pass)) throw new Error("Mật khẩu ứng dụng không hợp lệ");
+  const from = String(mb.from || "").trim().toLowerCase();
+  if (!/^(?:[a-z0-9._%+-]+@)?[a-z0-9-]+(?:\.[a-z0-9-]+)+$/.test(from)) throw new Error("Nhập địa chỉ hoặc tên miền email của ngân hàng (ví dụ techcombank.com.vn)");
+  const strict = mb.strict === false || mb.strict === "0" ? "0" : "1";
+  if (!pass && !cur.mail.pass) throw new Error("Nhập mật khẩu ứng dụng của hộp thư");
+  const m = cur.mail;
+  const changed = switched || host !== m.host || port !== m.port || user !== m.user || from !== m.from || (strict === "1") !== m.strict || !!pass;
+  setSetting(K.provider, "email");
+  setSetting(K.url, "");
+  setSetting(K.stk, "");
+  setSetting(K.token, "");
+  setSetting(K.code, "");
+  setSetting(K.boxHost, host);
+  setSetting(K.boxPort, String(port));
+  setSetting(K.boxUser, user);
+  setSetting(K.boxFrom, from);
+  setSetting(K.boxStrict, strict);
+  if (pass) setSetting(K.boxPass, encrypt(pass));
+  if (changed) { setSetting(K.baseline, ""); for (const k of Object.keys(mailState)) delete mailState[k]; }
+}
+
+function wipe() {
+  for (const k of Object.keys(mailState)) delete mailState[k];
+  for (const k of Object.values(K)) setSetting(k, "");
+}
+
+const hasBaseline = () => getSetting(K.baseline) === "1";
+const markBaseline = () => setSetting(K.baseline, "1");
+
+const num = (v) => {
+  const n = Number(String(v ?? "").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+};
+
+/** Doi 1 dong lich su thanh { extId, amount (tien VAO), content, date } */
+function normalize(t) {
+  const credit = num(t.creditAmount ?? t.credit ?? t.amount_in);
+  const content = String(t.description ?? t.content ?? t.addDescription ?? "").trim();
+  const date = String(t.postingDate ?? t.transactionDate ?? t.transactionTime ?? t.date ?? "");
+  const ref = String(t.refNo ?? t.transactionRef ?? t.transactionId ?? t.id ?? "").trim();
+  // Khong co ma giao dich rieng thi lay dau van tay tu cac truong cua dong do
+  const extId = ref || "h:" + crypto.createHash("sha1")
+    .update([date, t.transactionDate, credit, num(t.debitAmount), content, t.accountNo || ""].join("|")).digest("hex").slice(0, 24);
+  return { extId: `${ref ? "ref:" : ""}${extId}`.slice(0, 80), amount: credit, content, date, debit: num(t.debitAmount) };
+}
+
+const vnDay = (backDays) => new Date(Date.now() + 7 * 3600e3 - backDays * 86400e3).toISOString().slice(0, 10);
+
+async function httpJson(url, opts) {
+  let res;
+  try {
+    res = await fetch(url, { ...opts, signal: AbortSignal.timeout(TIMEOUT) });
+  } catch (e) {
+    throw new BankApiError("Không kết nối được tới API ngân hàng, thử lại sau");
+  }
+  const text = await res.text();
+  let kq = null;
+  try { kq = JSON.parse(text); } catch (_) {}
+  if (!kq || typeof kq !== "object") throw new BankApiError(`API trả về dữ liệu lạ (HTTP ${res.status})`);
+  return { status: res.status, kq };
+}
+
+/** Dich vu dichvudark (MB Bank): POST form-data Loai_api=lsgdv2, header Code / Token / Stk */
+async function fetchDichvudark(c) {
+  const fd = new FormData(); // code mau dung curl voi mang => multipart/form-data
+  fd.append("Loai_api", "lsgdv2");
+  const { status, kq } = await httpJson(c.url, { method: "POST", headers: { Code: c.code, Token: c.token, Stk: c.stk }, body: fd });
+  const list = Array.isArray(kq.transactionHistoryList) ? kq.transactionHistoryList
+    : Array.isArray(kq.data?.transactionHistoryList) ? kq.data.transactionHistoryList : null;
+  if (!list) {
+    const why = String(kq.message || kq.msg || kq.error || kq.status || "").slice(0, 160);
+    throw new BankApiError(`API không trả về lịch sử giao dịch${why ? `: ${why}` : ` (HTTP ${status})`}. Kiểm tra Token, Code và số tài khoản`);
+  }
+  return list.map(normalize);
+}
+
+/** Casso (ho tro Techcombank): GET /v2/transactions, header Authorization: Apikey <key>. amount > 0 la tien vao, < 0 la tien ra. */
+async function fetchCasso(c) {
+  const u = new URL(c.url);
+  u.searchParams.set("fromDate", vnDay(3));
+  u.searchParams.set("page", "1");
+  u.searchParams.set("pageSize", "50");
+  u.searchParams.set("sort", "DESC"); // moi nhat truoc
+  const { status, kq } = await httpJson(u.toString(), { method: "GET", headers: { Authorization: `Apikey ${c.token}` } });
+  const records = Array.isArray(kq.data?.records) ? kq.data.records : null;
+  if (!records || (kq.error && kq.error !== 0)) {
+    const why = String(kq.message || kq.error || "").slice(0, 160);
+    throw new BankApiError(`Casso không trả về giao dịch${why ? `: ${why}` : ` (HTTP ${status})`}. Kiểm tra API Key và tài khoản đã liên kết trên Casso`);
+  }
+  return records
+    .filter((r) => !c.stk || !(r.bank_sub_acc_id || r.bankSubAccId) || String(r.bank_sub_acc_id || r.bankSubAccId) === c.stk)
+    .map((r) => {
+      const amt = num(r.amount);
+      const ref = String(r.tid || "").trim();
+      return {
+        extId: (ref ? `tid:${ref}` : `id:${r.id}`).slice(0, 80),
+        amount: amt > 0 ? amt : 0,
+        debit: amt < 0 ? -amt : 0,
+        content: String(r.description || "").trim(),
+        date: String(r.when || ""),
+      };
+    });
+}
+
+/** Goi API, tra ve mang giao dich da chuan hoa (moi nhat truoc, theo thu tu API tra ve) */
+async function fetchHistory() {
+  const c = creds();
+  if (!isReady(c)) throw new BankApiError(c.provider === "casso" ? "Chưa nhập API Key Casso" : c.provider === "email" ? "Chưa nhập đủ thông tin hộp thư (máy chủ IMAP, email, mật khẩu ứng dụng, người gửi)" : "Chưa nhập đủ Token, Code và số tài khoản");
+  if (c.provider === "email") {
+    try { return await mailbox.fetchBankMails(c.mail, mailState); } catch (e) { throw new BankApiError(e.message || "Không đọc được hộp thư"); }
+  }
+  return c.provider === "casso" ? fetchCasso(c) : fetchDichvudark(c);
+}
+
+module.exports = { creds, save, wipe, fetchHistory, hasBaseline, markBaseline, isReady, eventProvider, BankApiError, URLS };

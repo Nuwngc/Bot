@@ -1,0 +1,20 @@
+node_modules/
+.env
+.env.*
+!.env.example
+
+# Cơ sở dữ liệu & nhật ký chạy thực tế
+data/
+Fca_Database/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.log
+
+# Khóa ký ứng dụng & tệp tạm hệ điều hành
+*.keystore
+*.jks
+.DS_Store
+Thumbs.db

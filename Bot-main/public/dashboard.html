@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bảng điều khiển bot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<meta name="theme-color" content="#090b14">
+<script>try{var t=localStorage.theme;document.documentElement.dataset.theme=t||(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark")}catch(e){}</script>
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/logo-192.png">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header class="topbar">
+    <h1><a class="logo" id="logo" href="/dashboard.html" title="Tải lại trang" aria-label="Tải lại trang"><img src="/logo.svg" width="38" height="38" alt=""></a><span>Bảng điều khiển bot</span></h1>
+    <span class="who"><span id="who"></span> · <a href="#" id="logout">Đăng xuất</a></span>
+    <button class="wallet-chip" id="walletChip" type="button" aria-label="Số dư ví. Bấm để nạp tiền">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7a2 2 0 0 1 2-2h11v3M4 7v11a2 2 0 0 0 2 2h13V8H6a2 2 0 0 1-2-1zM16 14h2"/></svg>
+      <b id="chipBal">…</b><small>coin</small><span class="plus" aria-hidden="true">+</span>
+    </button>
+  </header>
+
+  <div class="live" id="live" hidden>
+    <span class="live-chip" id="liveOnlineChip"><i class="live-dot"></i><b id="liveOnline">0</b> đang online</span>
+    <span class="live-chip" id="liveBotsChip"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3 5 13.5h6L10 21l8-10.5h-6L13 3z"/></svg><b id="liveBots">0</b> bot đang chạy</span>
+  </div>
+
+  <div class="notice" id="mailNotice" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path d="m4.5 7.5 7.5 6 7.5-6"/></svg>
+    <span id="mailNoticeText"></span>
+    <button type="button" class="link-btn" id="mailNoticeGo"></button>
+    <button type="button" class="notice-x" id="mailNoticeX" aria-label="Ẩn nhắc nhở">×</button>
+  </div>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="fb" class="on">Facebook</button>
+    <button data-tab="zalo">Zalo</button>
+    <button data-tab="wallet">Nạp tiền</button>
+    <button data-tab="rank">Xếp hạng</button>
+    <button data-tab="plan">Thanh toán</button>
+    <button data-tab="profile">Cá nhân</button>
+    <button data-tab="stats" id="tabStatsBtn" hidden>Doanh thu</button>
+  </nav>
+
+  <!-- ================= Facebook ================= -->
+  <div class="tab" id="tab-fb">
+    <section>
+      <div class="list-head">
+        <h2>Bot Facebook</h2>
+        <button class="primary" id="fbAdd">+ Thêm bot</button>
+      </div>
+      <p class="state-meta" id="fbSlots"></p>
+      <div class="bots" id="fbList"><div class="empty">Đang tải…</div></div>
+    </section>
+
+    <section id="fbDetail" hidden>
+      <div class="state">
+        <div class="state-line">
+          <span class="lamp" id="fbLamp"></span>
+          <span class="state-word" id="fbTitle"></span>
+        </div>
+        <p class="state-meta" id="fbMeta"></p>
+        <div class="row">
+          <button class="primary" id="fbStart">Bật</button>
+          <button id="fbStop">Tắt</button>
+        </div>
+      </div>
+
+      <h3>Đăng nhập Facebook</h3>
+      <div class="row seg">
+        <button id="fbTabCookie" class="primary">Dán cookie</button>
+        <button id="fbTabPw">Email + mật khẩu</button>
+      </div>
+      <div id="fbPaneCookie">
+        <p class="hint" id="fbCookieHint">Nhận mảng JSON từ extension hoặc chuỗi <code>tên=giá_trị; …</code> từ DevTools.</p>
+        <div class="field"><textarea id="fbCookie" placeholder="datr=...; c_user=...; xs=...; fr=..."></textarea></div>
+        <div class="row">
+          <button class="primary" id="fbSaveCookie">Lưu cookie</button>
+          <button class="danger" id="fbDelCookie">Xoá cookie</button>
+        </div>
+      </div>
+      <div id="fbPanePw" hidden>
+        <p class="hint">Thử nghiệm: không dùng được với tài khoản bật 2FA và dễ bị Facebook đánh dấu hơn dán cookie.</p>
+        <div class="field">
+          <label for="fbEmail">Email hoặc số điện thoại</label>
+          <input type="text" id="fbEmail" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="fbPassword">Mật khẩu Facebook</label>
+          <input type="password" id="fbPassword" autocomplete="off">
+        </div>
+        <button class="primary" id="fbLoginPw">Đăng nhập</button>
+      </div>
+
+      <h3>Cài đặt bot</h3>
+      <div class="field">
+        <label for="fbName">Tên bot</label>
+        <input type="text" id="fbName" maxlength="40">
+      </div>
+      <div class="field">
+        <label for="fbPrefix">Ký tự lệnh</label>
+        <input type="text" id="fbPrefix" maxlength="3" style="max-width:6rem">
+      </div>
+      <label class="check"><input type="checkbox" id="fbAuto"> Tự bật khi server khởi động lại</label>
+      <div class="row">
+        <button class="primary" id="fbSave">Lưu cài đặt</button>
+        <button class="danger" id="fbDelete">Xoá bot</button>
+      </div>
+
+      <div class="pay" id="fbPay"></div>
+
+      <h3>Nhật ký</h3>
+      <div class="log" id="fbLog"><div class="empty">Chưa có gì.</div></div>
+    </section>
+
+    <section id="aiKeyBox">
+      <h2>Khoá API cho trả lời AI</h2>
+      <p>Dùng chung cho mọi bot Facebook của bạn khi có người tag bot. Bỏ trống thì trò chơi vẫn chạy.</p>
+      <div class="field">
+        <input type="password" id="aikey" placeholder="sk-ant-..." autocomplete="off">
+      </div>
+      <button class="primary" id="btnSaveKey">Lưu khoá</button>
+    </section>
+    <section id="aiManagedNote" hidden>
+      <h2>Trả lời AI</h2>
+      <p>Phần tag bot để hỏi AI dùng cấu hình do quản trị viên cấp. Bạn có thể chỉnh mô hình và tính cách bên dưới.</p>
+    </section>
+    <section>
+      <h2>Cài đặt AI</h2>
+      <div class="field">
+        <label for="aiModel">Model AI</label>
+        <input type="text" id="aiModel" placeholder="claude-haiku-4-5-20251001">
+      </div>
+      <div class="field">
+        <label for="aiSystem">Tính cách của bot</label>
+        <textarea id="aiSystem" placeholder="Trả lời ngắn gọn, thân thiện, bằng tiếng Việt…"></textarea>
+      </div>
+      <button class="primary" id="btnSaveSettings">Lưu cài đặt AI</button>
+    </section>
+  </div>
+
+  <!-- ================= Zalo ================= -->
+  <div class="tab" id="tab-zalo" hidden>
+    <section>
+      <div class="list-head">
+        <h2>Bot Zalo</h2>
+        <button class="primary" id="zlAdd">+ Thêm bot</button>
+      </div>
+      <p class="state-meta" id="zlSlots"></p>
+      <div class="bots" id="zlList"><div class="empty">Đang tải…</div></div>
+    </section>
+
+    <section id="zlDetail" hidden>
+      <div class="state">
+        <div class="state-line">
+          <span class="lamp" id="zlLamp"></span>
+          <span class="state-word" id="zlTitle"></span>
+        </div>
+        <p class="state-meta" id="zlMeta"></p>
+        <div class="row">
+          <button class="primary" id="zlStart">Bật</button>
+          <button id="zlStop">Tắt</button>
+        </div>
+      </div>
+
+      <h3>Đăng nhập Zalo</h3>
+      <p class="hint" id="zlLoginHint">Lấy khi đang đăng nhập chat.zalo.me trên trình duyệt.</p>
+      <div class="field">
+        <label for="zlImei">IMEI</label>
+        <input type="text" id="zlImei" autocomplete="off" autocapitalize="off" placeholder="z_uuid trong Local Storage của chat.zalo.me">
+      </div>
+      <div class="field">
+        <label for="zlCookie">Cookie</label>
+        <textarea id="zlCookie" placeholder='{"zpw_sek": "...", ...}  hoặc  zpw_sek=...; zpsid=...'></textarea>
+      </div>
+      <div class="row">
+        <button class="primary" id="zlSaveLogin">Lưu đăng nhập</button>
+        <button class="danger" id="zlDelLogin">Xoá đăng nhập</button>
+      </div>
+
+      <h3>Cài đặt bot</h3>
+      <div class="field">
+        <label for="zlName">Tên bot</label>
+        <input type="text" id="zlName" maxlength="40">
+      </div>
+      <div class="field">
+        <label for="zlPrefix">Ký tự lệnh</label>
+        <input type="text" id="zlPrefix" maxlength="3" style="max-width:6rem">
+      </div>
+      <label class="check"><input type="checkbox" id="zlMain"> Bot chính</label>
+      <label class="check"><input type="checkbox" id="zlAuto"> Tự bật khi server khởi động lại</label>
+      <div class="row">
+        <button class="primary" id="zlSave">Lưu cài đặt</button>
+        <button class="danger" id="zlDelete">Xoá bot</button>
+      </div>
+
+      <div class="pay" id="zlPay"></div>
+
+      <h3>Nhật ký</h3>
+      <div class="log" id="zlLog"><div class="empty">Chưa có gì.</div></div>
+    </section>
+  </div>
+
+  <!-- ================= Thanh toán ================= -->
+  <div class="tab" id="tab-plan" hidden>
+    <section>
+      <h2>Thời hạn các bot</h2>
+      <p>Mỗi bot có thời hạn riêng và thanh toán riêng: trả cho bot nào thì chỉ bot đó được cộng thời gian.</p>
+      <div class="users" id="billBots"><div class="empty">Đang tải…</div></div>
+    </section>
+    <section>
+      <div id="orderBox"></div>
+      <div id="orderHistory"></div>
+    </section>
+  </div>
+
+  <!-- ================= Ví ================= -->
+  <div class="tab" id="tab-wallet" hidden>
+    <section>
+      <div class="wallet-hero">
+        <div class="wallet-label">Số dư ví</div>
+        <div class="wallet-balance"><b id="wBalance">0</b><span>coin</span></div>
+        <div class="wallet-stats">
+          <div><small>Tổng đã nạp</small><strong id="wTotal">0</strong></div>
+          <div><small>Nạp tháng này</small><strong id="wMonth">0</strong></div>
+        </div>
+      </div>
+    </section>
+    <section>
+      <h2>Nạp coin</h2>
+      <p>1 coin = 1đ. Nhập số tiền tuỳ ý, chuyển khoản theo mã, coin vào ví sau khi quản trị viên xác nhận. Gia hạn bot sẽ trừ coin trong ví. Nạp càng nhiều càng lên hạng xếp hạng tháng.</p>
+      <div class="chips" id="wChips"></div>
+      <div class="coupon-row">
+        <input type="text" id="wAmount" inputmode="numeric" placeholder="Số tiền muốn nạp" autocomplete="off">
+        <button class="primary" id="wDeposit">Nạp tiền</button>
+      </div>
+      <div id="wPending"></div>
+    </section>
+    <section>
+      <h2>Lịch sử ví</h2>
+      <div class="chips" id="wKinds">
+        <button type="button" data-kind="" class="on">Tất cả</button>
+        <button type="button" data-kind="deposit">Nạp tiền</button>
+        <button type="button" data-kind="spend">Thanh toán</button>
+        <button type="button" data-kind="reward">Thưởng</button>
+      </div>
+      <div class="users" id="wHistory"><div class="empty">Đang tải…</div></div>
+      <button type="button" class="wide" id="wMore" hidden>Xem thêm giao dịch cũ</button>
+    </section>
+  </div>
+
+  <!-- ================= Xếp hạng ================= -->
+  <div class="tab" id="tab-rank" hidden>
+    <section>
+      <h2 id="rkTitle">Bảng xếp hạng nạp</h2>
+      <p id="rkSub"></p>
+      <div class="podium" id="rkPodium"></div>
+      <div class="rk-me" id="rkMe"></div>
+      <div class="users" id="rkList"></div>
+    </section>
+    <section id="rkLastBox" hidden>
+      <h3>Vinh danh tháng trước</h3>
+      <div class="users" id="rkLast"></div>
+    </section>
+  </div>
+
+  <!-- ================= Cá nhân ================= -->
+  <div class="tab" id="tab-profile" hidden>
+    <section>
+      <div class="pf-head">
+        <div class="pf-avatar" id="pfAvatar">?</div>
+        <div>
+          <div class="pf-name" id="pfName">…</div>
+          <div class="pf-sub" id="pfSub"></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Email khôi phục</h2>
+      <p id="pfEmailHint">Liên kết email để có thể lấy lại tài khoản khi quên mật khẩu. Hệ thống sẽ gửi mã 6 số tới email để xác thực.</p>
+      <div id="pfEmail"></div>
+    </section>
+
+    <section>
+      <h2>Đổi mật khẩu</h2>
+      <div class="field">
+        <label for="pwCur">Mật khẩu hiện tại</label>
+        <input type="password" id="pwCur" autocomplete="current-password">
+      </div>
+      <div class="field">
+        <label for="pwNew">Mật khẩu mới (tối thiểu 8 ký tự)</label>
+        <input type="password" id="pwNew" autocomplete="new-password">
+      </div>
+      <div class="field">
+        <label for="pwNew2">Nhập lại mật khẩu mới</label>
+        <input type="password" id="pwNew2" autocomplete="new-password">
+      </div>
+      <button class="primary" id="pwSave">Đổi mật khẩu</button>
+      <p class="hint" style="margin-top:.7rem">Đổi mật khẩu xong, các thiết bị khác đang đăng nhập sẽ bị đăng xuất.</p>
+    </section>
+  </div>
+
+  <!-- ================= Doanh thu (admin) ================= -->
+  <div class="tab" id="tab-stats" hidden>
+    <section>
+      <h2>Doanh thu</h2>
+      <p>Tiền thật đã nhận = coin nạp (admin đã xác nhận) cộng đơn thuê bot chuyển khoản trực tiếp ngày trước. Coin dùng để thuê bot không tính là tiền mới. Không tính tài khoản quản trị. Ngày, tháng theo giờ Việt Nam.</p>
+      <div class="stat-grid" id="stCards"><div class="empty">Đang tải…</div></div>
+    </section>
+
+    <section>
+      <div class="list-head">
+        <h3>Biểu đồ tiền nhận</h3>
+        <div class="chips" id="stRange">
+          <button type="button" data-range="day" class="on">30 ngày</button>
+          <button type="button" data-range="month">12 tháng</button>
+        </div>
+      </div>
+      <div class="bars" id="stBars"></div>
+      <div class="bars-cap" id="stCap">Chạm vào một cột để xem số tiền.</div>
+    </section>
+
+    <section>
+      <h3>Chi tiết</h3>
+      <div class="chips" id="stScope">
+        <button type="button" data-scope="month" class="on">Tháng này</button>
+        <button type="button" data-scope="all">Tất cả</button>
+      </div>
+      <div class="users" id="stDetail"></div>
+    </section>
+
+    <section>
+      <h2>Lịch sử giao dịch</h2>
+      <p>Toàn bộ giao dịch của mọi tài khoản: nạp, thanh toán bằng ví, thưởng, điều chỉnh của admin và đơn chuyển khoản cũ.</p>
+      <div class="ledger-filters">
+        <select id="lgKind" aria-label="Loại giao dịch">
+          <option value="">Mọi loại</option>
+          <option value="deposit">Nạp tiền</option>
+          <option value="spend">Thanh toán</option>
+          <option value="shop">Mua acc</option>
+          <option value="reward">Thưởng</option>
+          <option value="adjust">Điều chỉnh</option>
+          <option value="legacy">Đơn chuyển khoản cũ</option>
+        </select>
+        <input type="text" id="lgQ" placeholder="Tìm tài khoản, ghi chú, mã" autocomplete="off">
+        <input type="date" id="lgFrom" aria-label="Từ ngày">
+        <input type="date" id="lgTo" aria-label="Đến ngày">
+      </div>
+      <div class="row" style="margin:.6rem 0">
+        <button class="primary" id="lgGo">Lọc</button>
+        <button id="lgCsv">Xuất CSV</button>
+      </div>
+      <p class="hint" id="lgSum"></p>
+      <div class="users ledger" id="lgList"><div class="empty">Đang tải…</div></div>
+      <div class="pager" id="lgPager" hidden>
+        <button type="button" id="lgPrev">‹ Trước</button>
+        <span id="lgPage"></span>
+        <button type="button" id="lgNext">Sau ›</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- ================= Quản trị ================= -->
+  <div class="tab" id="tab-admin" hidden>
+    <section id="adminBox" hidden>
+      <h2>Tài khoản</h2>
+      <p>Người dùng có thể tự đăng ký ở trang đăng nhập (bật hoặc tắt ở mục Cấu hình chung). Bạn cũng có thể tạo tài khoản tại đây rồi đưa mật khẩu cho họ.</p>
+      <div class="field">
+        <label for="nu">Tên đăng nhập mới</label>
+        <input type="text" id="nu" placeholder="vidu: minh.nguyen" autocapitalize="off">
+      </div>
+      <div class="field">
+        <label for="np">Mật khẩu (tối thiểu 8 ký tự)</label>
+        <input type="text" id="np" autocomplete="off">
+      </div>
+      <label class="check">
+        <input type="checkbox" id="nr"> Cấp quyền quản trị
+      </label>
+      <button class="primary" id="btnAddUser">Tạo tài khoản</button>
+      <div class="users" id="users" style="margin-top:1.2rem"></div>
+    </section>
+
+    <section id="sectionsBox" hidden>
+      <h2>Ẩn mục với người dùng</h2>
+      <p>Ẩn cả mục Facebook hoặc Zalo khỏi mọi người dùng thường. Admin vẫn thấy. Bot đang chạy vẫn chạy bình thường.</p>
+      <div class="users" id="sectionRows"></div>
+    </section>
+
+    <section id="ordersBox" hidden>
+      <h2>Đơn thuê bot</h2>
+      <p>Đối chiếu nội dung chuyển khoản với mã đơn rồi xác nhận. Hạn dùng được cộng ngay khi xác nhận.</p>
+      <div class="users" id="orders"></div>
+    </section>
+
+    <section id="mailBox" hidden>
+      <h2>Email gửi mã xác thực</h2>
+      <p>Hệ thống tự gửi mã 6 số tới email người dùng để xác thực email và khôi phục mật khẩu khi họ quên.</p>
+      <div class="mail-state"><span class="tag" id="mailState">…</span><small id="mailFromEnv" hidden>Đang dùng cấu hình từ biến môi trường</small></div>
+      <div class="field">
+        <label for="mailProvider">Cách gửi</label>
+        <select id="mailProvider">
+          <option value="">Tắt gửi email</option>
+          <option value="brevo">Brevo (qua API)</option>
+          <option value="smtp">SMTP (Gmail, Outlook…)</option>
+        </select>
+        <p class="hint" style="margin:.5rem 0 0">Brevo gửi qua API nên chạy được cả trên Render gói free. SMTP phù hợp khi chạy trên VPS hoặc Termux.</p>
+      </div>
+      <div id="mailCommon" hidden>
+        <div class="field">
+          <label for="mailFrom">Email người gửi</label>
+          <input type="text" id="mailFrom" placeholder="vidu@gmail.com" autocomplete="off" autocapitalize="off">
+        </div>
+        <div class="field">
+          <label for="mailName">Tên hiển thị</label>
+          <input type="text" id="mailName" placeholder="Bảng điều khiển bot" autocomplete="off">
+        </div>
+      </div>
+      <div id="mailBrevo" hidden>
+        <div class="field">
+          <label for="brevoKey">API key Brevo (v3)</label>
+          <input type="password" id="brevoKey" autocomplete="off" placeholder="Dán key mới để thay, để trống thì giữ nguyên">
+        </div>
+        <details class="guide">
+          <summary>Cách lấy API key Brevo (miễn phí 300 email/ngày)</summary>
+          <ol>
+            <li>Đăng ký tại brevo.com bằng email của bạn.</li>
+            <li>Vào <b>Senders, Domains &amp; Dedicated IPs → Senders → Add a sender</b>, nhập email gửi (Gmail cũng được) rồi bấm link xác minh Brevo gửi vào email đó.</li>
+            <li>Vào <b>SMTP &amp; API → API Keys → Generate a new API key</b>, sao chép key.</li>
+            <li>Dán key vào ô trên, nhập đúng email người gửi đã xác minh, bấm Lưu rồi Gửi thử.</li>
+          </ol>
+        </details>
+      </div>
+      <div id="mailSmtp" hidden>
+        <div class="field"><label for="smtpHost">Máy chủ SMTP</label><input type="text" id="smtpHost" placeholder="smtp.gmail.com" autocomplete="off" autocapitalize="off"></div>
+        <div class="field"><label for="smtpPort">Cổng (587 hoặc 465)</label><input type="text" id="smtpPort" inputmode="numeric" placeholder="587" style="max-width:8rem"></div>
+        <div class="field"><label for="smtpUser">Tài khoản</label><input type="text" id="smtpUser" autocomplete="off" autocapitalize="off"></div>
+        <div class="field"><label for="smtpPass">Mật khẩu (Gmail dùng mật khẩu ứng dụng)</label><input type="password" id="smtpPass" autocomplete="new-password" placeholder="Để trống thì giữ nguyên"></div>
+        <p class="hint">Render gói free chặn cổng SMTP. Nếu chạy trên Render hãy chọn Brevo.</p>
+      </div>
+      <div class="row" style="margin:.4rem 0 .9rem">
+        <button class="primary" id="mailSave">Lưu cấu hình</button>
+      </div>
+      <h3>Gửi thử</h3>
+      <div class="coupon-row">
+        <input type="text" id="mailTo" style="text-transform:none" placeholder="Email nhận thử" autocomplete="off" autocapitalize="off">
+        <button id="mailTest">Gửi thử</button>
+      </div>
+    </section>
+
+    <section id="depositsBox" hidden>
+      <h2>Nạp coin chờ duyệt</h2>
+      <p>Đối chiếu nội dung chuyển khoản với mã nạp rồi xác nhận. Coin vào ví người dùng ngay khi xác nhận.</p>
+      <div class="users" id="deposits"></div>
+    </section>
+
+    <section id="rewardBox" hidden>
+      <h2>Phần thưởng xếp hạng (top 10)</h2>
+      <p>Đầu mỗi tháng (giờ Việt Nam), hệ thống tự cộng coin vào ví 10 người nạp nhiều nhất của tháng trước, mỗi hạng một mức thưởng riêng. Đặt 0 để hạng đó không có thưởng. Tài khoản quản trị không tham gia xếp hạng.</p>
+      <div class="reward-grid" id="rwGrid"></div>
+      <button class="primary" id="rwSave">Lưu phần thưởng</button>
+    </section>
+
+    <section id="adjustBox">
+      <h2>Cộng hoặc trừ coin thủ công</h2>
+      <p>Nhập tên tài khoản và số coin. Số dương là cộng, số âm là trừ. Mỗi lần chỉnh đều được ghi vào lịch sử giao dịch.</p>
+      <div class="row">
+        <input type="text" id="adjUser" placeholder="Tên tài khoản" autocomplete="off" autocapitalize="none">
+        <input type="text" id="adjAmount" placeholder="Số coin (ví dụ 50000 hoặc -20000)" inputmode="numeric" autocomplete="off">
+      </div>
+      <div class="coupon-row" style="margin-top:.55rem">
+        <input type="text" id="adjNote" placeholder="Ghi chú (không bắt buộc)" autocomplete="off">
+        <button id="adjGo">Áp dụng</button>
+      </div>
+    </section>
+
+    <section id="pricingBox">
+      <h2>Bảng giá</h2>
+      <p>Mỗi dòng là một gói gia hạn cho <strong>một bot</strong>. Để giá 0 nếu không bán gói đó cho loại bot tương ứng.</p>
+      <div class="plan-edit" id="planRows"></div>
+      <div class="row">
+        <button id="btnAddPlan">+ Thêm gói</button>
+        <button class="primary" id="btnSavePlans">Lưu bảng giá</button>
+      </div>
+    </section>
+
+    <section id="couponBox">
+      <h2>Mã giảm giá</h2>
+      <div class="field">
+        <label for="cpCode">Mã</label>
+        <input type="text" id="cpCode" placeholder="VD: KHAITRUONG" autocapitalize="characters" maxlength="20">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="cpKind">Kiểu giảm</label>
+          <select id="cpKind"><option value="percent">Theo %</option><option value="amount">Số tiền (đ)</option></select>
+        </div>
+        <div class="field">
+          <label for="cpValue">Mức giảm</label>
+          <input type="text" inputmode="numeric" id="cpValue" placeholder="20">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="cpProduct">Áp dụng cho</label>
+          <select id="cpProduct"><option value="all">Mọi bot</option><option value="fb">Chỉ Facebook</option><option value="zalo">Chỉ Zalo</option></select>
+        </div>
+        <div class="field">
+          <label for="cpMax">Số lượt (0 = không giới hạn)</label>
+          <input type="text" inputmode="numeric" id="cpMax" value="0">
+        </div>
+      </div>
+      <div class="field">
+        <label for="cpExpires">Hết hạn (bỏ trống = không hết hạn)</label>
+        <input type="date" id="cpExpires">
+      </div>
+      <label class="check"><input type="checkbox" id="cpOnce" checked> Mỗi tài khoản chỉ dùng 1 lần</label>
+      <button class="primary" id="btnAddCoupon">Tạo mã</button>
+      <div class="users" id="coupons" style="margin-top:1.2rem"></div>
+    </section>
+
+    <section id="settingsBox" hidden>
+      <h2>Cấu hình chung</h2>
+      <label class="check">
+        <input type="checkbox" id="signupOpen"> Cho phép tự đăng ký tài khoản
+      </label>
+      <div class="field">
+        <label for="trialDays">Số ngày dùng thử khi đăng ký</label>
+        <input type="text" id="trialDays" style="max-width:6rem">
+      </div>
+      <div class="field">
+        <label for="bankId">Mã ngân hàng (VietQR)</label>
+        <input type="text" id="bankId" placeholder="MB, VCB, TCB, 970422…">
+      </div>
+      <div class="field">
+        <label for="bankAccount">Số tài khoản</label>
+        <input type="text" id="bankAccount">
+      </div>
+      <div class="field">
+        <label for="bankOwner">Tên chủ tài khoản</label>
+        <input type="text" id="bankOwner">
+      </div>
+      <div class="field">
+        <label for="payNote">Ghi chú hiện cho người thuê</label>
+        <input type="text" id="payNote" placeholder="Chuyển xong nhắn Zalo 09xx để được duyệt nhanh">
+      </div>
+
+      <h2 style="margin-top:1.6rem">Khoá AI dùng chung</h2>
+      <p>Áp dụng cho mọi tài khoản không tự nhập khoá riêng. Người dùng thường không thấy mục này.</p>
+      <div class="field">
+        <label for="globalAiKey">Khoá API</label>
+        <input type="password" id="globalAiKey" placeholder="sk-ant-...">
+      </div>
+      <div class="field">
+        <label for="globalAiModel">Model mặc định</label>
+        <input type="text" id="globalAiModel" placeholder="claude-haiku-4-5-20251001">
+      </div>
+      <div class="field">
+        <label for="globalAiSystem">Tính cách mặc định</label>
+        <textarea id="globalAiSystem" placeholder="Trả lời ngắn gọn, thân thiện, bằng tiếng Việt…"></textarea>
+      </div>
+
+      <button class="primary" id="btnSaveGlobal">Lưu cấu hình</button>
+    </section>
+  </div>
+
+</div>
+
+<div class="note" id="note"></div>
+
+<script src="/dialog.js"></script>
+<script src="/app.js"></script>
+<script src="/bots.js"></script>
+<script src="/wallet.js"></script>
+<script src="/autopay.js"></script>
+<script src="/toolcfg-admin.js"></script>
+<script src="/site-admin.js"></script>
+<script src="/linkcoin.js"></script>
+<script src="/shop.js"></script>
+<script src="/pdf-lite.js"></script>
+<script src="/office-tools.js"></script>
+<script src="/translate-tools.js"></script>
+<script src="/toolcfg.js"></script>
+<script src="/zalo-gemini.js"></script>
+<script src="/account.js"></script>
+<script src="/revenue.js"></script>
+<script src="/linkstats.js"></script>
+<script src="/admin-menu.js"></script>
+<script src="/ui.js"></script>
+<script src="/site.js" defer></script>
+</body>
+</html>

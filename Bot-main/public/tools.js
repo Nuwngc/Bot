@@ -1,0 +1,653 @@
+/* Tab CÔNG CỤ: các tiện ích nhỏ chạy ngay trên trình duyệt (không gửi dữ liệu lên máy chủ).
+   Tự thêm tab + giao diện + CSS, được nạp từ ui.js (giống guide.js). */
+(() => {
+  const tabs = document.getElementById("tabs");
+  if (!tabs || document.getElementById("tab-tools")) return;
+
+  const g = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const toast = (t, kind) => (typeof say === "function" ? say(t, kind) : alert(t));
+  const fmt = (n) => Number(n || 0).toLocaleString("vi-VN");
+  const num = (s) => Number(String(s).replace(/[^\d]/g, "")) || 0;
+
+  async function copyText(t) {
+    if (!t) return toast("Chưa có nội dung để sao chép.", "bad");
+    try { await navigator.clipboard.writeText(t); }
+    catch {
+      const ta = document.createElement("textarea");
+      ta.value = t; ta.style.cssText = "position:fixed;opacity:0";
+      document.body.append(ta); ta.select();
+      try { document.execCommand("copy"); } catch (_) {}
+      ta.remove();
+    }
+    toast("Đã sao chép.");
+  }
+
+  /* số ngẫu nhiên an toàn, không lệch (crypto + loại bỏ phần dư) */
+  function rnd(n) {
+    const max = Math.floor(0x100000000 / n) * n, a = new Uint32Array(1);
+    let x;
+    do { crypto.getRandomValues(a); x = a[0]; } while (x >= max);
+    return x % n;
+  }
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  }
+
+  /* ================= 1. COOKIE ================= */
+  const ATTRS = new Set(["path", "domain", "expires", "max-age", "secure", "httponly", "samesite"]);
+  function parseCookies(raw) {
+    raw = String(raw || "").trim().replace(/^cookie\s*:\s*/i, "");
+    if (!raw) throw new Error("Chưa nhập cookie.");
+    let list = [];
+    if (raw[0] === "[" || raw[0] === "{") {
+      let j;
+      try { j = JSON.parse(raw); } catch { throw new Error("JSON không hợp lệ. Kiểm tra dấu ngoặc và dấu phẩy."); }
+      if (!Array.isArray(j)) j = Array.isArray(j.cookies) ? j.cookies : Object.entries(j).map(([key, value]) => ({ key, value }));
+      list = j.filter((c) => c && typeof c === "object").map((c) => ({
+        key: String(c.key ?? c.name ?? ""), value: String(c.value ?? ""), domain: c.domain, path: c.path,
+        expires: c.expirationDate ?? c.expires ?? null,
+      }));
+    } else {
+      raw.split(/;|\r?\n/).forEach((part) => {
+        const i = part.indexOf("=");
+        if (i < 1) return;
+        const key = part.slice(0, i).trim(), value = part.slice(i + 1).trim().replace(/^"|"$/g, "");
+        if (key && !ATTRS.has(key.toLowerCase())) list.push({ key, value });
+      });
+    }
+    const map = new Map();
+    list.filter((c) => c.key).forEach((c) => map.set(c.key, c));
+    if (!map.size) throw new Error("Không đọc được cookie nào. Dạng đúng: ten=giatri; ten2=giatri2");
+    return [...map.values()];
+  }
+  const cookieHas = (l, k) => l.find((c) => c.key === k);
+  function cookieToJson(list) {
+    const now = new Date().toISOString();
+    const dom = cookieHas(list, "c_user") || cookieHas(list, "xs") ? "facebook.com" : cookieHas(list, "zpw_sek") || cookieHas(list, "zpsid") ? "zalo.me" : "";
+    return JSON.stringify(list.map((c) => {
+      const o = { key: c.key, value: c.value };
+      if (c.domain || dom) o.domain = c.domain || dom;
+      o.path = c.path || "/"; o.hostOnly = false; o.creation = now; o.lastAccessed = now;
+      return o;
+    }), null, 2);
+  }
+  const cookieToString = (list) => list.map((c) => `${c.key}=${c.value}`).join("; ");
+  function cookieInfo(list) {
+    const chips = [`<span class="tl-chip">${list.length} cookie</span>`];
+    const cu = cookieHas(list, "c_user"), xs = cookieHas(list, "xs");
+    if (cu || xs || cookieHas(list, "datr")) {
+      chips.push(cu ? `<span class="tl-chip ok">Facebook UID: ${esc(cu.value)}</span>` : `<span class="tl-chip bad">Thiếu c_user</span>`);
+      chips.push(xs ? `<span class="tl-chip ok">Có xs</span>` : `<span class="tl-chip bad">Thiếu xs: không đăng nhập được</span>`);
+    }
+    if (cookieHas(list, "zpw_sek") || cookieHas(list, "zpsid")) chips.push(`<span class="tl-chip ok">Có dấu hiệu cookie Zalo</span>`);
+    const nowS = Date.now() / 1000, dead = list.filter((c) => c.expires && Number(c.expires) > 1e9 && Number(c.expires) < nowS).length;
+    if (dead) chips.push(`<span class="tl-chip bad">${dead} cookie đã hết hạn</span>`);
+    return chips.join("");
+  }
+
+  /* ================= 2. MÃ QR ================= */
+  const BANKS = [["MB", "MB Bank"], ["VCB", "Vietcombank"], ["TCB", "Techcombank"], ["ACB", "ACB"], ["BIDV", "BIDV"], ["ICB", "VietinBank"],
+    ["VPB", "VPBank"], ["TPB", "TPBank"], ["STB", "Sacombank"], ["VIB", "VIB"], ["MSB", "MSB"], ["SHB", "SHB"], ["OCB", "OCB"], ["HDB", "HDBank"]];
+  const vietQr = ({ bank, account, name, amount, note }) => {
+    const p = new URLSearchParams();
+    if (amount) p.set("amount", String(amount));
+    if (note) p.set("addInfo", note);
+    if (name) p.set("accountName", name);
+    return `https://img.vietqr.io/image/${encodeURIComponent(bank)}-${encodeURIComponent(account)}-compact2.png?${p}`;
+  };
+  const textQr = (text, size) => `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=12&data=${encodeURIComponent(text)}`;
+
+  /* ================= 3. VĂN BẢN ================= */
+  const noTone = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D");
+  const lines = (s) => s.split(/\r?\n/);
+  const TEXT_OPS = {
+    bodau: [noTone, "Bỏ dấu"],
+    upper: [(s) => s.toLocaleUpperCase("vi"), "CHỮ HOA"],
+    lower: [(s) => s.toLocaleLowerCase("vi"), "chữ thường"],
+    title: [(s) => s.toLocaleLowerCase("vi").replace(/(^|[\s\-_.,;:!?()"'])(\p{L})/gu, (m, a, b) => a + b.toLocaleUpperCase("vi")), "Viết Hoa Đầu Từ"],
+    slug: [(s) => noTone(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""), "Tạo slug"],
+    dedup: [(s) => [...new Set(lines(s).map((l) => l.trim()))].join("\n"), "Xoá dòng trùng"],
+    sort: [(s) => lines(s).sort((a, b) => a.localeCompare(b, "vi")).join("\n"), "Sắp xếp A-Z"],
+    blank: [(s) => lines(s).filter((l) => l.trim()).join("\n"), "Xoá dòng trống"],
+    join: [(s) => lines(s).map((l) => l.trim()).filter(Boolean).join(", "), "Gộp thành một dòng"],
+  };
+
+  /* ================= 4. TÀI KHOẢN + MẬT KHẨU NGẪU NHIÊN ================= */
+  const SETS = { lower: "abcdefghijkmnopqrstuvwxyz", upper: "ABCDEFGHJKLMNPQRSTUVWXYZ", digit: "23456789", sym: "!@#$%^&*()-_=+?" };
+  const FULL = { lower: "abcdefghijklmnopqrstuvwxyz", upper: "ABCDEFGHIJKLMNOPQRSTUVWXYZ", digit: "0123456789", sym: SETS.sym };
+  function makePassword(len, use, clear) {
+    const src = clear ? SETS : FULL;
+    const kinds = Object.keys(use).filter((k) => use[k]);
+    if (!kinds.length) throw new Error("Chọn ít nhất một loại ký tự cho mật khẩu.");
+    if (len < kinds.length) len = kinds.length;
+    const pool = kinds.map((k) => src[k]).join("");
+    const chars = kinds.map((k) => src[k][rnd(src[k].length)]);
+    while (chars.length < len) chars.push(pool[rnd(pool.length)]);
+    return { pw: shuffle(chars).join(""), bits: Math.round(len * Math.log2(pool.length)) };
+  }
+  /* tên tài khoản: chữ thường + số, ký tự đầu luôn là chữ cái (hợp với đa số game / web) */
+  const UL = "abcdefghijklmnopqrstuvwxyz", UD = "0123456789";
+  function makeUsername(prefix, len) {
+    let u = prefix;
+    for (let i = 0; i < len; i++) {
+      const pool = i === 0 && !prefix ? UL : UL + UD;
+      u += pool[rnd(pool.length)];
+    }
+    return u;
+  }
+  const strength = (b) => (b < 40 ? ["Yếu", "bad"] : b < 60 ? ["Khá", ""] : b < 80 ? ["Mạnh", "ok"] : ["Rất mạnh", "ok"]);
+  const PW_MAX = 1000;
+  function makeAccounts(count, userLen, prefix, pwLen, use, clear, sep) {
+    const seen = new Set(), rows = [];
+    let bits = 0, guard = 0;
+    while (rows.length < count) {
+      if (++guard > count * 20) throw new Error("Không tạo đủ tên không trùng, hãy tăng độ dài tên tài khoản.");
+      const u = makeUsername(prefix, userLen);
+      if (seen.has(u)) continue;
+      seen.add(u);
+      const r = makePassword(pwLen, use, clear);
+      bits = r.bits;
+      rows.push(u + sep + r.pw);
+    }
+    return { text: rows.join("\n"), bits };
+  }
+  function saveTxt(text, name) {
+    const url = URL.createObjectURL(new Blob(["\uFEFF" + text.replace(/\n/g, "\r\n") + "\r\n"], { type: "text/plain;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = name; document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+  const stamp = () => { const d = new Date(), z = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}`; };
+
+  /* ================= 6. THỜI GIAN ================= */
+  const VN = "Asia/Ho_Chi_Minh";
+  const fmtVn = (ms) => new Date(ms).toLocaleString("vi-VN", { timeZone: VN, hour12: false, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  function relative(ms) {
+    const d = ms - Date.now(), a = Math.abs(d), days = Math.floor(a / 864e5), hrs = Math.floor((a % 864e5) / 36e5), min = Math.floor((a % 36e5) / 6e4);
+    const t = days ? `${days} ngày ${hrs} giờ` : hrs ? `${hrs} giờ ${min} phút` : `${min} phút`;
+    return d >= 0 ? `còn ${t}` : `đã qua ${t}`;
+  }
+  const vnLocalToMs = (v) => { const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(v); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) - 7 * 36e5 : NaN; };
+
+  /* ---------- giao diện ---------- */
+  const ic = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+  const TOOLS = [
+    { id: "mail", title: "Mail 5 phút", desc: "Email tạm thời tự xoá, nhận mã xác nhận", icon: ic('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>'), html: `
+      <p class="tl-note">Địa chỉ email dùng một lần, tự xoá sau 5 phút, để nhận mã xác nhận khi tạo tài khoản phụ. Ai biết địa chỉ đều đọc được thư, đừng dùng cho tài khoản quan trọng. Thư đi qua máy chủ của bạn và dịch vụ mail.tm.</p>
+      <div id="ml-start"><button class="primary" id="ml-new" type="button">Tạo email tạm</button></div>
+      <div id="ml-box" hidden>
+        <div class="tl-mailaddr"><code id="ml-addr"></code></div>
+        <div class="tl-chips"><span class="tl-chip" id="ml-left">Còn 05:00</span><span class="tl-chip" id="ml-count">0 thư</span></div>
+        <div class="row"><button class="primary" id="ml-copy" type="button">Sao chép địa chỉ</button><button id="ml-ext" type="button">+5 phút</button></div>
+        <div class="row"><button id="ml-new2" type="button">Địa chỉ mới</button><button class="danger" id="ml-del" type="button">Xoá ngay</button></div>
+        <div class="tl-maillist" id="ml-list"></div>
+        <div class="tl-mailview" id="ml-view" hidden></div>
+      </div>` },
+    { id: "maillong", title: "Mail 12h / 24h", desc: "Email có tài khoản và mật khẩu, tự xoá sau 12 hoặc 24 giờ", icon: ic('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>'), html: `
+      <p class="tl-note">Tạo email có <b>tên đăng nhập và mật khẩu</b>, dùng được 12 hoặc 24 giờ rồi tự xoá. Xem thư ngay trên web, hoặc đăng nhập tại mail.tm bằng chính địa chỉ và mật khẩu này. Ai biết mật khẩu đều đọc được thư, đừng dùng cho tài khoản quan trọng.</p>
+      <div class="seg row" id="lg-hours"><button class="primary" data-h="12" type="button">12 giờ</button><button data-h="24" type="button">24 giờ</button></div>
+      <div class="field"><label for="lg-name">Tên email (không bắt buộc)</label><input id="lg-name" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="để trống sẽ tạo ngẫu nhiên"></div>
+      <div class="field"><label for="lg-domain">Tên miền</label><select id="lg-domain"><option value="">Ngẫu nhiên</option></select></div>
+      <div class="field"><label for="lg-pass">Mật khẩu (không bắt buộc, 8 ký tự trở lên)</label><input id="lg-pass" type="text" autocomplete="off" spellcheck="false" placeholder="để trống sẽ tạo ngẫu nhiên"></div>
+      <button class="primary" id="lg-create" type="button">Tạo email</button>
+      <div class="tl-lgnew" id="lg-new" hidden></div>
+      <h4 class="tl-lgtitle">Hộp thư của bạn</h4>
+      <div id="lg-list"></div>` },
+    { id: "cookie", title: "Chuyển đổi cookie", desc: "Chuỗi ↔ JSON, kiểm tra UID và c_user, xs", icon: ic('<circle cx="12" cy="12" r="9"/><path d="M8.5 9h.01M15 8h.01M10 14.5h.01M15.5 14h.01M12.5 11.5h.01"/>'), html: `
+      <p class="tl-note">Xử lý ngay trên trình duyệt, cookie không gửi lên máy chủ.</p>
+      <div class="field"><label for="ck-in">Dán cookie (chuỗi hoặc JSON)</label><textarea id="ck-in" rows="5" spellcheck="false" placeholder="c_user=...; xs=...   hoặc   [{&quot;key&quot;:&quot;c_user&quot;,&quot;value&quot;:&quot;...&quot;}]"></textarea></div>
+      <div class="row"><button class="primary" id="ck-json" type="button">Sang JSON</button><button id="ck-str" type="button">Sang chuỗi</button><button id="ck-clr" type="button">Xoá</button></div>
+      <div class="tl-chips" id="ck-info"></div>
+      <div class="field"><label for="ck-out">Kết quả</label><textarea id="ck-out" rows="5" readonly spellcheck="false"></textarea></div>
+      <button id="ck-copy" type="button">Sao chép kết quả</button>` },
+    { id: "qr", title: "Tạo mã QR", desc: "Từ văn bản, liên kết hoặc thông tin chuyển khoản VietQR", icon: ic('<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h3v3h-3zM20 14v3M14 20h3M20 20h.01"/>'), html: `
+      <div class="seg row" id="qr-mode"><button class="primary" data-m="text" type="button">Văn bản / liên kết</button><button data-m="bank" type="button">Chuyển khoản</button></div>
+      <div id="qr-text">
+        <div class="field"><label for="qr-t">Nội dung</label><textarea id="qr-t" rows="3" placeholder="https://... hoặc bất kỳ văn bản nào"></textarea></div>
+        <div class="field"><label for="qr-size">Kích thước</label><select id="qr-size"><option value="240">Nhỏ (240)</option><option value="360" selected>Vừa (360)</option><option value="520">Lớn (520)</option></select></div>
+      </div>
+      <div id="qr-bank" hidden>
+        <div class="field"><label for="qb-bank">Ngân hàng</label><select id="qb-bank">${BANKS.map(([c, n]) => `<option value="${c}">${esc(n)}</option>`).join("")}</select></div>
+        <div class="field"><label for="qb-acc">Số tài khoản</label><input id="qb-acc" type="text" inputmode="numeric" autocomplete="off"></div>
+        <div class="field"><label for="qb-name">Tên chủ tài khoản (không bắt buộc)</label><input id="qb-name" type="text" autocomplete="off"></div>
+        <div class="field"><label for="qb-amt">Số tiền (không bắt buộc)</label><input id="qb-amt" type="text" inputmode="numeric" autocomplete="off"></div>
+        <div class="field"><label for="qb-note">Nội dung chuyển khoản (không bắt buộc)</label><input id="qb-note" type="text" autocomplete="off"></div>
+      </div>
+      <button class="primary" id="qr-go" type="button">Tạo mã QR</button>
+      <div class="tl-qrbox" id="qr-out" hidden><img id="qr-img" alt="Mã QR"><a id="qr-open" target="_blank" rel="noopener">Mở ảnh để lưu</a></div>
+      <p class="tl-note">Ảnh QR được tạo bởi dịch vụ bên ngoài (qrserver.com, vietqr.io) nên nội dung bạn nhập sẽ được gửi tới đó. Đừng nhập thông tin bí mật.</p>` },
+    { id: "text", title: "Xử lý văn bản", desc: "Bỏ dấu tiếng Việt, đổi kiểu chữ, slug, lọc dòng", icon: ic('<path d="M4 7V5h16v2M12 5v14M9 19h6"/>'), html: `
+      <div class="field"><label for="tx-in">Văn bản</label><textarea id="tx-in" rows="6" placeholder="Dán hoặc gõ văn bản ở đây"></textarea></div>
+      <div class="tl-stats" id="tx-stats">0 ký tự · 0 từ · 0 dòng</div>
+      <div class="tl-btns">${Object.entries(TEXT_OPS).map(([k, [, n]]) => `<button type="button" data-op="${k}">${esc(n)}</button>`).join("")}</div>
+      <div class="row"><button id="tx-undo" type="button">Hoàn tác</button><button id="tx-copy" type="button">Sao chép</button><button id="tx-clr" type="button">Xoá</button></div>` },
+    { id: "pass", title: "Tạo tài khoản + mật khẩu ngẫu nhiên", desc: "Tạo hàng loạt tài khoản và mật khẩu, xuất file .txt", icon: ic('<circle cx=\"8\" cy=\"15\" r=\"4\"/><path d=\"M11 12l9-9M16 7l3 3\"/>'), html: `
+      <p class="tl-note">Mỗi dòng một cặp <code>tài_khoản|mật_khẩu</code>, đúng định dạng ô nhập acc random của Shop acc nên có thể nạp thẳng file vừa tạo. Tên tài khoản gồm chữ thường và số, bắt đầu bằng chữ cái. Mọi thứ được tạo ngay trên trình duyệt, không gửi lên máy chủ.</p>
+      <div class="lc-grid sh-two">
+        <div class="field"><label for="pw-count">Số tài khoản (1 - ${PW_MAX})</label><input id="pw-count" type="text" inputmode="numeric" value="10"></div>
+        <div class="field"><label for="pw-prefix">Tiền tố (tuỳ chọn)</label><input id="pw-prefix" type="text" maxlength="12" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="vd: acc"></div>
+      </div>
+      <div class="field"><label for="pw-ulen">Độ dài phần ngẫu nhiên của tên: <b id="pw-ulenv">10</b></label><input id="pw-ulen" type="range" min="5" max="20" value="10"></div>
+      <div class="field"><label for="pw-len">Độ dài mật khẩu: <b id="pw-lenv">12</b></label><input id="pw-len" type="range" min="8" max="64" value="12"></div>
+      <label class="check"><input type="checkbox" id="pw-lower" checked> Chữ thường (a-z)</label>
+      <label class="check"><input type="checkbox" id="pw-upper" checked> Chữ hoa (A-Z)</label>
+      <label class="check"><input type="checkbox" id="pw-digit" checked> Số (0-9)</label>
+      <label class="check"><input type="checkbox" id="pw-sym"> Ký hiệu (!@#$...)</label>
+      <label class="check"><input type="checkbox" id="pw-clear"> Bỏ ký tự dễ nhầm (0 O 1 l I)</label>
+      <div class="field"><label for="pw-sep">Dấu ngăn giữa tài khoản và mật khẩu</label><select id="pw-sep"><option value="|">tài_khoản|mật_khẩu</option><option value=":">tài_khoản:mật_khẩu</option></select></div>
+      <div class="row"><button class="primary" id="pw-go" type="button">Tạo danh sách</button></div>
+      <div class="field"><label for="pw-out">Kết quả</label><textarea id="pw-out" rows="8" readonly spellcheck="false" placeholder="Bấm Tạo danh sách"></textarea></div>
+      <div class="tl-chips" id="pw-meter"></div>
+      <div class="row"><button id="pw-copy" type="button">Sao chép</button><button id="pw-save" type="button">Tải file .txt</button></div>` },
+    { id: "pick", title: "Chọn ngẫu nhiên / chia đội", desc: "Bốc thăm người trúng thưởng, chia đội đều nhau", icon: ic('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8.5 8.5h.01M15.5 8.5h.01M12 12h.01M8.5 15.5h.01M15.5 15.5h.01"/>'), html: `
+      <div class="field"><label for="pk-in">Danh sách (mỗi dòng hoặc cách nhau bằng dấu phẩy)</label><textarea id="pk-in" rows="5" placeholder="An&#10;Bình&#10;Chi"></textarea></div>
+      <div class="seg row" id="pk-mode"><button class="primary" data-m="pick" type="button">Chọn người</button><button data-m="team" type="button">Chia đội</button></div>
+      <div class="field"><label for="pk-n" id="pk-nl">Số người cần chọn</label><input id="pk-n" type="text" inputmode="numeric" value="1"></div>
+      <button class="primary" id="pk-go" type="button">Bắt đầu</button>
+      <div id="pk-out" class="tl-result" hidden></div>
+      <button id="pk-copy" type="button" hidden>Sao chép kết quả</button>` },
+    { id: "time", title: "Đổi thời gian", desc: "Timestamp ↔ ngày giờ Việt Nam, cộng thêm ngày", icon: ic('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'), html: `
+      <div class="field"><label for="tm-ts">Timestamp (giây hoặc mili giây)</label><input id="tm-ts" type="text" inputmode="numeric" placeholder="1700000000"></div>
+      <div class="field"><label for="tm-dt">Hoặc chọn ngày giờ (giờ Việt Nam)</label><input id="tm-dt" type="datetime-local"></div>
+      <div class="field"><label for="tm-add">Cộng thêm bao nhiêu ngày kể từ bây giờ</label><input id="tm-add" type="text" inputmode="numeric" placeholder="30"></div>
+      <div class="row"><button class="primary" id="tm-go" type="button">Chuyển đổi</button><button id="tm-now" type="button">Bây giờ</button></div>
+      <div class="tl-result" id="tm-out" hidden></div>` },
+  ];
+
+  const css = document.createElement("style");
+  css.textContent = `
+  .tl-hero{padding:1.2rem;border-radius:20px;border:1px solid var(--line);margin-bottom:1rem;background:linear-gradient(135deg,rgba(167,125,255,.16),rgba(232,64,122,.18)),var(--panel)}
+  .tl-hero h2{margin:0 0 .25rem;font-size:1.25rem}.tl-hero p{margin:0;color:var(--dim);font-size:.9rem;max-width:none}
+  details.tl-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;margin-bottom:.6rem;transition:border-color .3s,box-shadow .3s}
+  details.tl-card[open]{border-color:rgba(232,64,122,.4);box-shadow:0 14px 34px -24px var(--lamp)}
+  details.tl-card summary{display:flex;align-items:center;gap:.85rem;padding:.85rem 1rem;cursor:pointer;list-style:none}
+  details.tl-card summary::-webkit-details-marker{display:none}
+  .tl-ic{display:grid;place-items:center;flex:none;width:2.4rem;height:2.4rem;border-radius:12px;background:rgba(232,64,122,.14);box-shadow:inset 0 0 0 1px rgba(232,64,122,.3)}
+  .tl-ic svg{width:1.3rem;height:1.3rem;fill:none;stroke:var(--lamp);stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+  .tl-t{flex:1;min-width:0}.tl-t b{display:block}.tl-t small{display:block;color:var(--dim);font-size:.8rem;line-height:1.35}
+  .tl-chev{width:1.1rem;height:1.1rem;fill:none;stroke:var(--dim);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .3s var(--ease)}
+  details[open] .tl-chev{transform:rotate(180deg)}
+  .tl-body{padding:0 1rem 1rem;animation:in .35s var(--ease)}
+  .tl-body .row{margin:.55rem 0}.tl-body .seg{margin-bottom:.9rem}.tl-body input[type=range]{width:100%;accent-color:var(--lamp)}
+  .tl-note{font-size:.82rem;color:var(--dim);margin:.2rem 0 .8rem}
+  .tl-chips{display:flex;gap:.4rem;flex-wrap:wrap;margin:.2rem 0 .8rem}
+  .tl-chip{font-size:.78rem;padding:.15rem .6rem;border-radius:99px;border:1px solid var(--line);color:var(--dim)}
+  .tl-chip.ok{color:var(--ok);border-color:rgba(79,224,176,.5)}.tl-chip.bad{color:var(--alert);border-color:rgba(255,107,141,.5)}
+  .tl-stats{font-size:.82rem;color:var(--dim);margin:.4rem 0 .6rem}
+  .tl-btns{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.6rem}.tl-btns button{padding:.4rem .8rem;border-radius:99px;font-size:.85rem}
+  .tl-result{margin:.7rem 0;padding:.75rem .9rem;border-radius:12px;border:1px solid var(--line);background:var(--field);font:.92rem/1.6 ui-monospace,Menlo,monospace;word-break:break-all;white-space:pre-wrap}
+  .tl-result b{color:var(--lamp2)}
+  .tl-teams{display:grid;gap:.5rem;font-family:inherit;white-space:normal}.tl-teams div{padding:.5rem .7rem;border-radius:10px;background:var(--raised)}
+  .tl-qrbox{margin:1rem 0 .4rem;text-align:center}.tl-qrbox img{display:block;margin:0 auto .6rem;max-width:100%;border-radius:12px;background:#fff;padding:6px}
+  .tl-qrbox a{color:var(--lamp2)}
+  .tl-mailaddr code{display:block;padding:.75rem .85rem;margin:.2rem 0 .6rem;border-radius:12px;background:var(--field);border:1px solid var(--line);word-break:break-all;font-size:.95rem;color:var(--lamp2)}
+  .tl-maillist{display:grid;gap:.4rem;margin-top:.8rem}
+  .tl-maillist .tl-empty{padding:1rem;text-align:center;color:var(--dim);font-size:.9rem;border:1px dashed var(--line);border-radius:12px}
+  .tl-maillist button{display:block;width:100%;text-align:left;padding:.65rem .8rem;border-radius:12px;overflow:visible}
+  .tl-maillist button b{display:block;font-weight:600}.tl-maillist button small{display:block;color:var(--dim);font-size:.78rem;word-break:break-word}
+  .tl-maillist button.new{border-color:rgba(232,64,122,.55);box-shadow:0 0 0 3px rgba(232,64,122,.12)}
+  .tl-mailview{margin-top:.8rem;padding:.9rem;border-radius:14px;border:1px solid var(--line);background:var(--raised)}
+  .tl-mailview h4{margin:0 0 .15rem;font-size:1rem}.tl-mailview .tl-mf{color:var(--dim);font-size:.8rem;margin-bottom:.6rem;word-break:break-word}
+  .tl-codes{display:flex;gap:.5rem;flex-wrap:wrap;margin:.4rem 0}
+  .tl-code{font:700 1.3rem ui-monospace,Menlo,monospace;letter-spacing:.12em;padding:.5rem .9rem;border-radius:12px;color:#fff;background:var(--grad);border:0}
+  .tl-mailview pre{margin:.6rem 0;padding:.7rem;border-radius:10px;background:var(--field);white-space:pre-wrap;word-break:break-word;font:.85rem/1.55 inherit;max-height:16rem;overflow:auto}
+  .tl-links{display:grid;gap:.3rem;font-size:.82rem}.tl-links a{color:var(--lamp2);word-break:break-all}
+  .tl-lgtitle{margin:1.1rem 0 .2rem;font-size:.9rem;color:var(--lamp)}
+  .tl-lgnew{margin:.9rem 0 0;padding:.9rem;border-radius:14px;border:1px solid rgba(79,224,176,.5);background:rgba(79,224,176,.08)}
+  .tl-lgnew .tl-lgrow{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:.3rem 0}
+  .tl-lgcard{padding:.8rem;border:1px solid var(--line);border-radius:14px;background:var(--raised);margin-top:.6rem}
+  .tl-lgcard button,.tl-lgnew button{padding:.4rem .75rem;font-size:.82rem;border-radius:10px}
+  .tl-lgh,.tl-lgpw{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}.tl-lgpw{margin:.5rem 0}
+  .tl-lgh code,.tl-lgnew code{flex:1;min-width:0;word-break:break-all;color:var(--lamp2);font-size:.9rem}
+  .tl-lgpw code{flex:0 1 auto;min-width:9ch;word-break:break-all;color:var(--lamp2);font-size:.9rem}
+  .tl-lgl{color:var(--dim);font-size:.82rem}.tl-lgcard .row{margin:.5rem 0 0}
+  .tl-lgcard .tl-lgbox{margin-top:.6rem}.tl-lgcard a.btn-link{display:inline-flex;align-items:center;padding:.4rem .75rem;font-size:.82rem;border-radius:10px;border:1px solid var(--line);background:var(--raised);color:var(--paper);text-decoration:none}
+  .tl-win{animation:tlpop .35s var(--ease)}@keyframes tlpop{from{transform:scale(.92);opacity:.5}}`;
+  document.head.append(css);
+
+  const CHEV = '<svg class="tl-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>';
+  const panel = document.createElement("div");
+  panel.className = "tab";
+  panel.id = "tab-tools";
+  panel.hidden = true;
+  panel.innerHTML = `<section>
+    <div class="tl-hero"><h2>Công cụ tiện ích</h2><p>Các tiện ích nhỏ cho bạn dùng ngay, chạy trên trình duyệt và không lưu dữ liệu của bạn.</p></div>
+    ${TOOLS.map((t) => `<details class="tl-card" id="tl-${t.id}"><summary><span class="tl-ic">${t.icon}</span><span class="tl-t"><b>${esc(t.title)}</b><small>${esc(t.desc)}</small></span>${CHEV}</summary><div class="tl-body">${t.html}</div></details>`).join("")}
+  </section>`;
+  const after = document.getElementById("tab-plan");
+  if (after) after.after(panel); else (document.querySelector(".wrap") || document.body).append(panel);
+
+  const btn = document.createElement("button");
+  btn.dataset.tab = "tools";
+  btn.textContent = "Công cụ";
+  const profileBtn = tabs.querySelector('button[data-tab="profile"]');
+  if (profileBtn) profileBtn.before(btn); else (document.getElementById("tabStatsBtn") || document.getElementById("tabAdminBtn") || { before: (b) => tabs.append(b) }).before(btn);
+
+  /* ---------- hành vi từng công cụ ---------- */
+  // 1. cookie
+  const ckRun = (mode) => {
+    try {
+      const list = parseCookies(g("ck-in").value);
+      g("ck-out").value = mode === "json" ? cookieToJson(list) : cookieToString(list);
+      g("ck-info").innerHTML = cookieInfo(list);
+    } catch (e) { g("ck-out").value = ""; g("ck-info").innerHTML = `<span class="tl-chip bad">${esc(e.message)}</span>`; }
+  };
+  g("ck-json").onclick = () => ckRun("json");
+  g("ck-str").onclick = () => ckRun("str");
+  g("ck-copy").onclick = () => copyText(g("ck-out").value);
+  g("ck-clr").onclick = () => { g("ck-in").value = g("ck-out").value = ""; g("ck-info").innerHTML = ""; };
+
+  // 2. QR
+  let qrMode = "text";
+  g("qr-mode").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-m]"); if (!b) return;
+    qrMode = b.dataset.m;
+    g("qr-mode").querySelectorAll("button").forEach((x) => x.classList.toggle("primary", x === b));
+    g("qr-text").hidden = qrMode !== "text"; g("qr-bank").hidden = qrMode !== "bank"; g("qr-out").hidden = true;
+  });
+  g("qb-amt").addEventListener("input", (e) => { const n = num(e.target.value); e.target.value = n ? fmt(n) : ""; });
+  g("qr-go").onclick = () => {
+    let url;
+    if (qrMode === "text") {
+      const t = g("qr-t").value.trim();
+      if (!t) return toast("Nhập nội dung cần tạo mã QR.", "bad");
+      if (t.length > 1000) return toast("Nội dung quá dài (tối đa 1000 ký tự).", "bad");
+      url = textQr(t, g("qr-size").value);
+    } else {
+      const account = g("qb-acc").value.replace(/\s/g, "");
+      if (!/^\d{6,19}$/.test(account)) return toast("Số tài khoản gồm 6 đến 19 chữ số.", "bad");
+      url = vietQr({ bank: g("qb-bank").value, account, name: g("qb-name").value.trim(), amount: num(g("qb-amt").value) || "", note: g("qb-note").value.trim() });
+    }
+    g("qr-img").onerror = () => toast("Không tải được ảnh QR. Kiểm tra kết nối mạng.", "bad");
+    g("qr-img").src = url; g("qr-open").href = url; g("qr-out").hidden = false;
+  };
+
+  // 3. văn bản
+  const txIn = g("tx-in"), undo = [];
+  const txStats = () => {
+    const v = txIn.value, words = (v.match(/\S+/g) || []).length;
+    g("tx-stats").textContent = `${fmt(v.length)} ký tự · ${fmt(words)} từ · ${fmt(v ? lines(v).length : 0)} dòng`;
+  };
+  txIn.addEventListener("input", txStats);
+  panel.querySelector(".tl-btns").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-op]"); if (!b || !txIn.value) return;
+    undo.push(txIn.value); if (undo.length > 20) undo.shift();
+    txIn.value = TEXT_OPS[b.dataset.op][0](txIn.value); txStats();
+  });
+  g("tx-undo").onclick = () => { if (undo.length) { txIn.value = undo.pop(); txStats(); } };
+  g("tx-copy").onclick = () => copyText(txIn.value);
+  g("tx-clr").onclick = () => { if (txIn.value) undo.push(txIn.value); txIn.value = ""; txStats(); };
+
+  // 4. tài khoản + mật khẩu ngẫu nhiên
+  g("pw-len").addEventListener("input", () => (g("pw-lenv").textContent = g("pw-len").value));
+  g("pw-ulen").addEventListener("input", () => (g("pw-ulenv").textContent = g("pw-ulen").value));
+  g("pw-go").onclick = () => {
+    try {
+      const count = num(g("pw-count").value);
+      if (count < 1 || count > PW_MAX) throw new Error(`Số tài khoản từ 1 đến ${PW_MAX}.`);
+      const prefix = g("pw-prefix").value.trim().toLowerCase().replace(/[^a-z0-9._-]/g, "");
+      const r = makeAccounts(count, +g("pw-ulen").value, prefix, +g("pw-len").value,
+        { lower: g("pw-lower").checked, upper: g("pw-upper").checked, digit: g("pw-digit").checked, sym: g("pw-sym").checked },
+        g("pw-clear").checked, g("pw-sep").value);
+      const [label, cls] = strength(r.bits);
+      const out = g("pw-out");
+      out.value = r.text; out.scrollTop = 0;
+      out.classList.remove("tl-win"); void out.offsetWidth; out.classList.add("tl-win");
+      g("pw-meter").innerHTML = `<span class="tl-chip">${fmt(count)} tài khoản</span><span class="tl-chip ${cls}">Mật khẩu: ${label}</span><span class="tl-chip">${r.bits} bit</span>`;
+    } catch (e) { toast(e.message, "bad"); }
+  };
+  g("pw-copy").onclick = () => copyText(g("pw-out").value);
+  g("pw-save").onclick = () => {
+    const t = g("pw-out").value;
+    if (!t) return toast("Chưa có danh sách, hãy bấm Tạo danh sách trước.", "bad");
+    saveTxt(t, `taikhoan-${stamp()}-${t.split("\n").length}acc.txt`);
+    toast("Đã tạo file .txt.");
+  };
+
+  // 5. chọn ngẫu nhiên / chia đội
+  let pkMode = "pick", pkText = "";
+  const names = () => g("pk-in").value.split(/\r?\n|,/).map((s) => s.trim()).filter(Boolean);
+  g("pk-mode").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-m]"); if (!b) return;
+    pkMode = b.dataset.m;
+    g("pk-mode").querySelectorAll("button").forEach((x) => x.classList.toggle("primary", x === b));
+    g("pk-nl").textContent = pkMode === "pick" ? "Số người cần chọn" : "Số đội";
+    g("pk-n").value = pkMode === "pick" ? "1" : "2";
+  });
+  g("pk-go").onclick = () => {
+    const list = names(), n = num(g("pk-n").value), out = g("pk-out");
+    if (list.length < 2) return toast("Nhập ít nhất 2 tên.", "bad");
+    if (n < 1 || (pkMode === "pick" && n > list.length) || (pkMode === "team" && n > list.length)) return toast(pkMode === "pick" ? "Số người cần chọn lớn hơn danh sách." : "Số đội lớn hơn số người.", "bad");
+    const sh = shuffle(list);
+    if (pkMode === "pick") {
+      const win = sh.slice(0, n);
+      pkText = win.map((w, i) => `${i + 1}. ${w}`).join("\n");
+      out.className = "tl-result tl-win"; out.innerHTML = "Được chọn:<br>" + win.map((w, i) => `${i + 1}. <b>${esc(w)}</b>`).join("<br>");
+    } else {
+      const teams = Array.from({ length: n }, () => []);
+      sh.forEach((p, i) => teams[i % n].push(p));
+      pkText = teams.map((t, i) => `Đội ${i + 1}: ${t.join(", ")}`).join("\n");
+      out.className = "tl-result tl-win tl-teams"; out.innerHTML = teams.map((t, i) => `<div><b>Đội ${i + 1}</b> (${t.length}): ${t.map(esc).join(", ")}</div>`).join("");
+    }
+    out.hidden = false; g("pk-copy").hidden = false;
+  };
+  g("pk-copy").onclick = () => copyText(pkText);
+
+  // 6. thời gian
+  const tmShow = (ms, extra = "") => {
+    const out = g("tm-out");
+    out.hidden = false;
+    out.innerHTML = `Giờ Việt Nam: <b>${esc(fmtVn(ms))}</b> (${esc(relative(ms))})${extra}<br>Timestamp (giây): <b>${Math.floor(ms / 1000)}</b><br>Timestamp (mili giây): <b>${Math.floor(ms)}</b><br>UTC: ${esc(new Date(ms).toISOString())}`;
+  };
+  g("tm-go").onclick = () => {
+    const ts = g("tm-ts").value.trim(), dt = g("tm-dt").value, add = g("tm-add").value.trim();
+    if (ts) {
+      if (!/^\d{9,16}$/.test(ts)) return toast("Timestamp gồm 9 đến 16 chữ số.", "bad");
+      const ms = ts.length >= 13 ? Number(ts) : Number(ts) * 1000;
+      return tmShow(ms);
+    }
+    if (dt) { const ms = vnLocalToMs(dt); return Number.isNaN(ms) ? toast("Ngày giờ không hợp lệ.", "bad") : tmShow(ms); }
+    if (add) return tmShow(Date.now() + num(add) * 864e5, `<br>Sau ${fmt(num(add))} ngày kể từ bây giờ`);
+    toast("Nhập timestamp, chọn ngày giờ hoặc số ngày cần cộng.", "bad");
+  };
+  g("tm-now").onclick = () => { g("tm-ts").value = Math.floor(Date.now() / 1000); g("tm-dt").value = ""; g("tm-add").value = ""; tmShow(Date.now()); };
+
+  // 7. mail 5 phút (thư hiển thị bằng textContent, không bao giờ innerHTML)
+  const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const mmss = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  let mlExp = 0, mlClock = null, mlPoll = null, mlKnown = null;
+  const mlStop = () => { clearInterval(mlClock); clearInterval(mlPoll); mlClock = mlPoll = null; };
+  function mlReset(msg) {
+    mlStop(); mlKnown = null;
+    g("ml-box").hidden = true; g("ml-start").hidden = false; g("ml-view").hidden = true;
+    if (msg) toast(msg, "bad");
+  }
+  function mlTick() {
+    const s = Math.max(0, Math.round((mlExp - Date.now()) / 1000));
+    g("ml-left").textContent = "Còn " + mmss(s);
+    g("ml-left").className = "tl-chip" + (s < 60 ? " bad" : "");
+    if (s <= 0) mlReset("Hộp thư tạm đã hết hạn.");
+  }
+  function mlSetBox(b) {
+    mlExp = Date.now() + b.secondsLeft * 1000;
+    g("ml-addr").textContent = b.address;
+    g("ml-ext").hidden = !b.canExtend;
+    g("ml-ext").textContent = `+${b.ttlMinutes} phút`;
+    g("ml-start").hidden = true; g("ml-box").hidden = false;
+    if (!mlClock) mlClock = setInterval(mlTick, 1000);
+    if (!mlPoll) mlPoll = setInterval(() => mlFetch(false), 5000);
+    mlTick();
+  }
+  function mlList(msgs) {
+    g("ml-count").textContent = `${msgs.length} thư`;
+    const box = g("ml-list"); box.textContent = "";
+    const fresh = mlKnown ? msgs.filter((m) => !mlKnown.has(m.id)) : [];
+    if (fresh.length) toast(fresh.length === 1 ? "Có thư mới." : `Có ${fresh.length} thư mới.`);
+    if (!msgs.length) { box.append(mk("div", "tl-empty", "Đang chờ thư… Danh sách tự cập nhật mỗi 5 giây.")); }
+    msgs.forEach((m) => {
+      const b = mk("button", "tl-mrow" + (fresh.includes(m) ? " new" : "")); b.type = "button";
+      b.append(mk("b", "", m.subject), mk("small", "", `${m.name || m.from}${m.name && m.from ? " <" + m.from + ">" : ""}`));
+      b.onclick = () => mlOpen(m.id);
+      box.append(b);
+    });
+    mlKnown = new Set(msgs.map((m) => m.id));
+  }
+  async function mlFetch(force) {
+    if (!force && (document.hidden || !g("tl-mail").open || g("tab-tools").hidden)) return;
+    try { const d = await api("/tempmail/inbox"); mlSetBox(d.box); mlList(d.messages); }
+    catch (e) { if (/hết hạn|Chưa có hộp/.test(e.message)) mlReset(); else if (force) toast(e.message, "bad"); }
+  }
+  function renderMessage(v, m) {
+    v.textContent = ""; v.hidden = false;
+    v.append(mk("h4", "", m.subject), mk("div", "tl-mf", `${m.name ? m.name + " " : ""}${m.from}${m.createdAt ? " · " + fmtVn(Date.parse(m.createdAt)) : ""}`));
+    if (m.codes.length) {
+      const row = mk("div", "tl-codes");
+      m.codes.forEach((c) => { const b = mk("button", "tl-code", c); b.type = "button"; b.title = "Bấm để sao chép"; b.onclick = () => copyText(c); row.append(b); });
+      v.append(mk("div", "tl-note", "Mã xác nhận tìm thấy (bấm để sao chép):"), row);
+    }
+    v.append(mk("pre", "", m.text || "(thư không có nội dung chữ)"));
+    if (m.links.length) {
+      const ls = mk("div", "tl-links"); ls.append(mk("div", "tl-note", "Liên kết trong thư. Chỉ mở nếu bạn tin tưởng người gửi:"));
+      m.links.forEach((u) => { const a = mk("a", "", u); a.href = u; a.target = "_blank"; a.rel = "noopener noreferrer nofollow"; ls.append(a); });
+      v.append(ls);
+    }
+    const close = mk("button", "", "Đóng thư"); close.type = "button"; close.onclick = () => (v.hidden = true); v.append(close);
+    v.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+  async function mlOpen(id) {
+    try { const { message: m } = await api(`/tempmail/messages/${encodeURIComponent(id)}`); renderMessage(g("ml-view"), m); }
+    catch (e) { toast(e.message, "bad"); }
+  }
+  async function mlNew() {
+    const btn = g("ml-new"), btn2 = g("ml-new2"); btn.disabled = btn2.disabled = true;
+    try {
+      const d = await api("/tempmail/new", { method: "POST", body: "{}" });
+      mlKnown = null; g("ml-view").hidden = true; mlSetBox(d.box); await mlFetch(true);
+    } catch (e) { toast(e.message, "bad"); } finally { btn.disabled = btn2.disabled = false; }
+  }
+  g("ml-new").onclick = g("ml-new2").onclick = mlNew;
+  g("ml-copy").onclick = () => copyText(g("ml-addr").textContent);
+  g("ml-ext").onclick = async () => { try { const d = await api("/tempmail/extend", { method: "POST", body: "{}" }); mlSetBox(d.box); toast("Đã gia hạn thêm."); } catch (e) { toast(e.message, "bad"); } };
+  g("ml-del").onclick = async () => { try { await api("/tempmail", { method: "DELETE" }); } catch (_) {} mlReset(); toast("Đã xoá hộp thư tạm."); };
+  g("tl-mail").addEventListener("toggle", async () => {
+    if (!g("tl-mail").open || mlClock) return;
+    try { const d = await api("/tempmail"); if (d.box) { mlSetBox(d.box); await mlFetch(true); } } catch (_) {}
+  });
+
+  // 8. mail 12h / 24h (có tên đăng nhập + mật khẩu)
+  const hms = (s) => `${String(Math.floor(s / 3600)).padStart(2, "0")}:${mmss(s % 3600)}`;
+  let lgHours = 12, lgClock = null, lgInit = false;
+  const lgPolls = new Map();
+  const lgStopPolls = () => { lgPolls.forEach((x) => clearInterval(x)); lgPolls.clear(); };
+
+  g("lg-hours").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-h]"); if (!b) return;
+    lgHours = Number(b.dataset.h);
+    g("lg-hours").querySelectorAll("button").forEach((x) => x.classList.toggle("primary", x === b));
+  });
+
+  function lgCard(b) {
+    const c = mk("div", "tl-lgcard");
+    const head = mk("div", "tl-lgh"), cp = mk("button", "", "Sao chép"); cp.type = "button"; cp.onclick = () => copyText(b.address);
+    head.append(mk("code", "", b.address), cp);
+
+    let plain = null, shown = false;
+    const getPw = async () => (plain ??= (await api(`/tempmail/long/${b.id}/password`)).password);
+    const pwv = mk("code", "", "••••••••"), showBtn = mk("button", "", "Hiện"), cpp = mk("button", "", "Sao chép mật khẩu");
+    showBtn.type = cpp.type = "button";
+    showBtn.onclick = async () => { try { shown = !shown; pwv.textContent = shown ? await getPw() : "••••••••"; showBtn.textContent = shown ? "Ẩn" : "Hiện"; } catch (e) { shown = false; toast(e.message, "bad"); } };
+    cpp.onclick = async () => { try { copyText(await getPw()); } catch (e) { toast(e.message, "bad"); } };
+    const pw = mk("div", "tl-lgpw"); pw.append(mk("span", "tl-lgl", "Mật khẩu:"), pwv, showBtn, cpp);
+
+    const left = mk("span", "tl-chip"), count = mk("span", "tl-chip", "0 thư");
+    left.dataset.exp = String(Date.now() + b.secondsLeft * 1000);
+    const chips = mk("div", "tl-chips"); chips.append(mk("span", "tl-chip", `${b.hours} giờ`), left, count);
+
+    const open = mk("button", "primary", "Mở hộp thư"), login = mk("a", "btn-link", "Đăng nhập mail.tm"), del = mk("button", "danger", "Xoá");
+    open.type = del.type = "button"; login.href = "https://mail.tm"; login.target = "_blank"; login.rel = "noopener noreferrer";
+    const row = mk("div", "row"); row.append(open, login, del);
+
+    const box = mk("div", "tl-lgbox"), list = mk("div", "tl-maillist"), view = mk("div", "tl-mailview");
+    box.hidden = view.hidden = true; box.append(list, view);
+    let known = null;
+    const refresh = async () => {
+      try {
+        const d = await api(`/tempmail/long/${b.id}/inbox`);
+        count.textContent = `${d.messages.length} thư`;
+        const fresh = known ? d.messages.filter((m) => !known.has(m.id)) : [];
+        if (fresh.length) toast(fresh.length === 1 ? "Có thư mới." : `Có ${fresh.length} thư mới.`);
+        list.textContent = "";
+        if (!d.messages.length) list.append(mk("div", "tl-empty", "Chưa có thư. Danh sách tự cập nhật khi đang mở."));
+        d.messages.forEach((m) => {
+          const r = mk("button", "tl-mrow" + (fresh.includes(m) ? " new" : "")); r.type = "button";
+          r.append(mk("b", "", m.subject), mk("small", "", `${m.name || m.from}${m.name && m.from ? " <" + m.from + ">" : ""}`));
+          r.onclick = async () => { try { const { message } = await api(`/tempmail/long/${b.id}/messages/${encodeURIComponent(m.id)}`); renderMessage(view, message); } catch (e) { toast(e.message, "bad"); } };
+          list.append(r);
+        });
+        known = new Set(d.messages.map((m) => m.id));
+      } catch (e) { if (/Không tìm thấy/.test(e.message)) lgLoad(); }
+    };
+    open.onclick = () => {
+      box.hidden = !box.hidden;
+      open.textContent = box.hidden ? "Mở hộp thư" : "Đóng hộp thư";
+      clearInterval(lgPolls.get(b.id)); lgPolls.delete(b.id);
+      if (!box.hidden) { refresh(); lgPolls.set(b.id, setInterval(() => { if (!document.hidden && !g("tab-tools").hidden && g("tl-maillong").open) refresh(); }, 8000)); }
+    };
+    del.onclick = async () => {
+      if (!(await confirmBox("Hộp thư này và toàn bộ thư trong đó sẽ bị xoá.", { title: "Xoá hộp thư?", ok: "Xoá", cancel: "Giữ lại", danger: true }))) return;
+      try { await api(`/tempmail/long/${b.id}`, { method: "DELETE" }); toast("Đã xoá hộp thư."); lgLoad(); } catch (e) { toast(e.message, "bad"); }
+    };
+    c.append(head, pw, chips, row, box);
+    return c;
+  }
+
+  function lgTick() {
+    let expired = false;
+    document.querySelectorAll("#lg-list [data-exp]").forEach((el) => {
+      const s = Math.max(0, Math.round((Number(el.dataset.exp) - Date.now()) / 1000));
+      el.textContent = "Còn " + hms(s);
+      el.className = "tl-chip" + (s < 600 ? " bad" : "");
+      if (s <= 0) expired = true;
+    });
+    if (expired) lgLoad();
+  }
+  async function lgLoad() {
+    try {
+      const d = await api("/tempmail/long");
+      lgStopPolls();
+      const list = g("lg-list"); list.textContent = "";
+      if (!d.boxes.length) list.append(mk("div", "tl-empty", "Chưa có hộp thư 12h/24h nào còn hạn."));
+      d.boxes.forEach((b) => list.append(lgCard(b)));
+      lgTick();
+      if (!lgClock) lgClock = setInterval(lgTick, 1000);
+    } catch (e) { toast(e.message, "bad"); }
+  }
+  g("lg-create").onclick = async () => {
+    const btn = g("lg-create"); btn.disabled = true;
+    try {
+      const d = await api("/tempmail/long", { method: "POST", body: JSON.stringify({ hours: lgHours, name: g("lg-name").value, domain: g("lg-domain").value, password: g("lg-pass").value }) });
+      g("lg-name").value = g("lg-pass").value = "";
+      const n = g("lg-new"); n.textContent = ""; n.hidden = false;
+      const row = (label, val) => { const r = mk("div", "tl-lgrow"); r.append(mk("span", "tl-lgl", label), mk("code", "", val)); const b = mk("button", "", "Sao chép"); b.type = "button"; b.onclick = () => copyText(val); r.append(b); return r; };
+      const both = mk("button", "primary", "Sao chép cả hai"); both.type = "button"; both.onclick = () => copyText(`Email: ${d.box.address}\nMật khẩu: ${d.password}`);
+      n.append(mk("b", "", `Đã tạo email ${d.box.hours} giờ. Lưu lại thông tin đăng nhập:`), row("Email:", d.box.address), row("Mật khẩu:", d.password), both);
+      await lgLoad();
+    } catch (e) { toast(e.message, "bad"); } finally { btn.disabled = false; }
+  };
+  g("tl-maillong").addEventListener("toggle", async () => {
+    if (!g("tl-maillong").open) return;
+    if (!lgInit) {
+      lgInit = true;
+      try { const d = await api("/tempmail/domains"); g("lg-domain").append(...d.domains.map((x) => { const o = mk("option", "", x); o.value = x; return o; })); } catch (_) {}
+    }
+    lgLoad();
+  });
+
+  // mở thẳng bằng #tools (bots.js đã đổi hash trước khi file này nạp xong)
+  const baseShow = window.showTab;
+  const nav = performance.getEntriesByType("navigation")[0];
+  if ((nav ? new URL(nav.name).hash : location.hash) === "#tools") baseShow("tools");
+})();
