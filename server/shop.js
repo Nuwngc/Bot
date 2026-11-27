@@ -7,8 +7,9 @@
  *    chi nguoi VUA MUA (hoac xem lai don cua chinh minh) moi nhan duoc tk/mk.
  *  - Mua = 1 giao dich SQLite (BEGIN IMMEDIATE): kiem tra con hang -> tru coin -> danh dau da ban -> ghi don.
  *    Hai nguoi bam mua cung luc cung chi 1 nguoi duoc, khong ban trung 1 acc.
- *  - Acc random: admin dat 1 gia cho moi game; khach tra gia do va nhan 1 acc NGAU NHIEN trong kho random
- *    cua game (khach khong biet truoc la acc gi).
+ *  - Muc random (shop_pools): la 1 "hop" rieng, KHONG gan voi game: co ten, gia, anh banner. Admin them acc vao muc
+ *    bat cu luc nao; khach tra gia cua muc va nhan 1 acc NGAU NHIEN trong muc (khong biet truoc la acc gi).
+ *    Acc random luu game_id = game an '__random_pool__' (cot game_id bat buoc co), pool_id tro toi muc random.
  *  - Coin tieu o day ghi vao wallet_tx.kind = 'shop' (khong tinh vao bang xep hang nap).
  *  - QTV xem lai tk/mk da ma hoa: phai nhap KHOA XEM (bien moi truong SHOP_VIEW_KEY; neu chua dat thi dung APP_SECRET)
  *    de mo khoa 10 phut cho phien dang nhap do. Nhap sai 5 lan bi khoa 15 phut. Moi lan xem deu ghi vao shop_view_log.
@@ -64,6 +65,15 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS shop_orders_user ON shop_orders(user_id, id);
 
+  CREATE TABLE IF NOT EXISTS shop_pools (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT UNIQUE NOT NULL,
+    emoji      TEXT NOT NULL DEFAULT '🎲',
+    price      INTEGER NOT NULL DEFAULT 0,
+    image_url  TEXT,
+    active     INTEGER NOT NULL DEFAULT 1
+  );
+
   CREATE TABLE IF NOT EXISTS shop_view_log (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     admin_id   INTEGER NOT NULL,
@@ -85,6 +95,10 @@ if (!db.prepare("PRAGMA table_info(shop_games)").all().some((c) => c.name === "i
   db.exec("ALTER TABLE shop_games ADD COLUMN image_url TEXT");
 }
 
+// Acc random thuoc "muc random" (DB cu chua co cot nay)
+const poolColAdded = !db.prepare("PRAGMA table_info(shop_accounts)").all().some((c) => c.name === "pool_id");
+if (poolColAdded) db.exec("ALTER TABLE shop_accounts ADD COLUMN pool_id INTEGER REFERENCES shop_pools(id)");
+
 // Lan dau: tao san vai game pho bien, admin them / sua / xoa tuy y trong tab Shop acc
 if (db.prepare("SELECT COUNT(*) AS n FROM shop_games").get().n === 0) {
   const ins = db.prepare("INSERT INTO shop_games (name, emoji) VALUES (?, ?)");
@@ -101,6 +115,39 @@ const DUP_KEY = crypto.createHash("sha256").update("shop-dup:" + process.env.APP
 const dupHash = (gameId, username) =>
   crypto.createHmac("sha256", DUP_KEY).update(`${gameId}:${String(username).trim().toLowerCase()}`).digest("hex");
 
+// Game an dung cho acc trong muc random (cot game_id bat buoc co). Khong hien o dau ca.
+const RANDOM_GAME_NAME = "__random_pool__";
+db.prepare("INSERT OR IGNORE INTO shop_games (name, emoji, random_price, active) VALUES (?, '🎲', 0, 0)").run(RANDOM_GAME_NAME);
+const RANDOM_GAME = db.prepare("SELECT id FROM shop_games WHERE name = ?").get(RANDOM_GAME_NAME).id;
+// Chong them trung trong TOAN BO kho random (khong phan biet muc)
+const randDupHash = (username) => dupHash("random", username);
+
+/** Lan dau len ban co muc random: moi game dang co random thi doi thanh 1 muc "Random <ten game>" (giu gia, anh, acc). */
+if (poolColAdded) {
+  try {
+    const insPool = db.prepare("INSERT INTO shop_pools (name, emoji, price, image_url, active) VALUES (?, ?, ?, ?, ?)");
+    const setPool = db.prepare("UPDATE shop_accounts SET pool_id = ? WHERE game_id = ? AND kind = 'random'");
+    const taken = new Set(db.prepare("SELECT name FROM shop_pools").all().map((r) => r.name));
+    for (const g of db.prepare("SELECT * FROM shop_games WHERE name != ? ORDER BY id").all(RANDOM_GAME_NAME)) {
+      const has = db.prepare("SELECT COUNT(*) AS n FROM shop_accounts WHERE game_id = ? AND kind = 'random'").get(g.id).n;
+      if (!has && !(g.random_price > 0)) continue;
+      let name = `Random ${g.name}`;
+      while (taken.has(name)) name += " (2)";
+      taken.add(name);
+      const id = Number(insPool.run(name, g.emoji || "🎲", g.random_price || 0, g.image_url || null, g.active && g.random_price > 0 ? 1 : 0).lastInsertRowid);
+      setPool.run(id, g.id);
+    }
+    // doi ma bam chong trung sang kieu chung cho toan kho random
+    const upd = db.prepare("UPDATE shop_accounts SET dup_hash = ? WHERE id = ?");
+    for (const a of db.prepare("SELECT id, user_enc FROM shop_accounts WHERE kind = 'random'").all()) {
+      const u = decrypt(a.user_enc);
+      if (u == null) continue;
+      try { upd.run(randDupHash(u), a.id); } catch (_) { /* trung giua 2 game cu: giu ma cu */ }
+    }
+    console.log("[shop] da chuyen random theo game sang muc random");
+  } catch (e) { console.error("[shop] chuyen sang muc random loi:", e.message); }
+}
+
 const sq = {
   games: db.prepare("SELECT * FROM shop_games ORDER BY id"),
   game: db.prepare("SELECT * FROM shop_games WHERE id = ?"),
@@ -112,24 +159,34 @@ const sq = {
   stock: db.prepare(
     `SELECT game_id, kind, COUNT(*) AS n FROM shop_accounts WHERE status = 'available' GROUP BY game_id, kind`
   ),
-  // Anh dung lam banner cho the Random: anh cua acc random moi nhat con ban cua game do (co anh)
+  // Banner du phong cho muc random chua co anh: anh cua acc random moi nhat con ban trong muc (co anh)
   randomBanner: db.prepare(
-    `SELECT game_id, image_url, MAX(id) FROM shop_accounts
-      WHERE kind = 'random' AND status = 'available' AND image_url IS NOT NULL AND image_url != '' GROUP BY game_id`
+    `SELECT pool_id, image_url, MAX(id) FROM shop_accounts
+      WHERE kind = 'random' AND status = 'available' AND pool_id IS NOT NULL AND image_url IS NOT NULL AND image_url != '' GROUP BY pool_id`
   ),
-  soldByGame: db.prepare(`SELECT game_id, COUNT(*) AS n FROM shop_accounts WHERE status = 'sold' GROUP BY game_id`),
+  soldByGame: db.prepare(`SELECT game_id, COUNT(*) AS n FROM shop_accounts WHERE status = 'sold' AND kind = 'normal' GROUP BY game_id`),
+  pools: db.prepare("SELECT * FROM shop_pools ORDER BY id"),
+  pool: db.prepare("SELECT * FROM shop_pools WHERE id = ?"),
+  poolByName: db.prepare("SELECT id FROM shop_pools WHERE lower(name) = lower(?)"),
+  insPool: db.prepare("INSERT INTO shop_pools (name, emoji, price, image_url, active) VALUES (?, ?, ?, ?, ?)"),
+  updPool: db.prepare("UPDATE shop_pools SET name = ?, emoji = ?, price = ?, image_url = ?, active = ? WHERE id = ?"),
+  delPool: db.prepare("DELETE FROM shop_pools WHERE id = ?"),
+  poolAccCount: db.prepare("SELECT COUNT(*) AS n FROM shop_accounts WHERE pool_id = ?"),
+  poolStats: db.prepare("SELECT pool_id, status, COUNT(*) AS n FROM shop_accounts WHERE pool_id IS NOT NULL GROUP BY pool_id, status"),
   insImage: db.prepare("INSERT INTO shop_images (id, mime, data, size) VALUES (?, ?, ?, ?)"),
   image: db.prepare("SELECT mime, data FROM shop_images WHERE id = ?"),
   imageExists: db.prepare("SELECT 1 AS ok FROM shop_images WHERE id = ?"),
   delImage: db.prepare("DELETE FROM shop_images WHERE id = ?"),
   imageInUse: db.prepare(
-    `SELECT (SELECT COUNT(*) FROM shop_accounts WHERE image_url = ?) + (SELECT COUNT(*) FROM shop_games WHERE image_url = ?) AS n`
+    `SELECT (SELECT COUNT(*) FROM shop_accounts WHERE image_url = ?) + (SELECT COUNT(*) FROM shop_games WHERE image_url = ?)
+          + (SELECT COUNT(*) FROM shop_pools WHERE image_url = ?) AS n`
   ),
   sweepImages: db.prepare(
     `DELETE FROM shop_images
       WHERE created_at < datetime('now', '-1 hour')
         AND NOT EXISTS (SELECT 1 FROM shop_accounts WHERE image_url = '/api/shop/img/' || shop_images.id)
-        AND NOT EXISTS (SELECT 1 FROM shop_games WHERE image_url = '/api/shop/img/' || shop_images.id)`
+        AND NOT EXISTS (SELECT 1 FROM shop_games WHERE image_url = '/api/shop/img/' || shop_images.id)
+        AND NOT EXISTS (SELECT 1 FROM shop_pools WHERE image_url = '/api/shop/img/' || shop_images.id)`
   ),
   listNormal: db.prepare(
     `SELECT a.id, a.game_id, a.title, a.description, a.image_url, a.price
@@ -139,8 +196,8 @@ const sq = {
   ),
   acc: db.prepare("SELECT * FROM shop_accounts WHERE id = ?"),
   insAcc: db.prepare(
-    `INSERT INTO shop_accounts (game_id, kind, title, description, image_url, price, user_enc, pass_enc, extra_enc, dup_hash)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO shop_accounts (game_id, kind, title, description, image_url, price, user_enc, pass_enc, extra_enc, dup_hash, pool_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ),
   updAccMeta: db.prepare("UPDATE shop_accounts SET title = ?, description = ?, image_url = ?, price = ? WHERE id = ?"),
   updAccCred: db.prepare("UPDATE shop_accounts SET user_enc = ?, pass_enc = ?, extra_enc = ?, dup_hash = ? WHERE id = ?"),
@@ -149,9 +206,9 @@ const sq = {
   markSold: db.prepare(
     "UPDATE shop_accounts SET status = 'sold', buyer_id = ?, sold_at = datetime('now') WHERE id = ? AND status = 'available'"
   ),
-  randomCount: db.prepare("SELECT COUNT(*) AS n FROM shop_accounts WHERE game_id = ? AND kind = 'random' AND status = 'available'"),
+  randomCount: db.prepare("SELECT COUNT(*) AS n FROM shop_accounts WHERE pool_id = ? AND kind = 'random' AND status = 'available'"),
   randomAt: db.prepare(
-    "SELECT * FROM shop_accounts WHERE game_id = ? AND kind = 'random' AND status = 'available' ORDER BY id LIMIT 1 OFFSET ?"
+    "SELECT * FROM shop_accounts WHERE pool_id = ? AND kind = 'random' AND status = 'available' ORDER BY id LIMIT 1 OFFSET ?"
   ),
   insOrder: db.prepare(
     "INSERT INTO shop_orders (code, user_id, account_id, game_name, title, kind, price) VALUES (?, ?, ?, ?, ?, ?, ?)"
@@ -160,19 +217,20 @@ const sq = {
   orderByCode: db.prepare("SELECT id FROM shop_orders WHERE code = ?"),
   ordersByUser: db.prepare("SELECT id, code, game_name, title, kind, price, created_at FROM shop_orders WHERE user_id = ? ORDER BY id DESC LIMIT 100"),
   adminAccs: db.prepare(
-    `SELECT a.id, a.game_id, g.name AS game_name, a.kind, a.title, a.price, a.status, a.image_url, a.user_enc, a.created_at, a.sold_at, u.username AS buyer
-       FROM shop_accounts a JOIN shop_games g ON g.id = a.game_id LEFT JOIN users u ON u.id = a.buyer_id
+    `SELECT a.id, a.game_id, a.pool_id, CASE WHEN a.kind = 'random' AND p.name IS NOT NULL THEN p.name ELSE g.name END AS game_name,
+            a.kind, a.title, a.price, a.status, a.image_url, a.user_enc, a.created_at, a.sold_at, u.username AS buyer
+       FROM shop_accounts a JOIN shop_games g ON g.id = a.game_id LEFT JOIN shop_pools p ON p.id = a.pool_id LEFT JOIN users u ON u.id = a.buyer_id
       WHERE (? = '' OR a.status = ?) AND (? = 0 OR a.game_id = ?)
       ORDER BY a.id DESC LIMIT 200`
   ),
   revealById: db.prepare(
-    `SELECT a.*, g.name AS game_name, u.username AS buyer
-       FROM shop_accounts a JOIN shop_games g ON g.id = a.game_id LEFT JOIN users u ON u.id = a.buyer_id
+    `SELECT a.*, CASE WHEN a.kind = 'random' AND p.name IS NOT NULL THEN p.name ELSE g.name END AS game_name, u.username AS buyer
+       FROM shop_accounts a JOIN shop_games g ON g.id = a.game_id LEFT JOIN shop_pools p ON p.id = a.pool_id LEFT JOIN users u ON u.id = a.buyer_id
       WHERE a.id = ?`
   ),
   revealList: db.prepare(
-    `SELECT a.*, g.name AS game_name, u.username AS buyer
-       FROM shop_accounts a JOIN shop_games g ON g.id = a.game_id LEFT JOIN users u ON u.id = a.buyer_id
+    `SELECT a.*, CASE WHEN a.kind = 'random' AND p.name IS NOT NULL THEN p.name ELSE g.name END AS game_name, u.username AS buyer
+       FROM shop_accounts a JOIN shop_games g ON g.id = a.game_id LEFT JOIN shop_pools p ON p.id = a.pool_id LEFT JOIN users u ON u.id = a.buyer_id
       WHERE (? = '' OR a.status = ?) AND (? = 0 OR a.game_id = ?)
       ORDER BY a.id DESC LIMIT 200`
   ),
@@ -235,7 +293,7 @@ function saveImage(buf) {
 /** Anh khong con acc / game nao dung nua thi xoa khoi DB (goi sau khi doi / go / xoa anh). */
 function dropIfOrphan(url) {
   const m = url && IMG_PATH.exec(url);
-  if (m && sq.imageInUse.get(url, url).n === 0) sq.delImage.run(m[1]);
+  if (m && sq.imageInUse.get(url, url, url).n === 0) sq.delImage.run(m[1]);
 }
 
 // Anh tai len nhung khong gan vao acc / game nao (bo giua chung, dong form...) bi don sau 1 gio
@@ -335,8 +393,8 @@ function settle(user, a, game, price, kind, badIds) {
   const bal = wallet.balance(user.id);
   if (price > bal) throw new Error(`Số dư không đủ: cần ${fmt(price)} coin, ví đang có ${fmt(bal)}. Hãy nạp thêm ở tab Nạp tiền.`);
   const code = orderCode();
-  if (price > 0) wallet.credit(user.id, "shop", -price, code, `Mua acc ${game.name}${kind === "random" ? " (random)" : ""} · ${code}`);
-  const id = Number(sq.insOrder.run(code, user.id, a.id, game.name, kind === "random" ? `Acc random ${game.name}` : a.title, kind, price).lastInsertRowid);
+  if (price > 0) wallet.credit(user.id, "shop", -price, code, `${kind === "random" ? "Mua random" : "Mua acc"} ${game.name} · ${code}`);
+  const id = Number(sq.insOrder.run(code, user.id, a.id, kind === "random" ? "Random" : game.name, kind === "random" ? game.name : a.title, kind, price).lastInsertRowid);
   return { order: sq.orderById.get(id), creds, image: a.image_url || null };
 }
 
@@ -360,24 +418,24 @@ function buyNormal(user, accId) {
   return { order: { ...orderView(r.order), image: r.image }, credentials: r.creds, balance: wallet.balance(user.id) };
 }
 
-function buyRandom(user, gameId) {
+function buyRandom(user, poolId) {
   buyThrottle(user.id);
   const bad = [];
   let r;
   try {
-  r = wallet.tx(() => {
-    const game = sq.game.get(gameId);
-    if (!game || !game.active) throw new Error("Game này đang tạm đóng.");
-    if (!(game.random_price > 0)) throw new Error("Game này chưa mở mua acc random.");
-    for (let tries = 0; tries < 5; tries++) {
-      const n = sq.randomCount.get(game.id).n;
-      if (!n) throw new Error("Kho acc random của game này đã hết, quay lại sau nhé.");
-      const a = sq.randomAt.get(game.id, crypto.randomInt(n)); // ngau nhien that su (CSPRNG), khong doan truoc duoc
-      const res = settle(user, a, game, game.random_price, "random", bad);
-      if (!res.bad) return res;
-    }
-    throw new Error("Hệ thống đang kiểm tra kho acc, thử lại sau ít phút.");
-  });
+    r = wallet.tx(() => {
+      const pool = sq.pool.get(poolId);
+      if (!pool || !pool.active) throw new Error("Mục random này đang tạm đóng.");
+      if (!(pool.price > 0)) throw new Error("Mục random này chưa đặt giá.");
+      for (let tries = 0; tries < 5; tries++) {
+        const n = sq.randomCount.get(pool.id).n;
+        if (!n) throw new Error("Mục random này đã hết acc, quay lại sau nhé.");
+        const a = sq.randomAt.get(pool.id, crypto.randomInt(n)); // ngau nhien that su (CSPRNG), khong doan truoc duoc
+        const res = settle(user, a, pool, pool.price, "random", bad);
+        if (!res.bad) return res;
+      }
+      throw new Error("Hệ thống đang kiểm tra kho acc, thử lại sau ít phút.");
+    });
   } finally { hideBad(bad); }
   return { order: { ...orderView(r.order), image: r.image }, credentials: r.creds, balance: wallet.balance(user.id) };
 }
@@ -416,15 +474,21 @@ function register(router, auth) {
 
   router.get("/shop", (req, res) => {
     const stock = {};
-    for (const r of sq.stock.all()) (stock[r.game_id] ||= {})[r.kind] = r.n;
+    for (const r of sq.stock.all()) if (r.kind === "normal") stock[r.game_id] = r.n;
     const sold = Object.fromEntries(sq.soldByGame.all().map((r) => [r.game_id, r.n]));
-    const banner = Object.fromEntries(sq.randomBanner.all().map((r) => [r.game_id, r.image_url]));
+    const ps = {};
+    for (const r of sq.poolStats.all()) (ps[r.pool_id] ||= {})[r.status] = r.n;
+    const banner = Object.fromEntries(sq.randomBanner.all().map((r) => [r.pool_id, r.image_url]));
     res.json({
       balance: wallet.balance(req.user.id),
-      games: sq.games.all().filter((g) => g.active).map((g) => ({
+      games: sq.games.all().filter((g) => g.active && g.name !== RANDOM_GAME_NAME).map((g) => ({
         id: g.id, name: g.name, emoji: g.emoji, image: g.image_url || null,
-        randomPrice: g.random_price, randomStock: stock[g.id]?.random || 0, normalStock: stock[g.id]?.normal || 0,
-        sold: sold[g.id] || 0, randomImage: banner[g.id] || null,
+        normalStock: stock[g.id] || 0, sold: sold[g.id] || 0,
+      })),
+      // Muc random: anh banner do admin chon, chua co thi lay anh cua acc random con ban (khong lo anh tung acc ra ngoai ngoai banner nay)
+      pools: sq.pools.all().filter((p) => p.active && p.price > 0).map((p) => ({
+        id: p.id, name: p.name, emoji: p.emoji, image: p.image_url || banner[p.id] || null,
+        price: p.price, stock: ps[p.id]?.available || 0, sold: ps[p.id]?.sold || 0,
       })),
       accounts: sq.listNormal.all(),
     });
@@ -449,7 +513,7 @@ function register(router, auth) {
 
   router.post("/shop/random", (req, res) => {
     noStore(res);
-    try { res.json({ ok: true, ...buyRandom(req.user, Number(req.body?.game_id)) }); } catch (e) { fail(res, e); }
+    try { res.json({ ok: true, ...buyRandom(req.user, Number(req.body?.pool_id)) }); } catch (e) { fail(res, e); }
   });
 
   router.get("/shop/orders", (req, res) => {
@@ -479,15 +543,18 @@ function register(router, auth) {
       if (r.status === "available") s[r.kind] += r.n;
       else if (r.status === "sold") s.sold += r.n;
     }
+    const poolSt = {};
+    for (const r of sq.poolStats.all()) (poolSt[r.pool_id] ||= {})[r.status] = r.n;
     const totals = Object.fromEntries(sq.adminStats.all().map((r) => [r.status, r.n]));
     res.json({
-      games: sq.games.all().map((g) => ({ id: g.id, name: g.name, emoji: g.emoji, image_url: g.image_url || null, random_price: g.random_price, active: !!g.active, stock: stock[g.id] || { normal: 0, random: 0, sold: 0 } })),
+      games: sq.games.all().filter((g) => g.name !== RANDOM_GAME_NAME).map((g) => ({ id: g.id, name: g.name, emoji: g.emoji, image_url: g.image_url || null, active: !!g.active, stock: stock[g.id] || { normal: 0, random: 0, sold: 0 } })),
+      pools: sq.pools.all().map((p) => ({ id: p.id, name: p.name, emoji: p.emoji, image_url: p.image_url || null, price: p.price, active: !!p.active, stock: { available: poolSt[p.id]?.available || 0, sold: poolSt[p.id]?.sold || 0, hidden: poolSt[p.id]?.hidden || 0 } })),
       totals,
       // Danh sach chi hien tai khoan da che (ab***yz), KHONG tra mat khau
       accounts: sq.adminAccs.all(status, status, gameId, gameId).map((a) => {
         const u = decrypt(a.user_enc);
         return {
-          id: a.id, game_id: a.game_id, game_name: a.game_name, kind: a.kind, title: a.title, price: a.price, status: a.status, image_url: a.image_url || null,
+          id: a.id, game_id: a.game_id, pool_id: a.pool_id, game_name: a.game_name, kind: a.kind, title: a.title, price: a.price, status: a.status, image_url: a.image_url || null,
           masked: u == null ? "(lỗi giải mã)" : maskUser(u), created_at: a.created_at, sold_at: a.sold_at, buyer: a.buyer || null,
         };
       }),
@@ -501,7 +568,6 @@ function register(router, auth) {
       const name = clean(b.name, 40);
       if (!name) throw new Error("Thiếu tên game");
       const emoji = clean(b.emoji, 8) || "🎮";
-      const price = intIn(b.random_price, 0, 1e8, 0);
       const active = b.active === false || b.active === 0 ? 0 : 1;
       const same = sq.gameByName.get(name);
       if (b.id) {
@@ -509,11 +575,11 @@ function register(router, auth) {
         if (!g) throw new Error("Không tìm thấy game");
         if (same && same.id !== g.id) throw new Error("Đã có game trùng tên");
         const image = b.image_url === undefined ? g.image_url : cleanImage(b.image_url);
-        sq.updGame.run(name, emoji, price, active, image, g.id);
+        sq.updGame.run(name, emoji, g.random_price || 0, active, image, g.id);
         if (image !== g.image_url) dropIfOrphan(g.image_url);
       } else {
         if (same) throw new Error("Đã có game trùng tên");
-        sq.insGame.run(name, emoji, price, active, cleanImage(b.image_url));
+        sq.insGame.run(name, emoji, 0, active, cleanImage(b.image_url));
       }
       res.json({ ok: true });
     } catch (e) { fail(res, e); }
@@ -528,6 +594,42 @@ function register(router, auth) {
     res.json({ ok: true });
   });
 
+  /* ===== Muc random ===== */
+
+  router.post("/admin/shop/pools", auth.requireAdmin, (req, res) => {
+    try {
+      const b = req.body || {};
+      const name = clean(b.name, 40);
+      if (!name) throw new Error("Thiếu tên mục random");
+      const emoji = clean(b.emoji, 8) || "🎲";
+      const price = intIn(b.price, 0, 1e8, 0);
+      if (!price) throw new Error("Giá random từ 1 đến 100.000.000 coin");
+      const active = b.active === false || b.active === 0 ? 0 : 1;
+      const same = sq.poolByName.get(name);
+      if (b.id) {
+        const p = sq.pool.get(Number(b.id));
+        if (!p) throw new Error("Không tìm thấy mục random");
+        if (same && same.id !== p.id) throw new Error("Đã có mục random trùng tên");
+        const image = b.image_url === undefined ? p.image_url : cleanImage(b.image_url);
+        sq.updPool.run(name, emoji, price, image, active, p.id);
+        if (image !== p.image_url) dropIfOrphan(p.image_url);
+      } else {
+        if (same) throw new Error("Đã có mục random trùng tên");
+        sq.insPool.run(name, emoji, price, cleanImage(b.image_url), active);
+      }
+      res.json({ ok: true });
+    } catch (e) { fail(res, e); }
+  });
+
+  router.post("/admin/shop/pools/:id/delete", auth.requireAdmin, (req, res) => {
+    const id = Number(req.params.id);
+    if (sq.poolAccCount.get(id).n > 0) return res.status(400).json({ error: "Mục này còn acc (kể cả acc đã bán). Hãy tắt mục thay vì xoá." });
+    const p = sq.pool.get(id);
+    sq.delPool.run(id);
+    if (p) dropIfOrphan(p.image_url);
+    res.json({ ok: true });
+  });
+
   /** Admin gui anh truc tiep (body = file anh). Trinh duyet da nen nho ve toi da ~1280px truoc khi gui. */
   router.post("/admin/shop/upload", auth.requireAdmin, readImageBody, (req, res) => {
     noStore(res);
@@ -538,9 +640,11 @@ function register(router, auth) {
   router.post("/admin/shop/accounts", auth.requireAdmin, (req, res) => {
     try {
       const b = req.body || {};
-      const game = sq.game.get(Number(b.game_id));
-      if (!game) throw new Error("Hãy chọn game");
       const kind = b.kind === "random" ? "random" : "normal";
+      const pool = kind === "random" ? sq.pool.get(Number(b.pool_id)) : null;
+      if (kind === "random" && !pool) throw new Error("Hãy chọn mục random (tạo mục ở phần Mục random)");
+      const game = kind === "random" ? sq.game.get(RANDOM_GAME) : sq.game.get(Number(b.game_id));
+      if (!game || game.name === RANDOM_GAME_NAME && kind === "normal") throw new Error("Hãy chọn game");
       const title = clean(b.title, 80);
       if (kind === "normal" && !title) throw new Error("Acc thường cần có tiêu đề (vd: Rank Cao Thủ, 80 tướng, 150 skin)");
       const description = clean(b.description, 1000) || null;
@@ -556,9 +660,9 @@ function register(router, auth) {
       let added = 0, dup = 0;
       wallet.tx(() => {
         for (const it of items) {
-          const h = dupHash(game.id, it.user);
+          const h = kind === "random" ? randDupHash(it.user) : dupHash(game.id, it.user);
           try {
-            sq.insAcc.run(game.id, kind, title || `Acc random ${game.name}`, description, image, price, encrypt(it.user), encrypt(it.pass), encrypt(it.extra), h);
+            sq.insAcc.run(game.id, kind, title || "Acc random", description, image, price, encrypt(it.user), encrypt(it.pass), encrypt(it.extra), h, pool ? pool.id : null);
             added++;
           } catch (e) {
             if (/UNIQUE/i.test(e.message)) dup++; else throw e;
@@ -588,7 +692,7 @@ function register(router, auth) {
         const pass = clean(b.password, 200) || decrypt(a.pass_enc);
         if (!user || !pass) throw new Error("Thiếu tài khoản hoặc mật khẩu");
         const extra = b.extra === undefined ? decrypt(a.extra_enc) || "" : clean(b.extra, 500);
-        try { sq.updAccCred.run(encrypt(user), encrypt(pass), encrypt(extra), dupHash(a.game_id, user), a.id); }
+        try { sq.updAccCred.run(encrypt(user), encrypt(pass), encrypt(extra), a.kind === "random" ? randDupHash(user) : dupHash(a.game_id, user), a.id); }
         catch (e) { throw new Error(/UNIQUE/i.test(e.message) ? "Tài khoản này đã có trong kho" : e.message); }
       }
       if (b.status === "hidden" || b.status === "available") sq.setStatus.run(b.status, a.id);

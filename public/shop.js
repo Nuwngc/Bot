@@ -49,7 +49,7 @@
           <div class="sx-games" id="shGameGrid"><div class="empty loading">Đang tải…</div></div>
           <div id="shRandHome" hidden>
             <h3 class="sx-title">🎲 Mua Random</h3>
-            <div class="sx-games" id="shRandGrid"></div>
+            <div class="sx-rands" id="shRandGrid"></div>
           </div>
         </div>
 
@@ -59,7 +59,6 @@
             <h3 class="sx-title sm" id="shGameName"></h3>
           </div>
           <div class="sx-ghead" id="shGameHead"></div>
-          <div class="sx-rand" id="shRandom" hidden></div>
           <div class="sx-sort" id="shSort">
             <button type="button" class="sx-chip on" data-sort="new">Mới nhất</button>
             <button type="button" class="sx-chip" data-sort="asc">Giá thấp → cao</button>
@@ -90,7 +89,6 @@
         <div class="lc-grid">
           <div class="field"><label for="shGameName2">Tên game</label><input type="text" id="shGameName2" maxlength="40" placeholder="Liên Quân Mobile"></div>
           <div class="field"><label for="shGameEmoji">Biểu tượng</label><input type="text" id="shGameEmoji" maxlength="4" placeholder="🎮"></div>
-          <div class="field"><label for="shGamePrice">Giá random</label><input type="text" id="shGamePrice" inputmode="numeric" placeholder="0 = tắt"></div>
         </div>
         <div class="field"><label>Ảnh bìa game (hiện ở danh sách game, không bắt buộc)</label><div id="shGamePick"></div></div>
         <label class="lc-check"><input type="checkbox" id="shGameActive" checked> Đang mở bán</label>
@@ -100,12 +98,32 @@
         </div>
       </form>
 
+      <h3 class="sh-h3">Mục random</h3>
+      <p class="hint">Mỗi mục random là một “hộp” riêng, không thuộc game nào: có tên, giá và ảnh banner. Khách trả giá của mục để nhận 1 acc ngẫu nhiên trong mục. Thêm acc vào mục bất cứ lúc nào ở phần “Thêm acc lên kho”.</p>
+      <div class="users" id="shPoolAdmin"></div>
+      <form class="lc-card" id="shPoolForm" autocomplete="off">
+        <h3 id="shPoolTitle">Tạo mục random</h3>
+        <input type="hidden" id="shPoolId">
+        <div class="lc-grid">
+          <div class="field"><label for="shPoolName">Tên mục</label><input type="text" id="shPoolName" maxlength="40" placeholder="Random Liên Quân"></div>
+          <div class="field"><label for="shPoolEmoji">Biểu tượng</label><input type="text" id="shPoolEmoji" maxlength="4" placeholder="🎲"></div>
+          <div class="field"><label for="shPoolPrice">Giá (coin)</label><input type="text" id="shPoolPrice" inputmode="numeric" placeholder="10000"></div>
+        </div>
+        <div class="field"><label>Ảnh banner (hiện ở thẻ random, không bắt buộc; để trống thì lấy ảnh của acc random mới nhất)</label><div id="shPoolPick"></div></div>
+        <label class="lc-check"><input type="checkbox" id="shPoolActive" checked> Đang mở bán</label>
+        <div class="row">
+          <button type="submit" class="primary" id="shPoolSave">Lưu mục random</button>
+          <button type="button" id="shPoolCancel" hidden>Huỷ sửa</button>
+        </div>
+      </form>
+
       <h3 class="sh-h3">Thêm acc lên kho</h3>
       <form class="lc-card" id="shAccForm" autocomplete="off">
         <div class="lc-grid sh-two">
-          <div class="field"><label for="shAccGame">Game</label><select id="shAccGame"></select></div>
+          <div class="field" id="shGameSelBox"><label for="shAccGame">Game</label><select id="shAccGame"></select></div>
+          <div class="field" id="shPoolSelBox" hidden><label for="shAccPool">Mục random</label><select id="shAccPool"></select></div>
           <div class="field"><label for="shAccKind">Loại</label>
-            <select id="shAccKind"><option value="normal">Acc thường (có giá riêng)</option><option value="random">Acc random (kho random)</option></select>
+            <select id="shAccKind"><option value="normal">Acc thường (có giá riêng)</option><option value="random">Acc random (thêm vào mục random)</option></select>
           </div>
         </div>
         <div class="field" id="shTitleBox"><label for="shAccTitle">Tiêu đề</label><input type="text" id="shAccTitle" maxlength="80" placeholder="Rank Cao Thủ, 80 tướng, 150 skin"></div>
@@ -334,31 +352,34 @@
     ? `<img src="${esc(g.image)}" alt="" loading="lazy" referrerpolicy="no-referrer">`
     : `<i class="sx-emoji">${esc(g.emoji)}</i>`;
 
-  // Banner của thẻ Random: ảnh admin đã up cho acc random (nếu có), không có thì ảnh bìa game + xúc xắc
-  const rcover = (g) => (g.randomImage
-    ? `<span class="sx-cover sx-rcover real"><img src="${esc(g.randomImage)}" alt="" loading="lazy" referrerpolicy="no-referrer">`
-    : `<span class="sx-cover sx-rcover">${cover(g)}`);
+  // Banner thẻ Random: ảnh của mục (admin chọn, hoặc ảnh acc random mới nhất); chưa có ảnh thì nền tối + xúc xắc
+  const rcover = (p) => (p.image
+    ? `<span class="sx-cover sx-rcover real"><img src="${esc(p.image)}" alt="" loading="lazy" referrerpolicy="no-referrer">`
+    : `<span class="sx-cover sx-rcover">`);
 
   function renderHome() {
     $("shGameGrid").innerHTML = data.games.length
       ? data.games.map((g) => {
-          const live = g.normalStock + g.randomStock;
+          const live = g.normalStock;
           return `<div class="sx-game${live ? "" : " out"}" role="button" tabindex="0" data-game="${g.id}" aria-label="${esc(g.name)}">
-            <span class="sx-cover">${cover(g)}${g.randomPrice > 0 ? `<em class="sx-badge">🎲 Random</em>` : ""}</span>
+            <span class="sx-cover">${cover(g)}</span>
             <span class="sx-gname">${esc(g.name)}</span>
             <span class="sx-nums"><span>Đang bán: <b>${fmt(live)}</b></span><span>Đã bán: <b>${fmt(g.sold)}</b></span></span>
           </div>`;
         }).join("")
       : `<div class="empty">Shop chưa có game nào.</div>`;
 
-    const rg = data.games.filter((g) => g.randomPrice > 0);
+    const rg = data.pools || [];
     $("shRandHome").hidden = !rg.length;
-    $("shRandGrid").innerHTML = rg.map((g) => `
-      <div class="sx-game sx-rtile${g.randomStock ? "" : " out"}" role="button" tabindex="0" data-rgame="${g.id}" aria-label="Random ${esc(g.name)}">
-        ${rcover(g).replace("sx-rcover", "sx-rtcover")}<span class="sx-rveil"><i>🎲</i><b>Random</b></span><em class="sx-badge">🎲 Random</em></span>
-        <span class="sx-gname">Random ${esc(g.name)}</span>
-        <span class="sx-nums"><span>Còn: <b>${fmt(g.randomStock)}</b></span><span>Giá: <b>${fmt(g.randomPrice)}</b></span></span>
-        <span class="sx-rprice">${g.randomStock ? `Mở random · ${fmt(g.randomPrice)} coin` : "Tạm hết acc"}</span>
+    $("shRandGrid").innerHTML = rg.map((p) => `
+      <div class="sx-rand">
+        ${rcover(p)}<span class="sx-rveil"><i>🎲</i><b>Random</b></span><em class="sx-badge">${esc(p.emoji)} Random</em></span>
+        <div class="sx-rbody">
+          <h4>${esc(p.name)}</h4>
+          <p>${p.stock ? "Nhận ngẫu nhiên 1 acc trong mục này. Bạn không biết trước là acc gì và không chọn lại được." : "Mục này tạm hết acc, quay lại sau nhé."}</p>
+          <div class="sx-nums"><span>Còn lại: <b>${fmt(p.stock)}</b> acc</span><span>Đã bán: <b>${fmt(p.sold)}</b></span></div>
+          <button type="button" class="sx-btn gold lg" data-rand="${p.id}" ${p.stock ? "" : "disabled"}>🎲 Mở random · ${fmt(p.price)} coin</button>
+        </div>
       </div>`).join("");
   }
 
@@ -368,20 +389,7 @@
     $("shGameName").textContent = g.name;
     $("shGameHead").innerHTML = `
       <span class="sx-cover">${cover(g)}</span>
-      <div><b>${esc(g.name)}</b><small>Đang bán: ${fmt(g.normalStock + g.randomStock)} · Đã bán: ${fmt(g.sold)}</small></div>`;
-
-    const rnd = $("shRandom");
-    rnd.hidden = !(g.randomPrice > 0);
-    if (g.randomPrice > 0) {
-      rnd.innerHTML = `
-        ${rcover(g)}<span class="sx-rveil"><i>🎲</i><b>Random</b></span><em class="sx-badge">🎲 Random</em></span>
-        <div class="sx-rbody">
-          <h4>Random ${esc(g.name)}</h4>
-          <p>${g.randomStock ? "Nhận ngẫu nhiên 1 acc trong kho. Bạn không biết trước là acc gì và không chọn lại được." : "Kho random tạm hết acc, quay lại sau nhé."}</p>
-          <div class="sx-nums"><span>Còn lại: <b>${fmt(g.randomStock)}</b> acc</span><span>Đã bán: <b>${fmt(g.sold)}</b></span></div>
-          <button type="button" class="sx-btn gold lg" data-rand="${g.id}" ${g.randomStock ? "" : "disabled"}>🎲 Mở random · ${fmt(g.randomPrice)} coin</button>
-        </div>`;
-    }
+      <div><b>${esc(g.name)}</b><small>Đang bán: ${fmt(g.normalStock)} · Đã bán: ${fmt(g.sold)}</small></div>`;
 
     $("shSort").querySelectorAll("[data-sort]").forEach((b) => b.classList.toggle("on", b.dataset.sort === sortMode));
     const accs = data.accounts.filter((a) => a.game_id === g.id);
@@ -397,7 +405,7 @@
             <div class="sx-afoot"><span class="sx-price">${fmt(a.price)} <small>coin</small></span><button type="button" class="sx-btn" data-buy="${a.id}">Mua ngay</button></div>
           </div>
         </article>`).join("")
-      : `<div class="empty">Game này hiện chưa có acc thường nào đang bán${g.randomPrice > 0 ? ", bạn có thể thử mua random ở trên" : ""}.</div>`;
+      : `<div class="empty">Game này hiện chưa có acc nào đang bán.</div>`;
   }
 
   function renderView() {
@@ -409,7 +417,7 @@
 
   function render() {
     $("shBalance").textContent = fmt(data.balance);
-    $("shCount").textContent = fmt(data.accounts.length + data.games.reduce((s, g) => s + g.randomStock, 0));
+    $("shCount").textContent = fmt(data.accounts.length + (data.pools || []).reduce((s, p) => s + p.stock, 0));
     renderView();
   }
 
@@ -481,7 +489,7 @@
 
   const onActivate = (el, fn) => {
     el.addEventListener("click", fn);
-    el.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && e.target.closest("[data-game], [data-rgame]")) { e.preventDefault(); fn(e); } });
+    el.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && e.target.closest("[data-game]")) { e.preventDefault(); fn(e); } });
   };
   onActivate($("shGameGrid"), (e) => {
     const c = e.target.closest("[data-game]");
@@ -504,20 +512,16 @@
     if (ok) purchase("/shop/buy", { id: a.id }, b);
   });
 
-  async function buyRandomOf(gameId, el) {
-    const g = data.games.find((x) => x.id === Number(gameId));
-    if (!g) return;
-    if (!g.randomStock) return say("Kho random của game này tạm hết acc, quay lại sau nhé.", "bad");
-    const ok = await confirmBox(`Mở random ${g.name} với giá ${fmt(g.randomPrice)} coin? Bạn nhận 1 acc ngẫu nhiên và không chọn lại được.`, { title: "Mua acc random", ok: "Mở random" });
-    if (ok) purchase("/shop/random", { game_id: g.id }, el);
+  async function buyRandomOf(poolId, el) {
+    const p = (data.pools || []).find((x) => x.id === Number(poolId));
+    if (!p) return;
+    if (!p.stock) return say("Mục random này tạm hết acc, quay lại sau nhé.", "bad");
+    const ok = await confirmBox(`Mở “${p.name}” với giá ${fmt(p.price)} coin? Bạn nhận 1 acc ngẫu nhiên và không chọn lại được.`, { title: "Mua acc random", ok: "Mở random" });
+    if (ok) purchase("/shop/random", { pool_id: p.id }, el);
   }
-  $("shRandom").addEventListener("click", (e) => {
+  $("shRandGrid").addEventListener("click", (e) => {
     const b = e.target.closest("[data-rand]");
     if (b) buyRandomOf(b.dataset.rand, b);
-  });
-  onActivate($("shRandGrid"), (e) => {
-    const c = e.target.closest("[data-rgame]");
-    if (c) buyRandomOf(c.dataset.rgame, c);
   });
 
   $("shOrders").addEventListener("click", async (e) => {
@@ -546,13 +550,15 @@
 
   function syncKindForm() {
     const rnd = $("shAccKind").value === "random";
+    $("shGameSelBox").hidden = rnd;
+    $("shPoolSelBox").hidden = !rnd;
     $("shTitleBox").hidden = rnd;
     $("shPriceBox").hidden = rnd;
     $("shDescBox").hidden = rnd;
     $("shFileBox").hidden = !rnd;
     $("shImgLabel").textContent = rnd ? "Ảnh acc random (không bắt buộc)" : "Ảnh acc (không bắt buộc)";
     $("shImgHint").textContent = rnd
-      ? "Ảnh này dùng chung cho cả lô vừa thêm. Muốn mỗi acc một ảnh riêng, bấm nút “Ảnh” ở từng acc trong Kho acc. Người mua chỉ thấy ảnh sau khi mở random."
+      ? "Ảnh này dùng chung cho cả lô vừa thêm; muốn mỗi acc một ảnh riêng, bấm nút “Ảnh” ở từng acc trong Kho acc. Người mua chỉ thấy ảnh acc sau khi mở random (mục chưa có banner sẽ lấy ảnh acc mới nhất làm banner)."
       : "Chụp màn hình acc rồi chọn, kéo thả hoặc dán thẳng vào ô trên. Khách bấm vào ảnh để xem lớn.";
   }
   $("shAccKind").addEventListener("change", syncKindForm);
@@ -569,13 +575,26 @@
       <div class="user${g.active ? "" : " off"}">
         ${thumb(g.image_url, esc(g.emoji))}
         <span class="name">${esc(g.emoji)} ${esc(g.name)}</span>
-        <span class="tag">${fmt(g.stock.normal)} thường</span>
-        <span class="tag">${fmt(g.stock.random)} random</span>
-        <span class="tag ${g.random_price ? "ok" : "off"}">${g.random_price ? "Random " + fmt(g.random_price) : "Random tắt"}</span>
+        <span class="tag">${fmt(g.stock.normal)} acc thường</span>
         <span class="spacer"></span>
         <button type="button" data-gedit="${g.id}">Sửa</button>
         <button type="button" class="danger" data-gdel="${g.id}">Xoá</button>
       </div>`).join("") || `<div class="empty">Chưa có game nào.</div>`;
+
+    $("shPoolAdmin").innerHTML = (adm.pools || []).map((p) => `
+      <div class="user${p.active ? "" : " off"}">
+        ${thumb(p.image_url, esc(p.emoji))}
+        <span class="name">${esc(p.emoji)} ${esc(p.name)}</span>
+        <span class="tag ok">${fmt(p.price)} coin</span>
+        <span class="tag">${fmt(p.stock.available)} acc còn</span>
+        <span class="tag">${fmt(p.stock.sold)} đã bán</span>
+        <span class="spacer"></span>
+        <button type="button" data-pedit="${p.id}">Sửa</button>
+        <button type="button" class="danger" data-pdel="${p.id}">Xoá</button>
+      </div>`).join("") || `<div class="empty">Chưa có mục random nào. Tạo mục ở form bên dưới.</div>`;
+    const keepPool = $("shAccPool").value;
+    $("shAccPool").innerHTML = (adm.pools || []).map((p) => `<option value="${p.id}">${esc(p.emoji)} ${esc(p.name)}</option>`).join("");
+    if (keepPool) $("shAccPool").value = keepPool;
 
     const keep = $("shAccGame").value;
     $("shAccGame").innerHTML = adm.games.map((g) => `<option value="${g.id}">${esc(g.emoji)} ${esc(g.name)}</option>`).join("");
@@ -645,7 +664,6 @@
       $("shGameId").value = g.id;
       $("shGameName2").value = g.name;
       $("shGameEmoji").value = g.emoji;
-      $("shGamePrice").value = g.random_price || "";
       $("shGameActive").checked = g.active;
       gamePick.set(g.image_url);
       $("shGameTitle").textContent = `Sửa: ${g.name}`;
@@ -672,12 +690,68 @@
           id: $("shGameId").value || undefined,
           name: $("shGameName2").value,
           emoji: $("shGameEmoji").value,
-          random_price: num($("shGamePrice").value),
           active: $("shGameActive").checked,
           image_url: gamePick.get(),
         }),
       });
       say("Đã lưu game"); resetGame(); reload();
+    } catch (err) { say(err.message, "bad"); }
+    save.disabled = false;
+  });
+
+  /* Mục random */
+  const poolPick = imgPicker($("shPoolPick"), { hint: "Ảnh ngang 16:9 hoặc 4:3 trông đẹp nhất. Để trống thì lấy ảnh của acc random mới nhất trong mục." });
+  function resetPool() {
+    $("shPoolForm").reset();
+    $("shPoolId").value = "";
+    $("shPoolActive").checked = true;
+    poolPick.reset();
+    $("shPoolTitle").textContent = "Tạo mục random";
+    $("shPoolCancel").hidden = true;
+  }
+  $("shPoolCancel").addEventListener("click", resetPool);
+
+  $("shPoolAdmin").addEventListener("click", async (e) => {
+    const ed = e.target.closest("[data-pedit]");
+    const del = e.target.closest("[data-pdel]");
+    if (ed) {
+      const p = adm.pools.find((x) => x.id === Number(ed.dataset.pedit));
+      $("shPoolId").value = p.id;
+      $("shPoolName").value = p.name;
+      $("shPoolEmoji").value = p.emoji;
+      $("shPoolPrice").value = p.price || "";
+      $("shPoolActive").checked = p.active;
+      poolPick.set(p.image_url);
+      $("shPoolTitle").textContent = `Sửa: ${p.name}`;
+      $("shPoolCancel").hidden = false;
+      $("shPoolForm").scrollIntoView({ behavior: "smooth", block: "center" });
+    } else if (del) {
+      if (!(await confirmBox("Xoá mục random này? Chỉ xoá được khi mục chưa có acc nào.", { title: "Xoá mục random", ok: "Xoá", danger: true }))) return;
+      try {
+        await api(`/admin/shop/pools/${del.dataset.pdel}/delete`, { method: "POST", body: "{}" });
+        say("Đã xoá mục random"); resetPool(); reload();
+      } catch (err) { say(err.message, "bad"); }
+    }
+  });
+
+  $("shPoolForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (poolPick.busy) return say("Ảnh đang tải lên, đợi một chút nhé.", "bad");
+    const save = $("shPoolSave");
+    save.disabled = true;
+    try {
+      await api("/admin/shop/pools", {
+        method: "POST",
+        body: JSON.stringify({
+          id: $("shPoolId").value || undefined,
+          name: $("shPoolName").value,
+          emoji: $("shPoolEmoji").value,
+          price: num($("shPoolPrice").value),
+          active: $("shPoolActive").checked,
+          image_url: poolPick.get(),
+        }),
+      });
+      say("Đã lưu mục random"); resetPool(); reload();
     } catch (err) { say(err.message, "bad"); }
     save.disabled = false;
   });
@@ -758,8 +832,10 @@
       if (bad.length) return say(`Dòng ${bad.slice(0, 8).join(", ")}${bad.length > 8 ? "…" : ""} sai định dạng. Mỗi dòng: tài_khoản|mật_khẩu (hoặc tài_khoản:mật_khẩu)`, "bad");
     }
     const chunks = kind === "random" ? chunkLines(all) : [all];
+    if (kind === "random" && !$("shAccPool").value) return say("Hãy tạo mục random trước (phần Mục random), rồi chọn mục để thêm acc.", "bad");
     const base = {
       game_id: Number($("shAccGame").value),
+      pool_id: kind === "random" ? Number($("shAccPool").value) : undefined,
       kind,
       title: $("shAccTitle").value,
       price: num($("shAccPrice").value),
